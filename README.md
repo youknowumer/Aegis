@@ -66,7 +66,7 @@ python server/scripts/set_plan.py customer@example.com basic
 ## Tests
 
 ```
-cd server  && pip install pytest pytest-asyncio && pytest
+cd server  && pip install pytest httpx && pytest
 cd desktop && npm test
 ```
 
@@ -80,8 +80,8 @@ The server tests use a fake AI, so they cost nothing and need no API key.
 | `server/app/tools.py` | List of tools the AI can use (add new ones here) |
 | `server/app/hub.py` | Routes tool calls to the user's desktop app |
 | `server/app/main.py` | Accounts, memory API, websocket, static hosting |
-| `web/index.html` | Landing page (features, download button, links to sign in) |
-| `web/app.html` + `app.js` | The app itself: login/register, chat, voice, memory |
+| `index.html` | Landing page (features, download button, links to sign in) |
+| `app.html` + `app.js` | The app itself: login/register, chat, voice, memory |
 | `desktop/tools.js` | Everything the AI can do on the PC |
 | `desktop/main.js` | Electron window and secure connection to the server |
 

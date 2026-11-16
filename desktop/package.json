@@ -15,15 +15,26 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "electron": "^33.0.0",
-    "electron-builder": "^25.0.0"
+    "electron": "^45.3.3",
+    "electron-builder": "^26.18.0"
   },
   "build": {
     "appId": "com.yourcompany.aegis",
     "productName": "Aegis",
     "artifactName": "Aegis-Setup.${ext}",
-    "files": ["main.js", "preload.js", "tools.js", "offline.html", "package.json"],
-    "win": { "target": "nsis" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+    "files": [
+      "main.js",
+      "preload.js",
+      "tools.js",
+      "offline.html",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

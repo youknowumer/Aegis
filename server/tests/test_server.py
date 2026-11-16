@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
-os.environ["AEGIS_JWT_SECRET"] = "test-secret"
+os.environ["AEGIS_JWT_SECRET"] = "test-secret-test-secret-test-secret-0123456789"
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pytest  # noqa: E402

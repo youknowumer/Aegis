@@ -11,7 +11,10 @@ MAX_AGENT_STEPS = 12
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DB_PATH = os.environ.get("AEGIS_DB", str(BASE_DIR / "aegis.db"))
-WEB_DIR = Path(os.environ.get("AEGIS_WEB_DIR", BASE_DIR / "web"))
+# Frontend files live in the project root (index.html, app.html, ...). Only these are ever served,
+# so server code, the database and .env stay private. Set AEGIS_WEB_DIR to serve a separate folder instead.
+WEB_DIR = Path(os.environ.get("AEGIS_WEB_DIR", BASE_DIR))
+WEB_FILES = ("index.html", "app.html", "app.js", "landing.js", "landing.css", "style.css")
 DOWNLOADS_DIR = Path(os.environ.get("AEGIS_DOWNLOADS_DIR", BASE_DIR / "downloads"))
 
 JWT_SECRET = os.environ.get("AEGIS_JWT_SECRET", "")

@@ -9,7 +9,7 @@ import time
 from collections import defaultdict, deque
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -275,6 +275,17 @@ def create_app(client=None, db_path=None) -> FastAPI:
     # ---------- static files (must come last) ----------
     if settings.DOWNLOADS_DIR.exists():
         app.mount("/downloads", StaticFiles(directory=settings.DOWNLOADS_DIR), name="downloads")
-    if settings.WEB_DIR.exists():
+    if os.environ.get("AEGIS_WEB_DIR") and settings.WEB_DIR.exists():
         app.mount("/", StaticFiles(directory=settings.WEB_DIR, html=True), name="web")
+    else:
+        def serve(name):
+            def handler():
+                return FileResponse(settings.WEB_DIR / name)
+            return handler
+
+        for name in settings.WEB_FILES:
+            if (settings.WEB_DIR / name).is_file():
+                app.add_api_route("/" + name, serve(name), include_in_schema=False)
+        if (settings.WEB_DIR / "index.html").is_file():
+            app.add_api_route("/", serve("index.html"), include_in_schema=False)
     return app
