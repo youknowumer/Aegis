@@ -16,6 +16,7 @@ function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8"))
 
 const SERVER_URL = (process.env.AEGIS_SERVER || readJson(userFile("config.json")).serverUrl || DEFAULT_SERVER).replace(/\/+$/, "");
 const SERVER_ORIGIN = new URL(SERVER_URL).origin;
+const APP_URL = SERVER_URL + "/app.html"; // the desktop app opens the app screen, not the marketing page
 
 // ------------------------------------------------------------------ token storage (encrypted by the OS)
 function saveToken(token) {
@@ -123,11 +124,11 @@ function createWindow() {
     if (isMainFrame && code !== -3) win.loadFile(path.join(__dirname, "offline.html"), { query: { server: SERVER_URL } });
   });
 
-  win.loadURL(SERVER_URL);
+  win.loadURL(APP_URL);
   win.on("closed", () => { win = null; });
 }
 
-ipcMain.handle("aegis:retry", () => { if (win) win.loadURL(SERVER_URL); });
+ipcMain.handle("aegis:retry", () => { if (win) win.loadURL(APP_URL); });
 
 // ------------------------------------------------------------------ lifecycle
 if (!app.requestSingleInstanceLock()) {

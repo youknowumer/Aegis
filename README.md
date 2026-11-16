@@ -24,7 +24,8 @@ set AEGIS_JWT_SECRET=<long random string>
 uvicorn app.main:create_app --factory --port 8000
 ```
 
-Open http://localhost:8000, create an account, chat. That is the web app.
+Open http://localhost:8000. You get the landing page (`index.html`); click **Get started** or **Sign in** to reach the app (`/app.html`, also `/app`).
+Create an account and chat. That is the web app.
 
 ## 2. Run the desktop app
 
@@ -79,7 +80,8 @@ The server tests use a fake AI, so they cost nothing and need no API key.
 | `server/app/tools.py` | List of tools the AI can use (add new ones here) |
 | `server/app/hub.py` | Routes tool calls to the user's desktop app |
 | `server/app/main.py` | Accounts, memory API, websocket, static hosting |
-| `web/` | The web app (plain HTML/CSS/JS, no build step) |
+| `web/index.html` | Landing page (features, download button, links to sign in) |
+| `web/app.html` + `app.js` | The app itself: login/register, chat, voice, memory |
 | `desktop/tools.js` | Everything the AI can do on the PC |
 | `desktop/main.js` | Electron window and secure connection to the server |
 

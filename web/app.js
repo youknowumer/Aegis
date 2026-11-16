@@ -40,6 +40,11 @@
     })
   );
 
+  // Landing page "Get started" opens /app.html?mode=register
+  if (new URLSearchParams(location.search).get("mode") === "register") {
+    document.querySelector('.tab[data-mode="register"]').click();
+  }
+
   $("auth-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = $("auth-submit");

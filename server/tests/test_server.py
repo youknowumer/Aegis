@@ -317,3 +317,18 @@ def test_failed_turn_does_not_corrupt_history(env):
         assert [m["role"] for m in msgs] == ["user"]  # failed turn fully rolled back
     finally:
         ws.__exit__(None, None, None)
+
+
+# ---------- pages ----------
+def test_landing_and_app_pages(env):
+    c = env.client
+    home = c.get("/")
+    assert home.status_code == 200 and "Get started" in home.text and "landing.js" in home.text
+    app_page = c.get("/app.html")
+    assert app_page.status_code == 200 and 'id="auth"' in app_page.text and 'id="composer"' in app_page.text
+    r = c.get("/app", follow_redirects=False)
+    assert r.status_code in (302, 307) and r.headers["location"] == "/app.html"
+    for f in ("/app.js", "/style.css", "/landing.css", "/landing.js"):
+        assert c.get(f).status_code == 200, f
+    # api routes must not be swallowed by the static mount
+    assert c.get("/api/config").json()["app_name"] == "Aegis"

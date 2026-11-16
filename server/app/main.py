@@ -9,6 +9,7 @@ import time
 from collections import defaultdict, deque
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -266,6 +267,10 @@ def create_app(client=None, db_path=None) -> FastAPI:
             for t in tasks:
                 t.cancel()
             hub.drop_chat(uid, ws)
+
+    @app.get("/app", include_in_schema=False)
+    def app_shortcut():
+        return RedirectResponse("/app.html")
 
     # ---------- static files (must come last) ----------
     if settings.DOWNLOADS_DIR.exists():
