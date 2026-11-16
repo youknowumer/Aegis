@@ -3,28 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#edf1f3">
-  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#eef2f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#07111a" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
   <title>Aegis | An AI assistant that works on your PC and asks first</title>
   <meta name="description" content="Aegis is an AI assistant for the web and Windows. Ask in English, Urdu or Hindi. It opens apps, sorts files and remembers what matters, and it always asks before anything risky.">
   <meta property="og:title" content="Aegis: an AI assistant that works on your PC and asks first">
   <meta property="og:description" content="Ask in English, Urdu or Hindi. Aegis does the work and asks before anything risky.">
   <meta property="og:type" content="website">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z' fill='%230b6e6e'/%3E%3Cpath d='M11 16l4 4 7-8' fill='none' stroke='%23fff' stroke-width='2.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z' fill='%230a7a78'/%3E%3Cpath d='M11 16l4 4 7-8' fill='none' stroke='%23fff' stroke-width='2.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <script>document.documentElement.classList.add("js");</script>
   <link rel="stylesheet" href="landing.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
+<div class="progress" id="progress" aria-hidden="true"></div>
 
-<header class="nav">
+<header class="nav" id="nav">
   <div class="wrap nav-in">
     <a class="brand" href="./" aria-label="Aegis home">
       <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z"/><path d="M11 16l4 4 7-8"/></svg>
       <span>Aegis</span>
     </a>
-    <nav class="links" aria-label="Main">
+    <nav class="links" aria-label="Main" id="links">
       <a href="#what">What it does</a>
       <a href="#control">Your control</a>
+      <a href="#how">How it works</a>
       <a href="#plans">Plans</a>
       <a href="#faq">Questions</a>
     </nav>
@@ -38,47 +42,74 @@
 <main id="main">
 
   <!-- ============ HERO ============ -->
-  <section class="hero wrap">
-    <div class="hero-copy">
-      <h1>Tell your PC what you need. Aegis does it, and asks before anything risky.</h1>
-      <p class="lead">An AI assistant for the web and Windows. Ask in English, Urdu or Hindi. It opens apps, sorts your folders and remembers what you tell it. Deleting, typing and shell commands always wait for your yes.</p>
-      <div class="hero-cta">
-        <a class="btn solid big" href="app.html?mode=register">Start free</a>
-        <a class="btn outline big" href="#download">Get the Windows app</a>
-      </div>
-      <p class="fine">Free plan: 15 messages a day. No card needed.</p>
+  <section class="hero-sec" id="top">
+    <div class="aurora" aria-hidden="true">
+      <i class="b1" data-speed="0.12"></i>
+      <i class="b2" data-speed="0.2"></i>
+      <i class="b3" data-speed="0.07"></i>
     </div>
 
-    <figure class="demo" id="demo" aria-label="Example of Aegis asking for approval before moving files">
-      <div class="demo-bar">
-        <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
-        <span class="demo-title">Aegis</span>
-        <span class="status"><span class="led" aria-hidden="true"></span>Desktop connected</span>
-      </div>
-      <div class="demo-body" id="demo-body" aria-live="polite">
-        <!-- filled by landing.js; the markup below is the no-JS fallback -->
-        <div class="bubble me" dir="auto">Organize my Downloads folder</div>
-        <div class="step">list_files · Downloads</div>
-        <div class="ask">
-          <p class="ask-title">Aegis wants to sort 23 files in Downloads</p>
-          <p class="ask-sub">Images, Documents, Videos, Audio, Archives, Other</p>
-          <div class="ask-actions"><button type="button" class="btn allow">Allow</button><button type="button" class="btn deny">Deny</button></div>
+    <div class="hero wrap">
+      <div class="hero-copy" id="hero-copy">
+        <h1>Tell your PC what you need. Aegis does it, and asks before anything risky.</h1>
+        <p class="lead">An AI assistant for the web and Windows. Ask in English, Urdu or Hindi. It opens apps, sorts your folders and remembers what you tell it. Deleting, typing and shell commands always wait for your yes.</p>
+        <div class="hero-cta">
+          <a class="btn solid big" href="app.html?mode=register">Start free</a>
+          <a class="btn glass big" href="#download">Get the Windows app</a>
         </div>
+        <p class="fine">Free plan: 15 messages a day. No card needed.</p>
       </div>
-      <figcaption class="demo-foot">
-        <span>Try the buttons. Nothing here touches your files.</span>
-        <button type="button" class="replay" id="replay" hidden>Play again</button>
-      </figcaption>
-    </figure>
+
+      <figure class="demo" id="demo" aria-label="Interactive example of Aegis working on a request">
+        <div class="demo-bar">
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="demo-title">Aegis</span>
+          <span class="status"><span class="led" aria-hidden="true"></span>Desktop connected</span>
+        </div>
+
+        <div class="seg" id="seg" role="tablist" aria-label="Choose an example" style="--i:0">
+          <span class="thumb" aria-hidden="true"></span>
+          <button type="button" role="tab" aria-selected="true">Files</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">Search</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">Memory</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1">PC health</button>
+        </div>
+
+        <div class="demo-body" id="demo-body" aria-live="polite">
+          <!-- filled by landing.js; this is the no-JS fallback -->
+          <div class="bubble me" dir="auto">Organize my Downloads folder</div>
+          <div class="step done"><span class="tick"></span><code>list_files</code><span class="arg">Downloads</span></div>
+          <div class="ask">
+            <p class="ask-title">Aegis wants to sort 23 files in Downloads</p>
+            <p class="ask-sub">Into Images, Documents, Videos, Audio, Archives</p>
+            <div class="ask-actions"><span class="btn allow">Allow</span><span class="btn deny">Deny</span></div>
+          </div>
+        </div>
+
+        <figcaption class="demo-foot">
+          <span>Example conversation. Nothing here touches your files.</span>
+          <button type="button" class="replay" id="replay" hidden>Play again</button>
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="wrap">
+      <dl class="stats" data-stagger>
+        <div><dt>Tools it can use</dt><dd><span data-count="18">18</span></dd></div>
+        <div><dt>Tools that wait for you</dt><dd><span data-count="8">8</span></dd></div>
+        <div><dt>Languages for voice</dt><dd><span data-count="3">3</span></dd></div>
+        <div><dt>Folders it can reach</dt><dd><span data-count="3">3</span></dd></div>
+      </dl>
+    </div>
   </section>
 
   <!-- ============ WHAT IT DOES ============ -->
   <section id="what" class="block wrap">
-    <div class="block-head">
+    <div class="block-head" data-reveal>
       <h2>Everything you would do by hand, said in one sentence</h2>
       <p>Aegis plans the steps and carries them out until the job is done. These are the real tools it has today.</p>
     </div>
-    <dl class="caps">
+    <dl class="caps" data-stagger>
       <div class="cap">
         <dt>Apps and websites</dt>
         <dd>Open Chrome, Notepad, Calculator or Spotify. Open any link. Search the web in your own browser.</dd>
@@ -114,12 +145,12 @@
   <!-- ============ CONTROL ============ -->
   <section id="control" class="band">
     <div class="wrap">
-      <div class="block-head light">
+      <div class="block-head light" data-reveal>
         <h2>It only acts alone where it cannot hurt you</h2>
         <p>Every tool is sorted by risk. Reading and opening happen straight away. Anything that changes or removes something stops and waits for you.</p>
       </div>
 
-      <div class="split">
+      <div class="split" data-stagger>
         <div class="col ok">
           <h3>Runs without asking</h3>
           <ul>
@@ -141,13 +172,17 @@
             <li>Run a shell command</li>
             <li>Forget a memory</li>
           </ul>
+          <p class="timeout">
+            <svg viewBox="0 0 36 36" aria-hidden="true"><circle class="ring-bg" cx="18" cy="18" r="15"/><circle class="ring" cx="18" cy="18" r="15" pathLength="100"/></svg>
+            <span>No answer within 60 seconds cancels the action.</span>
+          </p>
         </div>
       </div>
 
-      <ul class="proofs">
+      <ul class="proofs" data-stagger>
         <li><strong>Three folders only.</strong> File tools cannot leave Documents, Desktop and Downloads, even through shortcuts or symlinks.</li>
         <li><strong>No key on your PC.</strong> The AI key stays on the server. The desktop app never sees it.</li>
-        <li><strong>Silence means no.</strong> If you do not answer an approval within a minute, the action is cancelled.</li>
+        <li><strong>Declined means done.</strong> If you say no, Aegis does not retry that action.</li>
         <li><strong>Hashed passwords.</strong> Passwords are stored with scrypt, and repeated sign-in attempts are throttled.</li>
       </ul>
     </div>
@@ -155,10 +190,11 @@
 
   <!-- ============ HOW ============ -->
   <section id="how" class="block wrap">
-    <div class="block-head">
-      <h2>Working in three steps</h2>
+    <div class="block-head" data-reveal>
+      <h2>From your sentence to a finished job</h2>
+      <p>Start in the browser. Add the Windows app when you want Aegis to use your computer.</p>
     </div>
-    <ol class="steps">
+    <ol class="steps" id="steps" data-stagger>
       <li>
         <h3>Create an account</h3>
         <p>Use your email. The web app works immediately in any browser, on any device.</p>
@@ -172,40 +208,71 @@
         <p>Say it the way you would tell a person. Approve the risky steps. Aegis keeps going until it is done.</p>
       </li>
     </ol>
+
+    <h3 class="sub" data-reveal>What happens behind the scenes</h3>
+    <div class="arch" data-reveal>
+      <div class="arch-col">
+        <div class="node">
+          <b>Web app</b>
+          <span>Chat, voice and your memory panel. Runs in any browser.</span>
+        </div>
+        <div class="node pc">
+          <b>Desktop app</b>
+          <span>Runs the PC tools on your computer, only after you sign in.</span>
+          <em>On your PC</em>
+        </div>
+      </div>
+      <div class="link"><span>Your messages and tool results</span></div>
+      <div class="node server">
+        <b>Aegis server</b>
+        <ul>
+          <li>Accounts and sign-in</li>
+          <li>Memory and daily limits</li>
+          <li>Approval prompts</li>
+          <li>Holds the AI key</li>
+        </ul>
+      </div>
+      <div class="link"><span>Plan and tool calls</span></div>
+      <div class="node ai">
+        <b>Claude</b>
+        <span>Reads your request and decides which tool to use next.</span>
+      </div>
+    </div>
   </section>
 
   <!-- ============ PLANS ============ -->
-  <section id="plans" class="block wrap">
-    <div class="block-head">
+  <section id="plans" class="block wrap plans-sec">
+    <div class="aurora small" aria-hidden="true"><i class="b1" data-speed="-0.08"></i><i class="b2" data-speed="0.1"></i></div>
+    <div class="block-head" data-reveal>
       <h2>Start free, move up when you need more messages</h2>
       <p>Plans differ only by how many messages you can send each day. Every plan includes the web app, the Windows app and memory.</p>
     </div>
-    <div class="plans">
+    <div class="plans" data-stagger>
       <article class="plan">
         <h3>Free</h3>
-        <p class="num">15 <span>messages a day</span></p>
+        <p class="num"><span data-count="15">15</span> <small>messages a day</small></p>
         <p>For trying Aegis and everyday small jobs.</p>
-        <a class="btn outline" href="app.html?mode=register">Start free</a>
+        <a class="btn glass" href="app.html?mode=register">Start free</a>
       </article>
       <article class="plan feat">
         <h3>Basic</h3>
-        <p class="num">150 <span>messages a day</span></p>
+        <p class="num"><span data-count="150">150</span> <small>messages a day</small></p>
         <p>For daily use at work or study.</p>
         <a class="btn solid" href="app.html?mode=register">Create account first</a>
       </article>
       <article class="plan">
         <h3>Power</h3>
-        <p class="num">1,000 <span>messages a day</span></p>
+        <p class="num"><span data-count="1000" data-sep="1">1,000</span> <small>messages a day</small></p>
         <p>For long, multi-step automation days.</p>
-        <a class="btn outline" href="app.html?mode=register">Create account first</a>
+        <a class="btn glass" href="app.html?mode=register">Create account first</a>
       </article>
     </div>
-    <p class="fine">Paid plans are switched on for your account after payment. Create your free account first, then ask for an upgrade.</p>
+    <p class="fine" data-reveal>Paid plans are switched on for your account after payment. Create your free account first, then ask for an upgrade.</p>
   </section>
 
   <!-- ============ DOWNLOAD ============ -->
   <section id="download" class="wrap">
-    <div class="get">
+    <div class="get" data-reveal>
       <div>
         <h2>Use it in the browser, or give it your PC</h2>
         <p>The web app runs anywhere but cannot touch your computer. The Windows app adds PC control, with the same account and the same memory.</p>
@@ -213,36 +280,36 @@
       </div>
       <div class="get-actions">
         <a class="btn solid big" href="app.html">Open the web app</a>
-        <a id="dl-btn" class="btn outline big disabled" href="downloads/Aegis-Setup.exe" aria-disabled="true">Windows app is coming soon</a>
+        <a id="dl-btn" class="btn glass big disabled" href="downloads/Aegis-Setup.exe" aria-disabled="true">Windows app is coming soon</a>
       </div>
     </div>
   </section>
 
   <!-- ============ FAQ ============ -->
   <section id="faq" class="block wrap">
-    <div class="block-head">
+    <div class="block-head" data-reveal>
       <h2>Questions people ask first</h2>
     </div>
-    <div class="faq">
+    <div class="faq" data-reveal>
       <details>
         <summary>Can Aegis delete my files without me knowing?</summary>
-        <p>No. Writing, moving, deleting, typing and shell commands all show an Allow or Deny prompt first. If you decline, or do not answer, Aegis does not retry that action.</p>
+        <div class="ans"><p>No. Writing, moving, deleting, typing and shell commands all show an Allow or Deny prompt first. If you decline, or do not answer, Aegis does not retry that action.</p></div>
       </details>
       <details>
         <summary>Which parts of my computer can it reach?</summary>
-        <p>File tools only work inside Documents, Desktop and Downloads. Outside those folders the request is refused, including attempts through shortcuts.</p>
+        <div class="ans"><p>File tools only work inside Documents, Desktop and Downloads. Outside those folders the request is refused, including attempts through shortcuts.</p></div>
       </details>
       <details>
         <summary>Does it work on Mac or Linux?</summary>
-        <p>The web app works in any browser. PC control, meaning opening apps, typing and key presses, is Windows-only for now.</p>
+        <div class="ans"><p>The web app works in any browser. PC control, meaning opening apps, typing and key presses, is Windows-only for now.</p></div>
       </details>
       <details>
         <summary>What does it remember about me?</summary>
-        <p>Only facts you share or ask it to save. They appear in the memory panel, and you can delete any of them at any time.</p>
+        <div class="ans"><p>Only facts you share or ask it to save. They appear in the memory panel, and you can delete any of them at any time.</p></div>
       </details>
       <details>
         <summary>Which languages can I use?</summary>
-        <p>English, Urdu and Hindi for voice and text. Aegis answers in the language you write in.</p>
+        <div class="ans"><p>English, Urdu and Hindi for voice and text. Aegis answers in the language you write in.</p></div>
       </details>
     </div>
   </section>
@@ -262,6 +329,12 @@
     <p>© <span id="year">2026</span> Aegis. All rights reserved.</p>
   </div>
 </footer>
+
+<!-- frosted bar for phones, appears after the hero -->
+<div class="dock" id="dock" aria-hidden="true">
+  <a class="btn solid" href="app.html?mode=register" tabindex="-1">Start free</a>
+  <a class="btn glass" href="#download" tabindex="-1">Windows app</a>
+</div>
 
 <script src="landing.js"></script>
 </body>
