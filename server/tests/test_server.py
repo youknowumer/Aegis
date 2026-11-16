@@ -323,7 +323,7 @@ def test_failed_turn_does_not_corrupt_history(env):
 def test_landing_and_app_pages(env):
     c = env.client
     home = c.get("/")
-    assert home.status_code == 200 and "Get started" in home.text and "landing.js" in home.text
+    assert home.status_code == 200 and "Start free" in home.text and "landing.js" in home.text
     app_page = c.get("/app.html")
     assert app_page.status_code == 200 and 'id="auth"' in app_page.text and 'id="composer"' in app_page.text
     r = c.get("/app", follow_redirects=False)

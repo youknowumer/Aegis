@@ -177,7 +177,7 @@
   async function checkDownload() {
     if (desktop) return; // already in the desktop app
     try {
-      const r = await fetch("/downloads/Aegis-Setup.exe", { method: "HEAD" });
+      const r = await fetch("downloads/Aegis-Setup.exe", { method: "HEAD" });
       if (r.ok) $("download-link").classList.remove("hidden");
     } catch {}
   }
