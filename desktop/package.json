@@ -1,0 +1,29 @@
+{
+  "name": "aegis-desktop",
+  "version": "1.0.0",
+  "description": "Aegis desktop app: the window plus the PC-control tools",
+  "main": "main.js",
+  "author": "Your Name",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/tools.test.js",
+    "dist": "electron-builder --win nsis"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.yourcompany.aegis",
+    "productName": "Aegis",
+    "artifactName": "Aegis-Setup.${ext}",
+    "files": ["main.js", "preload.js", "tools.js", "offline.html", "package.json"],
+    "win": { "target": "nsis" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }
+  }
+}
