@@ -183,4 +183,12 @@
       toast("Conversation exported.");
     });
   });
+
+  // ------------------------------------------------------------ portrait phones: dismissible rotate hint
+  guard(() => {
+    const b = $("rotate-dismiss");
+    if (!b) return;
+    if (store.get("aegis_no_rotate") === "1") document.body.classList.add("no-rotate");
+    b.addEventListener("click", () => { document.body.classList.add("no-rotate"); store.set("aegis_no_rotate", "1"); });
+  });
 })();
