@@ -92,6 +92,9 @@
     </button>
     <div class="grow"></div>
     <button id="connect-btn" class="btn ghost small-btn tb-btn" type="button">Connect AI</button>
+    <button id="find-btn" class="icon-btn" type="button" aria-label="Search this conversation" title="Search conversation (Ctrl+Shift+F)">
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 6h16M4 12h8M4 18h6M17 17l3 3"/><circle cx="16" cy="15" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+    </button>
     <button id="help-btn" class="icon-btn" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
       <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8M12 17h.01"/></svg>
     </button>
@@ -136,6 +139,43 @@
       <p id="remind-empty" class="empty muted small">Say "remind me in 20 minutes to stretch".</p>
     </section>
 
+    <section class="blk focusbox" data-collapse="focus">
+      <div class="row blk-head">
+        <h3><svg class="h-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>Focus timer</h3>
+        <span id="focus-done" class="count tnum" title="Sessions completed today">0</span>
+      </div>
+      <div class="fx-body">
+        <div class="fx-ring" id="fx-ring" style="--p:0">
+          <span id="fx-time" class="tnum">25:00</span>
+          <small id="fx-mode">Focus</small>
+        </div>
+        <div class="fx-ctl">
+          <div class="row gap">
+            <button id="fx-start" class="btn primary small-btn" type="button">Start</button>
+            <button id="fx-reset" class="btn ghost small-btn" type="button">Reset</button>
+          </div>
+          <div class="fx-presets" role="group" aria-label="Timer length">
+            <button type="button" data-min="25" data-mode="Focus" class="active">25</button>
+            <button type="button" data-min="50" data-mode="Deep">50</button>
+            <button type="button" data-min="5" data-mode="Break">5</button>
+            <button type="button" data-min="15" data-mode="Long break">15</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="blk padbox" data-collapse="scratch">
+      <div class="row blk-head">
+        <h3><svg class="h-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4"/></svg>Scratchpad</h3>
+        <span id="pad-count" class="muted small tnum">0</span>
+      </div>
+      <textarea id="pad" class="pad" rows="4" placeholder="Jot something down. Saved on this device." aria-label="Scratchpad" maxlength="5000"></textarea>
+      <div class="row gap">
+        <button id="pad-send" class="btn ghost small-btn" type="button">Send to Aegis</button>
+        <button id="pad-clear" class="btn ghost small-btn" type="button">Clear</button>
+      </div>
+    </section>
+
     <section class="blk grow membox" data-collapse="memory">
       <div class="row blk-head">
         <h3><svg class="h-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0-3 11.2V17h6v-2.8A6 6 0 0 0 12 3zM10 20h4"/></svg>Memory</h3>
@@ -172,6 +212,15 @@
       <canvas id="orb" aria-hidden="true"></canvas>
       <div id="orb-label" class="orb-label" role="status">Offline</div>
     </section>
+
+    <div id="find-bar" class="find-bar hidden" role="search">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm10 2-4.3-4.3"/></svg>
+      <input id="find-input" placeholder="Search this conversation" aria-label="Search this conversation" autocomplete="off">
+      <span id="find-count" class="muted small tnum">0 / 0</span>
+      <button id="find-prev" class="icon-btn small" type="button" aria-label="Previous match">&uarr;</button>
+      <button id="find-next" class="icon-btn small" type="button" aria-label="Next match">&darr;</button>
+      <button id="find-close" class="icon-btn small" type="button" aria-label="Close search">&times;</button>
+    </div>
 
     <section id="messages" class="messages" aria-live="polite" aria-label="Conversation">
       <div id="welcome" class="welcome">
@@ -219,6 +268,9 @@
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M6 13l6 6 6-6"/></svg>
       <span>Latest</span>
     </button>
+
+    <ul id="slash-menu" class="slash-menu hidden" role="listbox" aria-label="Quick prompts"></ul>
+    <div id="drop-hint" class="drop-hint hidden" aria-hidden="true">Drop a text file to add it to your message</div>
 
     <div id="interim" class="interim" aria-live="off"></div>
 
@@ -370,6 +422,9 @@
     <div><dt><kbd>Enter</kbd></dt><dd>Send message</dd></div>
     <div><dt><kbd>Shift</kbd><kbd>Enter</kbd></dt><dd>New line</dd></div>
     <div><dt><kbd>Esc</kbd></dt><dd>Stop a reply or close a panel</dd></div>
+    <div><dt><kbd>/</kbd> + word</dt><dd>Quick prompts menu (e.g. /summarize)</dd></div>
+    <div><dt><kbd>&uarr;</kbd> <kbd>&darr;</kbd></dt><dd>Recall earlier messages in the box</dd></div>
+    <div><dt><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>F</kbd></dt><dd>Search this conversation</dd></div>
     <div><dt><kbd>?</kbd></dt><dd>Show this list</dd></div>
   </dl>
   <p class="muted small">Tip: click a panel title in the sidebar to fold it away. Your layout is remembered.</p>
@@ -417,5 +472,6 @@
 <script src="app.js"></script>
 <script src="hud.js"></script>
 <script src="ui-plus.js"></script>
+<script src="features.js"></script>
 </body>
 </html>

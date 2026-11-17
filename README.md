@@ -47,6 +47,17 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 - **Landing page**: light/dark toggle, interface preview, instant-commands section, capability icons, richer footer, back-to-top.
 - New file `ui-plus.js` holds all the extra UI behaviour; `app.js` logic is unchanged.
 
+## What's new in v3.1 (new features, all in `features.js`)
+
+- **Slash quick-prompts**: type `/` in the message box for /brief, /summarize, /translate, /explain, /email, /fix, /code, /plan, /remind, /timer, /focus, /find.
+- **Prompt history**: Up / Down in the empty box recalls your earlier messages.
+- **Regenerate** button on the latest answer.
+- **Conversation search** (`Ctrl Shift F` or the toolbar button) with match count and next/previous.
+- **Focus timer** (Pomodoro presets 25 / 50 / 5 / 15 min) with sound, notification and a daily session count.
+- **Scratchpad** saved on your device, with "Send to Aegis".
+- **Drop a text file** onto the chat to add its content to your message.
+- **Offline alert** banner; instant commands keep working.
+
 ## Voice and instant commands
 
 Typed or spoken (English, Roman Urdu, Urdu, Hindi), answered in the browser in milliseconds, free, no AI quota, and they
