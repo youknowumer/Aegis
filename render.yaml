@@ -1,0 +1,22 @@
+# One-click backend on Render: dashboard -> New -> Blueprint -> pick this repo.
+# NOTE: a persistent disk needs a paid instance type. On the free type the filesystem is wiped on every
+# restart/redeploy, which deletes accounts, memory and chat history (SQLite lives on that disk).
+services:
+  - type: web
+    name: aegis-server
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    disk:
+      name: aegis-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false            # you paste it in the Render dashboard, never in git
+      - key: AEGIS_JWT_SECRET
+        generateValue: true
+      - key: AEGIS_ALLOWED_ORIGINS
+        value: https://youknowumer.github.io   # <- your GitHub Pages origin (no /Aegis path, no trailing slash)
+      - key: AEGIS_WEB_SEARCH
+        value: "0"             # set to 1 after enabling web search in the Anthropic Console

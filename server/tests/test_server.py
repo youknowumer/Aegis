@@ -332,3 +332,148 @@ def test_landing_and_app_pages(env):
         assert c.get(f).status_code == 200, f
     # api routes must not be swallowed by the static mount
     assert c.get("/api/config").json()["app_name"] == "Aegis"
+
+
+# ---------- frontend on another site (GitHub Pages) ----------
+PAGES = "https://youknowumer.github.io"
+
+
+@pytest.fixture
+def cors_env(tmp_path):
+    fake = FakeClient()
+    app = create_app(client=fake, db_path=str(tmp_path / "c.db"), allowed_origins=[PAGES + "/"])
+    with TestClient(app) as client:
+        yield SimpleNamespace(client=client, fake=fake)
+
+
+def test_cors_preflight_and_headers_for_allowed_origin(cors_env):
+    c = cors_env.client
+    pre = c.options(
+        "/api/login",
+        headers={
+            "Origin": PAGES,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,authorization",
+        },
+    )
+    assert pre.status_code == 200
+    assert pre.headers["access-control-allow-origin"] == PAGES
+    r = c.post("/api/register", json={"email": "p@example.com", "password": "password123"}, headers={"Origin": PAGES})
+    assert r.status_code == 200 and r.headers["access-control-allow-origin"] == PAGES
+
+
+def test_cors_not_granted_to_other_sites(cors_env):
+    r = cors_env.client.get("/api/config", headers={"Origin": "https://evil.example"})
+    assert "access-control-allow-origin" not in r.headers
+
+
+def test_no_cors_headers_when_not_configured(env):
+    r = env.client.get("/api/config", headers={"Origin": PAGES})
+    assert "access-control-allow-origin" not in r.headers
+
+
+def test_ws_origin_check(cors_env):
+    c = cors_env.client
+    token = register(c)
+    # allowed website
+    with c.websocket_connect("/ws", headers={"Origin": PAGES}) as s:
+        s.send_json({"type": "auth", "token": token, "role": "chat"})
+        assert s.receive_json()["type"] == "hello"
+    # a random website cannot open the socket, even with a valid token
+    with c.websocket_connect("/ws", headers={"Origin": "https://evil.example"}) as s:
+        with pytest.raises(WebSocketDisconnect) as e:
+            s.send_json({"type": "auth", "token": token, "role": "chat"})
+            s.receive_json()
+        assert e.value.code == 4403
+    # no Origin header (the Electron desktop app) still works
+    with c.websocket_connect("/ws") as s:
+        s.send_json({"type": "auth", "token": token, "role": "device"})
+        assert s.receive_json()["type"] == "ready"
+
+
+# ---------- UI events ----------
+def test_tool_events_have_id_and_completion(env):
+    c, fake = env.client, env.fake
+    token = register(c)
+    fake.script = [resp(tool("t1", "current_time")), resp(text("It is time."))]
+    ws, s = connect(c, token)
+    try:
+        s.receive_json()
+        s.send_json({"type": "chat", "text": "time?"})
+        start = drain_until(s, "tool")
+        assert start["id"] == "t1" and start["name"] == "current_time" and start["risky"] is False
+        done = drain_until(s, "tool_done")
+        assert done["id"] == "t1" and done["ok"] is True
+        drain_until(s, "reply")
+    finally:
+        ws.__exit__(None, None, None)
+
+
+def test_declined_tool_reports_not_ok(env):
+    c, fake = env.client, env.fake
+    token = register(c)
+    dws, dev = connect(c, token, "device")
+    dev.receive_json()
+    fake.script = [resp(tool("d1", "delete_file", path="~/Documents/x")), resp(text("ok"))]
+    cws, chat = connect(c, token)
+    try:
+        chat.receive_json()
+        chat.send_json({"type": "chat", "text": "delete"})
+        start = drain_until(chat, "tool")
+        assert start["risky"] is True
+        conf = drain_until(chat, "confirm")
+        chat.send_json({"type": "confirm_response", "id": conf["id"], "ok": False})
+        assert drain_until(chat, "tool_done")["ok"] is False
+    finally:
+        cws.__exit__(None, None, None)
+        dws.__exit__(None, None, None)
+
+
+# ---------- web search (opt-in) ----------
+def test_web_search_tool_only_when_enabled(env, monkeypatch):
+    c, fake = env.client, env.fake
+    token = register(c)
+    monkeypatch.setattr(settings, "WEB_SEARCH", True)
+    fake.script = [resp(text("Rain in Lahore."))]
+    ws, s = connect(c, token)
+    try:
+        s.receive_json()
+        s.send_json({"type": "chat", "text": "weather in Lahore"})
+        drain_until(s, "reply")
+    finally:
+        ws.__exit__(None, None, None)
+    tools_sent = fake.calls[0]["tools"]
+    assert any(t.get("type") == "web_search_20250305" and t["name"] == "web_search" for t in tools_sent)
+    assert "search the web" in fake.calls[0]["system"]
+    # the device tool no longer shares the name with Anthropic's web_search
+    assert "browser_search" not in {t["name"] for t in tools_sent}  # no desktop connected here
+
+
+def test_pause_turn_continues_the_loop(env):
+    c, fake = env.client, env.fake
+    token = register(c)
+    paused = SimpleNamespace(content=[text("Searching...")], stop_reason="pause_turn")
+    fake.script = [paused, resp(text("Final answer."))]
+    ws, s = connect(c, token)
+    try:
+        s.receive_json()
+        s.send_json({"type": "chat", "text": "news"})
+        assert drain_until(s, "reply")["text"] == "Final answer."
+    finally:
+        ws.__exit__(None, None, None)
+    assert len(fake.calls) == 2
+
+
+def test_config_endpoint_reports_features(env):
+    j = env.client.get("/api/config").json()
+    assert j["app_name"] == "Aegis" and j["web_search"] is False
+
+
+def test_server_serves_all_frontend_files(env):
+    c = env.client
+    for name in ("config.js", "orb.js", "app.js", "style.css", "landing.js", "landing.css"):
+        r = c.get("/" + name)
+        assert r.status_code == 200, name
+    assert "AEGIS_CONFIG" in c.get("/config.js").text
+    for private in ("/server/app/main.py", "/aegis.db", "/.env", "/README.md"):
+        assert c.get(private).status_code == 404, private

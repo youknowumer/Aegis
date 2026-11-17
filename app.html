@@ -3,54 +3,80 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#070b12">
-  <title>Aegis | App</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2306b6d4'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23070b12'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#050912">
+  <meta name="color-scheme" content="dark">
+  <title>Aegis</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%2338d6f2' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%2338d6f2'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div class="bg-grid" aria-hidden="true"></div>
 
 <!-- ============ AUTH ============ -->
 <main id="auth" class="auth hidden">
-  <section class="auth-card">
-    <div class="brand"><span class="orb"></span><span class="app-name">Aegis</span></div>
-    <h1>Your AI assistant for web and PC.</h1>
-    <p class="muted">Talk or type. It plans, remembers, and gets things done.</p>
+  <section class="auth-card hud">
+    <div class="auth-orb" aria-hidden="true"><canvas id="auth-orb"></canvas></div>
+    <p class="eyebrow">Identify yourself</p>
+    <h1><span class="app-name">Aegis</span></h1>
+    <p class="muted">Your AI operating assistant for web and PC.</p>
 
     <div class="tabs" role="tablist">
-      <button class="tab active" data-mode="login" role="tab">Sign in</button>
-      <button class="tab" data-mode="register" role="tab">Create account</button>
+      <button class="tab active" data-mode="login" role="tab" type="button">Sign in</button>
+      <button class="tab" data-mode="register" role="tab" type="button">Create account</button>
     </div>
 
     <form id="auth-form" novalidate>
-      <label>Email<input id="email" type="email" autocomplete="email" required></label>
-      <label>Password<input id="password" type="password" autocomplete="current-password" minlength="8" required></label>
+      <label>Email<input id="email" type="email" autocomplete="email" inputmode="email" required></label>
+      <label>Password
+        <span class="pw">
+          <input id="password" type="password" autocomplete="current-password" minlength="8" required>
+          <button id="pw-toggle" class="pw-btn" type="button" aria-label="Show password">Show</button>
+        </span>
+      </label>
       <p id="auth-error" class="error" role="alert"></p>
       <button id="auth-submit" class="btn primary" type="submit">Sign in</button>
     </form>
-    <p class="muted small" style="text-align:center;margin:16px 0 0"><a href="./" style="color:inherit">&larr; Back to home</a></p>
+
+    <div class="auth-foot">
+      <span id="server-state" class="pill off" role="status">Checking server...</span>
+      <a href="./" class="muted small">&larr; Back to home</a>
+    </div>
+    <p id="config-warning" class="notice hidden"></p>
   </section>
 </main>
 
+<!-- ============ BOOT ============ -->
+<div id="boot" class="boot hidden" aria-hidden="true">
+  <div class="boot-box"><pre id="boot-text"></pre></div>
+</div>
+
 <!-- ============ APP ============ -->
 <div id="app" class="app hidden">
-  <aside id="sidebar" class="sidebar">
+  <header class="topbar hud">
+    <button id="menu-btn" class="icon-btn only-mobile" aria-label="Open systems panel">&#9776;</button>
     <div class="brand"><span class="orb"></span><span class="app-name">Aegis</span></div>
+    <span id="link-pill" class="pill off" role="status">Offline</span>
+    <div class="grow"></div>
+    <span id="clock" class="clock" aria-hidden="true"></span>
+    <button id="activity-btn" class="icon-btn only-mobile" aria-label="Open activity panel">&#9889;</button>
+  </header>
 
-    <div class="card">
-      <div class="row"><span class="label">Desktop app</span><span id="device-pill" class="pill off">Not connected</span></div>
-      <p id="device-hint" class="muted small">Connect the desktop app to let Aegis control your PC.</p>
+  <aside id="left" class="rail left" aria-label="Systems">
+    <div class="panel hud">
+      <h3 class="panel-title">Systems</h3>
+      <div class="row"><span class="label">PC link</span><span id="device-pill" class="pill off">Not connected</span></div>
+      <p id="device-hint" class="muted small">Install the desktop app to let Aegis control your PC.</p>
       <a id="download-link" class="btn ghost small-btn hidden" href="downloads/Aegis-Setup.exe">Download for Windows</a>
     </div>
 
-    <div class="card">
-      <div class="row"><span class="label">Today</span><span id="usage-text" class="muted small">0 / 0</span></div>
+    <div class="panel hud">
+      <div class="row"><h3 class="panel-title">Messages today</h3><span id="usage-text" class="muted small">0 / 0</span></div>
       <div class="meter"><div id="usage-bar"></div></div>
       <p class="muted small">Plan: <strong id="plan-name">free</strong></p>
     </div>
 
-    <div class="card grow">
-      <div class="row"><span class="label">Memory</span><span id="memory-count" class="muted small">0</span></div>
+    <div class="panel hud grow">
+      <div class="row"><h3 class="panel-title">Memory</h3><span id="memory-count" class="muted small">0</span></div>
       <ul id="memory-list" class="memory"></ul>
       <p id="memory-empty" class="muted small">Nothing yet. Say "remember that..." and it will show up here.</p>
     </div>
@@ -58,58 +84,97 @@
     <div class="side-actions">
       <span id="user-email" class="muted small"></span>
       <div class="row gap">
-        <button id="clear-btn" class="btn ghost small-btn">Clear chat</button>
-        <button id="logout-btn" class="btn ghost small-btn">Sign out</button>
+        <button id="clear-btn" class="btn ghost small-btn" type="button">Clear chat</button>
+        <button id="logout-btn" class="btn ghost small-btn" type="button">Sign out</button>
       </div>
     </div>
   </aside>
 
-  <section class="chat">
-    <header class="chat-head">
-      <button id="menu-btn" class="icon-btn menu" aria-label="Open menu">☰</button>
-      <div class="grow"></div>
-      <label class="inline">Voice language
-        <select id="lang">
+  <main id="stage" class="stage" data-state="offline" data-chat="0">
+    <section class="orb-zone" aria-label="Aegis status">
+      <canvas id="orb" aria-hidden="true"></canvas>
+      <div id="orb-label" class="orb-label" role="status">Offline</div>
+    </section>
+
+    <section id="messages" class="messages" aria-live="polite" aria-label="Conversation">
+      <div id="welcome" class="welcome">
+        <h2 id="greeting">How can I help?</h2>
+        <p class="muted">Type, tap the mic, or turn on Voice mode and just talk.</p>
+        <div class="suggest">
+          <button class="chip" type="button" data-q="Remember that my sister's birthday is on Friday">Remember something</button>
+          <button class="chip" type="button" data-q="What's the latest news today?">Latest news</button>
+          <button class="chip" type="button" data-q="Open Chrome and search for SpaceX launches">Open Chrome &amp; search</button>
+          <button class="chip" type="button" data-q="Organize my Downloads folder">Organize Downloads</button>
+          <button class="chip" type="button" data-q="Check my system health">Check my PC</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="interim" class="interim" aria-live="off"></div>
+
+    <form id="composer" class="composer hud">
+      <textarea id="input" rows="1" placeholder="Ask Aegis anything..." aria-label="Message"></textarea>
+      <button id="mic-btn" class="icon-btn" type="button" aria-label="Speak" title="Speak (push to talk)">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12z"/></svg>
+      </button>
+      <button id="send-btn" class="btn primary send" type="submit">Send</button>
+    </form>
+
+    <div class="toggles">
+      <label class="toggle"><input id="voice-mode" type="checkbox"><span>Voice mode</span></label>
+      <label class="toggle"><input id="wake" type="checkbox"><span>Say "Hey Aegis"</span></label>
+      <label class="toggle"><input id="speak" type="checkbox"><span>Read replies aloud</span></label>
+      <label class="toggle sel"><span>Language</span>
+        <select id="lang" aria-label="Voice language">
           <option value="en-US">English</option>
           <option value="ur-PK">اردو</option>
           <option value="hi-IN">हिन्दी</option>
         </select>
       </label>
-      <label class="inline check"><input id="speak" type="checkbox"> Read replies aloud</label>
-    </header>
+    </div>
+  </main>
 
-    <div id="messages" class="messages" aria-live="polite">
-      <div id="welcome" class="welcome">
-        <div class="orb big"></div>
-        <h2>How can I help?</h2>
-        <div class="suggest">
-          <button class="chip" data-q="Remember that my sister's birthday is on Friday">Remember something</button>
-          <button class="chip" data-q="Open Chrome and search for SpaceX launches">Open Chrome &amp; search</button>
-          <button class="chip" data-q="Organize my Downloads folder">Organize Downloads</button>
-          <button class="chip" data-q="Check my system health">Check my PC</button>
-        </div>
-      </div>
+  <aside id="right" class="rail right" aria-label="Activity">
+    <div class="panel hud grow">
+      <div class="row"><h3 class="panel-title">Activity</h3><span id="activity-count" class="muted small">0</span></div>
+      <ul id="activity" class="activity"></ul>
+      <p id="activity-empty" class="muted small">What Aegis does for you shows up here, step by step.</p>
     </div>
 
-    <form id="composer" class="composer">
-      <textarea id="input" rows="1" placeholder="Message Aegis..." aria-label="Message"></textarea>
-      <button id="mic-btn" class="icon-btn" type="button" aria-label="Speak" title="Speak">🎤</button>
-      <button id="send-btn" class="btn primary send" type="submit">Send</button>
-    </form>
-  </section>
+    <div class="panel hud">
+      <h3 class="panel-title">Quick commands</h3>
+      <div class="quick">
+        <button class="chip" type="button" data-q="Check my system health">PC health</button>
+        <button class="chip" type="button" data-q="Take a screenshot">Screenshot</button>
+        <button class="chip" type="button" data-q="List the files in my Downloads folder">List Downloads</button>
+        <button class="chip" type="button" data-q="Organize my Downloads folder">Organize Downloads</button>
+        <button class="chip" type="button" data-q="What do you remember about me?">What do you know?</button>
+        <button class="chip" type="button" data-q="What time is it?">Time</button>
+      </div>
+      <p class="muted small keys"><kbd>/</kbd> focus &nbsp; <kbd>Esc</kbd> stop talking</p>
+    </div>
+  </aside>
+  <div id="scrim" class="scrim hidden"></div>
 </div>
 
 <!-- ============ CONFIRM ============ -->
-<dialog id="confirm" class="confirm">
-  <h3>Allow this action?</h3>
+<dialog id="confirm" class="confirm hud">
+  <p class="eyebrow warn">Approval needed</p>
+  <h3 id="confirm-title">Allow this action?</h3>
+  <p id="confirm-why" class="muted small"></p>
   <p id="confirm-tool" class="tool-name"></p>
   <pre id="confirm-args"></pre>
+  <div class="countdown"><div id="confirm-timer"></div></div>
   <div class="row gap end">
     <button id="deny-btn" class="btn ghost" type="button">Deny</button>
     <button id="allow-btn" class="btn primary" type="button">Allow</button>
   </div>
 </dialog>
 
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script src="config.js"></script>
+<script src="orb.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

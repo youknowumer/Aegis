@@ -13,17 +13,21 @@ from .hub import Hub
 
 Emit = Callable[[dict], Awaitable[None]]
 
-SYSTEM = """You are {app}, a capable AI assistant that works for the user across the web and their Windows PC.
+SYSTEM = """You are {app}, a personal AI operating assistant in the spirit of JARVIS: calm, precise, quietly witty,
+and always one step ahead. You work for the user across the web and their Windows PC.
 
 How you work:
-- Break multi-step requests into tool calls and continue until the goal is done.
+- Break multi-step requests into tool calls and keep going until the goal is done. Do not ask for permission
+  to do harmless things (searching, reading, remembering); just do them and report briefly.
 - {device_line}
-- Use `remember` when the user shares something worth keeping, and `recall` when they ask about
-  their own life, preferences or earlier requests.
+- {search_line}
+- Use `remember` when the user shares something worth keeping (names, dates, preferences, projects), and
+  `recall` when they ask about their own life, preferences or earlier requests.
 - Some tools need the user's approval. If the user declines, do not retry that action.
 - Never delete, overwrite or send anything unless the user clearly asked for it.
-- Be concise: 1-3 sentences unless the user asks for detail.
-- Reply in the language the user writes in (English, Urdu, Hindi, ...).
+- Your replies are often read aloud: keep them short (1-3 sentences) unless the user asks for detail, avoid
+  tables and long lists, and say what you did, not what you are about to do.
+- Reply in the language the user writes in (English, Urdu, Hindi, Roman Urdu, ...).
 {memory_block}"""
 
 
@@ -78,7 +82,12 @@ class Agent:
             else "The user's desktop app is NOT connected. You cannot control their PC right now; "
             "if they ask for a PC action, tell them to open the Aegis desktop app. You can still chat, remember and recall."
         )
-        return SYSTEM.format(app=settings.APP_NAME, device_line=device_line, memory_block=block)
+        search_line = (
+            "You can search the web for current information (news, prices, weather, facts). Use it whenever the answer may have changed recently."
+            if settings.WEB_SEARCH
+            else "You have no live web access, so say so if asked for current news or prices."
+        )
+        return SYSTEM.format(app=settings.APP_NAME, device_line=device_line, search_line=search_line, memory_block=block)
 
     async def _run_server_tool(self, uid: int, name: str, args: dict) -> str:
         if name == "remember":
@@ -111,12 +120,14 @@ class Agent:
                     model=settings.MODEL,
                     max_tokens=settings.MAX_TOKENS,
                     system=self._system(uid, text, device),
-                    tools=tools.schemas(device),
+                    tools=tools.schemas(device, settings.WEB_SEARCH, settings.WEB_SEARCH_MAX_USES),
                     messages=sess.history,
                 )
                 sess.history.append({"role": "assistant", "content": resp.content})
 
                 uses = [b for b in resp.content if getattr(b, "type", "") == "tool_use"]
+                if not uses and getattr(resp, "stop_reason", None) == "pause_turn":
+                    continue  # the server-side web search needs another turn to finish
                 if not uses:
                     out = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
                     trim_history(sess.history)
@@ -136,15 +147,20 @@ class Agent:
         uid = sess.user_id
         tool = tools.BY_NAME.get(tu.name)
         args = tu.input if isinstance(tu.input, dict) else {}
-        await emit({"type": "tool", "name": tu.name, "args": args})
+        await emit({"type": "tool", "id": tu.id, "name": tu.name, "args": args, "risky": bool(tool and tool.risky)})
 
+        ok = True
         if tool is None:
-            out = f"Error: unknown tool {tu.name}"
+            out, ok = f"Error: unknown tool {tu.name}", False
         elif tool.risky and not await self.hub.ask_confirm(uid, sess.ws, tu.name, args):
-            out = "The user declined this action (or did not answer). Do not retry it."
+            out, ok = "The user declined this action (or did not answer). Do not retry it.", False
         elif tool.where == "server":
             out = await self._run_server_tool(uid, tu.name, args)
         else:
             out = await self.hub.call_device(uid, tu.name, args)
+        out = str(out)
+        if out.startswith("Error"):
+            ok = False
 
-        return {"type": "tool_result", "tool_use_id": tu.id, "content": str(out)[:6000]}
+        await emit({"type": "tool_done", "id": tu.id, "name": tu.name, "ok": ok})
+        return {"type": "tool_result", "tool_use_id": tu.id, "content": out[:6000]}

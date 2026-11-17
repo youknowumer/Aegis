@@ -36,7 +36,7 @@ TOOLS: List[Tool] = [
     # ---- desktop tools ----
     Tool("open_app", "Open a desktop application by name (chrome, notepad, calc, spotify...).", "device", {"name": S}, ["name"]),
     Tool("open_url", "Open a website in the user's default browser.", "device", {"url": S}, ["url"]),
-    Tool("web_search", "Run a web search in the user's browser.", "device", {"query": S}, ["query"]),
+    Tool("browser_search", "Open a web search results page in the user's own browser window.", "device", {"query": S}, ["query"]),
     Tool("system_health", "Report CPU, memory and disk status of the user's PC.", "device"),
     Tool("list_files", "List files in Documents, Desktop or Downloads (or a subfolder).", "device", {"folder": S}, ["folder"]),
     Tool("read_file", "Read a text file from Documents, Desktop or Downloads.", "device", {"path": S}, ["path"]),
@@ -53,5 +53,9 @@ TOOLS: List[Tool] = [
 BY_NAME = {t.name: t for t in TOOLS}
 
 
-def schemas(device_connected: bool):
-    return [t.schema() for t in TOOLS if device_connected or t.where == "server"]
+def schemas(device_connected: bool, web_search: bool = False, max_uses: int = 4):
+    out = [t.schema() for t in TOOLS if device_connected or t.where == "server"]
+    if web_search:
+        # Anthropic runs this one itself; the server never sees a tool_use for it.
+        out.append({"type": "web_search_20250305", "name": "web_search", "max_uses": max_uses})
+    return out

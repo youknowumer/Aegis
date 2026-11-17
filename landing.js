@@ -168,7 +168,7 @@
     },
     {
       user: "Open Chrome and search for SpaceX launches",
-      steps: [["open_app", "chrome", "Opened"], ["web_search", "SpaceX launches", "Done"]],
+      steps: [["open_app", "chrome", "Opened"], ["browser_search", "SpaceX launches", "Done"]],
       reply: "Done. I opened Chrome and searched for SpaceX launches.",
     },
     {

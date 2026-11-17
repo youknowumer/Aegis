@@ -14,8 +14,19 @@ DB_PATH = os.environ.get("AEGIS_DB", str(BASE_DIR / "aegis.db"))
 # Frontend files live in the project root (index.html, app.html, ...). Only these are ever served,
 # so server code, the database and .env stay private. Set AEGIS_WEB_DIR to serve a separate folder instead.
 WEB_DIR = Path(os.environ.get("AEGIS_WEB_DIR", BASE_DIR))
-WEB_FILES = ("index.html", "app.html", "app.js", "landing.js", "landing.css", "style.css")
+WEB_FILES = ("index.html", "app.html", "app.js", "orb.js", "config.js", "landing.js", "landing.css", "style.css")
 DOWNLOADS_DIR = Path(os.environ.get("AEGIS_DOWNLOADS_DIR", BASE_DIR / "downloads"))
+
+# Websites allowed to call this API from a browser (CORS) and to open its websocket.
+# Needed when the frontend is hosted elsewhere, e.g. GitHub Pages:
+#   AEGIS_ALLOWED_ORIGINS=https://youknowumer.github.io
+# Comma separated, no trailing slash, scheme + host only (no /repo-name path).
+ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in os.environ.get("AEGIS_ALLOWED_ORIGINS", "").split(",") if o.strip()]
+
+# Live web search for the AI (Anthropic's server-side tool). Off by default because it must be enabled
+# for your organization in the Anthropic Console first; set AEGIS_WEB_SEARCH=1 once it is.
+WEB_SEARCH = os.environ.get("AEGIS_WEB_SEARCH", "0") == "1"
+WEB_SEARCH_MAX_USES = int(os.environ.get("AEGIS_WEB_SEARCH_MAX_USES", "4"))
 
 JWT_SECRET = os.environ.get("AEGIS_JWT_SECRET", "")
 if not JWT_SECRET:

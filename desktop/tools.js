@@ -126,7 +126,7 @@ const impl = {
     return `Opened ${parsed.toString()}`;
   },
 
-  async web_search({ query }) {
+  async browser_search({ query }) {
     const { shell } = require("electron");
     if (!String(query || "").trim()) throw new Error("empty query");
     await shell.openExternal("https://www.google.com/search?q=" + encodeURIComponent(query));

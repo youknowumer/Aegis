@@ -8,7 +8,10 @@ import os
 import time
 from collections import defaultdict, deque
 
+from urllib.parse import urlparse
+
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -44,12 +47,32 @@ class LoginLimiter:
         q.append(now)
 
 
-def create_app(client=None, db_path=None) -> FastAPI:
+def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, docs_url=None, redoc_url=None, openapi_url=None)
     db = DB(db_path or settings.DB_PATH)
     hub = Hub()
     limiter = LoginLimiter()
     state = {"client": client}
+    origins = [o.rstrip("/") for o in (settings.ALLOWED_ORIGINS if allowed_origins is None else allowed_origins)]
+
+    # Frontend on another site (GitHub Pages) -> browser needs CORS to call this API.
+    if origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type"],
+            max_age=600,
+        )
+
+    def origin_ok(origin: str, host: str) -> bool:
+        """Websockets are not covered by CORS, so check the Origin header ourselves.
+        No Origin header = not a browser (the Electron desktop app), which is fine: it still needs a valid token."""
+        if not origin:
+            return True
+        if origin.rstrip("/") in origins:
+            return True
+        return urlparse(origin).netloc == host  # the UI served by this very server
 
     def get_client():
         if state["client"] is None and os.environ.get("ANTHROPIC_API_KEY"):
@@ -90,7 +113,7 @@ def create_app(client=None, db_path=None) -> FastAPI:
 
     @app.get("/api/config")
     def config():
-        return {"app_name": settings.APP_NAME}
+        return {"app_name": settings.APP_NAME, "web_search": settings.WEB_SEARCH}
 
     @app.post("/api/register")
     def register(c: Credentials, request: Request):
@@ -124,6 +147,7 @@ def create_app(client=None, db_path=None) -> FastAPI:
             "limit": limit_for(user),
             "device": hub.device_connected(user["id"]),
             "app_name": settings.APP_NAME,
+            "web_search": settings.WEB_SEARCH,
         }
 
     @app.get("/api/memory")
@@ -150,6 +174,10 @@ def create_app(client=None, db_path=None) -> FastAPI:
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
         await ws.accept()
+        if not origin_ok(ws.headers.get("origin", ""), ws.headers.get("host", "")):
+            # accept first so the browser can read the close code and show a useful message
+            await ws.close(code=4403)
+            return
         try:
             first = await asyncio.wait_for(ws.receive_json(), 10)
             if not isinstance(first, dict) or first.get("type") != "auth":
