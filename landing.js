@@ -382,3 +382,24 @@
     run(0);
   }
 })();
+
+// ---- v3: manual theme toggle (remembered) + back-to-top
+(() => {
+  const root = document.documentElement;
+  const btn = document.getElementById("theme-toggle");
+  const isDark = () => {
+    const t = root.getAttribute("data-theme");
+    return t ? t === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  };
+  if (btn) btn.addEventListener("click", () => {
+    const next = isDark() ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("aegis_site_theme", next); } catch {}
+  });
+  const top = document.getElementById("to-top");
+  if (top) {
+    const upd = () => top.classList.toggle("show", window.scrollY > 900);
+    window.addEventListener("scroll", upd, { passive: true }); upd();
+    top.addEventListener("click", () => window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+  }
+})();

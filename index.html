@@ -12,7 +12,7 @@
   <meta property="og:description" content="Ask in English, Urdu or Hindi. Aegis does the work and asks before anything risky.">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z' fill='%230a7a78'/%3E%3Cpath d='M11 16l4 4 7-8' fill='none' stroke='%23fff' stroke-width='2.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <script>document.documentElement.classList.add("js");</script>
+  <script>document.documentElement.classList.add("js");try{var t=localStorage.getItem("aegis_site_theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
   <link rel="stylesheet" href="landing.css">
 </head>
 <body>
@@ -33,6 +33,10 @@
       <a href="#faq">Questions</a>
     </nav>
     <div class="nav-cta">
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch colour theme" title="Switch colour theme">
+        <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
       <a id="signin-link" class="btn quiet" href="app.html">Sign in</a>
       <a id="start-link" class="btn solid" href="app.html?mode=register">Start free</a>
     </div>
@@ -51,6 +55,7 @@
 
     <div class="hero wrap">
       <div class="hero-copy" id="hero-copy">
+        <p class="hero-badge"><b>New</b> Redesigned interface, command palette and voice mode</p>
         <h1>Tell your PC what you need. Aegis does it, and asks before anything risky.</h1>
         <p class="lead">An AI assistant for the web and Windows. Ask in English, Urdu or Hindi. It opens apps, sorts your folders and remembers what you tell it. Deleting, typing and shell commands always wait for your yes.</p>
         <div class="hero-cta">
@@ -58,6 +63,11 @@
           <a class="btn glass big" href="#download">Get the Windows app</a>
         </div>
         <p class="fine">Free plan: 15 messages a day. No card needed.</p>
+        <ul class="hero-trust" aria-label="Safety highlights">
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Asks before risky actions</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Three-folder file sandbox</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Works in the browser</li>
+        </ul>
       </div>
 
       <figure class="demo" id="demo" aria-label="Interactive example of Aegis working on a request">
@@ -103,6 +113,55 @@
     </div>
   </section>
 
+  <!-- ============ INTERFACE ============ -->
+  <section id="interface" class="ui-sec wrap">
+    <div class="block-head" data-reveal>
+      <p class="eyebrow">The interface</p>
+      <h2>One calm screen for your day, your chat and every step Aegis takes</h2>
+      <p>Tasks and reminders on the left, the conversation in the middle, a live activity log and device status on the right. Nothing happens out of sight.</p>
+    </div>
+    <div class="ui-frame" data-reveal>
+      <div class="mock" role="img" aria-label="Illustration of the Aegis interface with a task list, a conversation and an activity panel">
+        <div class="mk-col">
+          <div class="mk-card"><div class="mk-time">15:41<small>03</small></div><div class="mk-sub">Tuesday &middot; 17 November</div></div>
+          <div class="mk-card"><h4>Tasks</h4>
+            <div class="mk-row done"><i></i>Call the bank</div>
+            <div class="mk-row"><i></i>Send invoice<em>5 pm</em></div>
+            <div class="mk-row"><i></i>Book dentist</div>
+          </div>
+          <div class="mk-card"><h4>Memory</h4><div class="mk-sub">Meeting is at 5<br>Sister's birthday Friday</div></div>
+        </div>
+        <div class="mk-main">
+          <div class="mk-orb" aria-hidden="true"></div>
+          <div class="mk-chat">
+            <div class="mk-msg u">Organize my Downloads folder</div>
+            <div class="mk-tool">list_files &middot; Downloads</div>
+            <div class="mk-msg a">I found 23 files. I can sort them into Images, Documents and Archives.</div>
+          </div>
+          <div class="mk-input"><span>Ask Aegis anything...</span><b>Send &rarr;</b></div>
+        </div>
+        <div class="mk-col">
+          <div class="mk-ask"><b>Allow sorting 23 files?</b><span>Allow</span><span>Deny</span></div>
+          <div class="mk-card"><h4>Activity</h4>
+            <div class="mk-row done"><i></i>Reading Downloads</div>
+            <div class="mk-row"><i></i>Waiting for approval</div>
+          </div>
+          <div class="mk-card"><h4>This device</h4>
+            <div class="mk-gauge">Battery<s style="--w:86%"></s></div>
+            <div class="mk-gauge">Memory<s style="--w:42%"></s></div>
+            <div class="mk-gauge">Network<s style="--w:68%"></s></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="ui-points" data-stagger>
+      <li><b>Command palette</b><span>Press Ctrl K to run any command or ask anything.</span></li>
+      <li><b>Voice mode</b><span>Hands-free, with a &ldquo;Hey Aegis&rdquo; wake word.</span></li>
+      <li><b>Focus mode</b><span>Hide the panels and keep just the conversation.</span></li>
+      <li><b>Your accent colour</b><span>Seven themes, plus compact layout and text size.</span></li>
+    </ul>
+  </section>
+
   <!-- ============ WHAT IT DOES ============ -->
   <section id="what" class="block wrap">
     <div class="block-head" data-reveal>
@@ -111,27 +170,27 @@
     </div>
     <dl class="caps" data-stagger>
       <div class="cap">
-        <dt>Apps and websites</dt>
+        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></span><span>Apps and websites</span></dt>
         <dd>Open Chrome, Notepad, Calculator or Spotify. Open any link. Search the web in your own browser.</dd>
         <dd class="ex" dir="auto">“Open Chrome and search for SpaceX launches”</dd>
       </div>
       <div class="cap">
-        <dt>Files and folders</dt>
+        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span>Files and folders</span></dt>
         <dd>List, read, write, move and delete files in Documents, Desktop and Downloads. Sort a messy folder into Images, Documents, Videos, Audio and Archives.</dd>
         <dd class="ex" dir="auto">“Organize my Downloads folder”</dd>
       </div>
       <div class="cap">
-        <dt>Your screen and system</dt>
+        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><span>Your screen and system</span></dt>
         <dd>Take a screenshot, check CPU, memory and disk, type into the window you are in, press shortcuts like Ctrl+C or Alt+Tab.</dd>
         <dd class="ex" dir="auto">“How is my PC doing?”</dd>
       </div>
       <div class="cap">
-        <dt>Memory you can edit</dt>
+        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-3 11.2V17h6v-2.8A6 6 0 0 0 12 3zM10 20h4"/></svg></span><span>Memory you can edit</span></dt>
         <dd>Tell it once and it remembers. Every saved fact is listed in a panel where you can delete it with one click.</dd>
         <dd class="ex" dir="auto">“Remember that my meeting is at 5”</dd>
       </div>
       <div class="cap">
-        <dt>Your language</dt>
+        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h9M8.5 3v2M6 5c.6 3 3 6 6 7M12 5c-.6 3-3 6-6.5 7.5M13 20l4-9 4 9M14.5 17h5"/></svg></span><span>Your language</span></dt>
         <dd>Type or speak, and hear the answer read back. Aegis replies in the language you wrote in.</dd>
         <dd class="ex langs">
           <span dir="auto">Mere sister ki birthday Friday ko hai, yaad rakhna</span>
@@ -140,6 +199,24 @@
         </dd>
       </div>
     </dl>
+  </section>
+
+  <!-- ============ INSTANT COMMANDS ============ -->
+  <section id="commands" class="cmds-sec wrap">
+    <div class="cmd-wrap">
+      <div class="block-head" data-reveal>
+        <p class="eyebrow">Instant commands</p>
+        <h2>The simple things are answered in milliseconds</h2>
+        <p>Common requests run right in your browser, in English, Roman Urdu, Urdu and Hindi. They are free, do not use your daily messages and keep working without the server.</p>
+        <p class="cmd-note"><span><b>Everything else</b> goes to the AI, which answers in your language and can use tools, memory and web search.</span></p>
+      </div>
+      <div class="cmd-grid" data-stagger>
+        <div class="cmd"><h3>Open and search</h3><q dir="auto">open YouTube</q><q dir="auto">gmail kholo</q><q dir="auto">directions to Islamabad</q></div>
+        <div class="cmd"><h3>Time and math</h3><q dir="auto">time in Tokyo</q><q dir="auto">calculate 15% of 2400</q><q dir="auto">convert 10 km to miles</q></div>
+        <div class="cmd"><h3>Timers and notes</h3><q dir="auto">set a timer for 10 minutes</q><q dir="auto">take a note buy milk</q><q dir="auto">show my notes</q></div>
+        <div class="cmd"><h3>Control Aegis</h3><q dir="auto">voice mode on</q><q dir="auto">switch to Urdu</q><q dir="auto">change theme to red</q></div>
+      </div>
+    </div>
   </section>
 
   <!-- ============ CONTROL ============ -->
@@ -317,18 +394,42 @@
 
 <footer class="foot">
   <div class="wrap foot-in">
-    <a class="brand" href="./" aria-label="Aegis home">
-      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z"/><path d="M11 16l4 4 7-8"/></svg>
-      <span>Aegis</span>
-    </a>
-    <nav class="foot-links" aria-label="Footer">
+    <div class="foot-about">
+      <a class="brand" href="./" aria-label="Aegis home">
+        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z"/><path d="M11 16l4 4 7-8"/></svg>
+        <span>Aegis</span>
+      </a>
+      <p class="fine">An AI assistant for the web and Windows that does the work and asks before anything risky.</p>
+    </div>
+    <nav class="foot-col" aria-label="Product">
+      <h3>Product</h3>
+      <a href="#interface">Interface</a>
       <a href="#what">What it does</a>
-      <a href="#control">Your control</a>
-      <a href="app.html">Sign in</a>
+      <a href="#commands">Instant commands</a>
+      <a href="#plans">Plans</a>
     </nav>
-    <p>© <span id="year">2026</span> Aegis. All rights reserved.</p>
+    <nav class="foot-col" aria-label="Trust">
+      <h3>Trust</h3>
+      <a href="#control">Your control</a>
+      <a href="#how">How it works</a>
+      <a href="#faq">Questions</a>
+    </nav>
+    <nav class="foot-col" aria-label="Get started">
+      <h3>Get started</h3>
+      <a href="app.html?mode=register">Create account</a>
+      <a href="app.html">Sign in</a>
+      <a href="#download">Windows app</a>
+    </nav>
+    <div class="foot-base fine">
+      <p>&copy; <span id="year">2026</span> Aegis. All rights reserved.</p>
+      <p>Built for English, Urdu and Hindi.</p>
+    </div>
   </div>
 </footer>
+
+<button type="button" class="to-top" id="to-top" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+</button>
 
 <!-- frosted bar for phones, appears after the hero -->
 <div class="dock" id="dock" aria-hidden="true">

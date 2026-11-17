@@ -36,6 +36,17 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
   reminders panels, message actions (copy / read aloud), compact orb once a chat starts, focus mode.
 - REST: `/api/tasks`, `/api/reminders`, `/api/notes` (all per-user).
 
+## What's new in v3 (interface upgrade)
+
+- **New design system** for the app: layered surfaces, consistent spacing and type scale, refined controls and status pills, icons throughout.
+- **Sign-in screen** is now a split layout with the product promise next to the form.
+- **Sidebar**: collapsible panels (remembered), count badges, user avatar card, **Export chat to Markdown**.
+- **Chat**: copy button on code blocks, message timestamps, "Latest" jump button, character counter, cleaner bubbles.
+- **Settings > Appearance**: compact layout, message text size, background effects on/off.
+- **Keyboard shortcuts** dialog (`?`), usage meter turns amber/red near your daily limit.
+- **Landing page**: light/dark toggle, interface preview, instant-commands section, capability icons, richer footer, back-to-top.
+- New file `ui-plus.js` holds all the extra UI behaviour; `app.js` logic is unchanged.
+
 ## Voice and instant commands
 
 Typed or spoken (English, Roman Urdu, Urdu, Hindi), answered in the browser in milliseconds, free, no AI quota, and they
