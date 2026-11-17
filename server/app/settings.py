@@ -14,7 +14,7 @@ DB_PATH = os.environ.get("AEGIS_DB", str(BASE_DIR / "aegis.db"))
 # Frontend files live in the project root (index.html, app.html, ...). Only these are ever served,
 # so server code, the database and .env stay private. Set AEGIS_WEB_DIR to serve a separate folder instead.
 WEB_DIR = Path(os.environ.get("AEGIS_WEB_DIR", BASE_DIR))
-WEB_FILES = ("index.html", "app.html", "app.js", "orb.js", "config.js", "landing.js", "landing.css", "style.css")
+WEB_FILES = ("index.html", "app.html", "app.js", "orb.js", "config.js", "landing.js", "landing.css", "style.css", "hud.js")
 DOWNLOADS_DIR = Path(os.environ.get("AEGIS_DOWNLOADS_DIR", BASE_DIR / "downloads"))
 
 # Websites allowed to call this API from a browser (CORS) and to open its websocket.

@@ -11,6 +11,7 @@
 </head>
 <body>
 <div class="bg-grid" aria-hidden="true"></div>
+<div class="bg-scan" aria-hidden="true"></div>
 
 <!-- ============ AUTH ============ -->
 <main id="auth" class="auth hidden">
@@ -62,6 +63,25 @@
   </header>
 
   <aside id="left" class="rail left" aria-label="Systems">
+    <div class="panel hud timebox" aria-label="Date and time">
+      <div class="tb-date">
+        <span id="hud-day" class="tb-day">--</span>
+        <span class="tb-meta"><span id="hud-month">---</span><span id="hud-weekday">---</span></span>
+      </div>
+      <div class="tb-time"><span id="hud-time">00:00</span><small id="hud-sec">00</small></div>
+      <div id="hud-week" class="tb-week" aria-hidden="true"></div>
+    </div>
+
+    <div class="panel hud sysbox">
+      <div class="row"><h3 class="panel-title">System</h3><span id="sys-fps" class="muted small mono">-- fps</span></div>
+      <div class="gauge"><span>Battery</span><div class="bar"><i id="g-bat"></i></div><b id="v-bat">--</b></div>
+      <div class="gauge"><span>Memory</span><div class="bar"><i id="g-mem"></i></div><b id="v-mem">--</b></div>
+      <div class="gauge"><span>Network</span><div class="bar"><i id="g-net"></i></div><b id="v-net">--</b></div>
+      <div class="gauge"><span>Latency</span><div class="bar"><i id="g-lat"></i></div><b id="v-lat">--</b></div>
+      <div class="gauge"><span>Threads</span><div class="bar"><i id="g-cpu"></i></div><b id="v-cpu">--</b></div>
+      <div class="row small muted"><span>Session</span><span id="v-up" class="mono">00:00:00</span></div>
+    </div>
+
     <div class="panel hud">
       <h3 class="panel-title">Systems</h3>
       <div class="row"><span class="label">PC link</span><span id="device-pill" class="pill off">Not connected</span></div>
@@ -92,6 +112,15 @@
 
   <main id="stage" class="stage" data-state="offline" data-chat="0">
     <section class="orb-zone" aria-label="Aegis status">
+      <svg class="orb-deco" viewBox="0 0 400 400" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+        <circle class="d-ring r1" cx="200" cy="200" r="190"/>
+        <circle class="d-ring r2" cx="200" cy="200" r="176"/>
+        <g class="d-spin s1"><circle cx="200" cy="200" r="160" class="d-dash"/></g>
+        <g class="d-spin s2"><circle cx="200" cy="200" r="148" class="d-dash2"/></g>
+        <g class="d-sweep"><path d="M200 200 L200 12 A188 188 0 0 1 332 67 Z"/></g>
+        <path class="d-tick" d="M200 6v14M200 380v14M6 200h14M380 200h14"/>
+        <path class="d-brk" d="M30 110V60a30 30 0 0 1 30-30h50M370 110V60a30 30 0 0 0-30-30h-50M30 290v50a30 30 0 0 0 30 30h50M370 290v50a30 30 0 0 1-30 30h-50"/>
+      </svg>
       <canvas id="orb" aria-hidden="true"></canvas>
       <div id="orb-label" class="orb-label" role="status">Offline</div>
     </section>
@@ -135,6 +164,37 @@
   </main>
 
   <aside id="right" class="rail right" aria-label="Activity">
+    <div class="panel hud wxbox">
+      <div class="row"><h3 class="panel-title">Weather</h3><span id="wx-place" class="muted small"></span></div>
+      <div id="wx-setup" class="wx-setup">
+        <p class="muted small">Show live weather for your city.</p>
+        <div class="row gap">
+          <button id="wx-geo" class="btn ghost small-btn" type="button">Use my location</button>
+        </div>
+        <form id="wx-form" class="wx-form"><input id="wx-city" placeholder="or type a city" aria-label="City" autocomplete="off"><button class="btn ghost small-btn" type="submit">Go</button></form>
+      </div>
+      <div id="wx-now" class="wx-now hidden">
+        <div class="wx-temp"><span id="wx-t">--</span><sup>&deg;C</sup></div>
+        <div class="wx-info"><b id="wx-desc">--</b><span id="wx-extra" class="muted small"></span></div>
+      </div>
+      <div id="wx-days" class="wx-days hidden"></div>
+      <button id="wx-change" class="linkbtn small hidden" type="button">Change location</button>
+    </div>
+
+    <div class="panel hud">
+      <h3 class="panel-title">Shortcuts</h3>
+      <div class="links-grid">
+        <a href="https://www.google.com" target="_blank" rel="noopener noreferrer">Google</a>
+        <a href="https://mail.google.com" target="_blank" rel="noopener noreferrer">Gmail</a>
+        <a href="https://www.youtube.com" target="_blank" rel="noopener noreferrer">YouTube</a>
+        <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://web.whatsapp.com" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+        <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Maps</a>
+        <a href="https://news.google.com" target="_blank" rel="noopener noreferrer">News</a>
+        <a href="https://drive.google.com" target="_blank" rel="noopener noreferrer">Drive</a>
+      </div>
+    </div>
+
     <div class="panel hud grow">
       <div class="row"><h3 class="panel-title">Activity</h3><span id="activity-count" class="muted small">0</span></div>
       <ul id="activity" class="activity"></ul>
@@ -176,5 +236,6 @@
 <script src="config.js"></script>
 <script src="orb.js"></script>
 <script src="app.js"></script>
+<script src="hud.js"></script>
 </body>
 </html>

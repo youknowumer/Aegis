@@ -21,6 +21,11 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
   open apps/URLs, files, screenshots, typing, shell. Risky actions always ask first.
 - **Safe**: scrypt passwords, throttled logins, signed tokens, CORS + websocket origin allow-list, strict file sandbox.
 
+## Local login mode
+
+While `config.js` still has the placeholder server URL (or `LOCAL_LOGIN: true`), sign-in works without a server:
+accounts are stored only in this browser on this computer. Chat/AI needs the real server.
+
 ## 1. Deploy the server (Render example)
 
 1. Push this repo to GitHub (already done).
@@ -107,6 +112,7 @@ cd desktop && npm test                                # 9 tests
 |---|---|
 | `index.html`, `landing.*` | Landing page |
 | `app.html`, `style.css`, `app.js`, `orb.js` | The assistant UI (login, HUD, chat, voice) |
+| `hud.js` | HUD widgets: date/time, live system gauges, weather (Open-Meteo), shortcuts |
 | `config.js` | **Server address**: the only thing to edit after deploying |
 | `server/app/agent.py` | AI tool-use loop and persona |
 | `server/app/tools.py` | Tool list (add new tools here) |

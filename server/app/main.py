@@ -99,7 +99,8 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         resp.headers["X-Frame-Options"] = "DENY"
         resp.headers["Referrer-Policy"] = "no-referrer"
         resp.headers["Content-Security-Policy"] = (
-            "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; "
+            "default-src 'self'; connect-src 'self' ws: wss: https://api.open-meteo.com https://geocoding-api.open-meteo.com; "
+            "img-src 'self' data:; "
             "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
         )
         return resp
