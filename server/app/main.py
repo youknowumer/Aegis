@@ -3,6 +3,7 @@
 Run:  uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000
 """
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -24,6 +25,20 @@ from .db import DB
 from .hub import Hub
 
 log = logging.getLogger("aegis")
+
+
+class TaskIn(BaseModel):
+    text: str
+    due: str = ""
+
+
+class TaskPatch(BaseModel):
+    done: bool = True
+
+
+class NoteIn(BaseModel):
+    title: str = ""
+    body: str
 
 
 class Credentials(BaseModel):
@@ -49,9 +64,46 @@ class LoginLimiter:
 
 
 def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
-    app = FastAPI(title=settings.APP_NAME, docs_url=None, redoc_url=None, openapi_url=None)
     db = DB(db_path or settings.DB_PATH)
     hub = Hub()
+
+    async def deliver_reminders(uid=None):
+        """Push reminders that are due to the user's open chat windows. Left pending when nobody is connected,
+        so they pop up the moment the user comes back."""
+        for r in db.due_reminders():
+            if uid is not None and r["user_id"] != uid:
+                continue
+            sent = False
+            for sock in list(hub.chats.get(r["user_id"], ())):
+                try:
+                    await sock.send_json({"type": "reminder", "id": r["id"], "text": r["text"], "due": r["due"]})
+                    sent = True
+                except Exception:
+                    pass
+            if sent:
+                db.mark_reminder_fired(r["id"])
+
+    async def reminder_loop():
+        while True:
+            try:
+                await deliver_reminders()
+            except Exception:
+                log.exception("reminder loop")
+            await asyncio.sleep(5)
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_app):
+        task = asyncio.create_task(reminder_loop())
+        try:
+            yield
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    app = FastAPI(title=settings.APP_NAME, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+    app.state.db = db
+    app.state.deliver_reminders = deliver_reminders
     limiter = LoginLimiter()
     state = {"client": client}
     origins = [o.rstrip("/") for o in (settings.ALLOWED_ORIGINS if allowed_origins is None else allowed_origins)]
@@ -70,7 +122,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             CORSMiddleware,
             allow_origins=exact,
             allow_origin_regex="|".join(w.pattern for w in wild) or None,
-            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+            allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
             allow_headers=["Authorization", "Content-Type"],
             max_age=600,
         )
@@ -171,6 +223,55 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             raise HTTPException(404, "Not found")
         return {"ok": True}
 
+    @app.get("/api/tasks")
+    def list_tasks(user=Depends(current_user)):
+        return db.tasks(user["id"])
+
+    @app.post("/api/tasks")
+    def add_task(t: TaskIn, user=Depends(current_user)):
+        text = t.text.strip()
+        if not text:
+            raise HTTPException(400, "Write the task first")
+        return {"id": db.add_task(user["id"], text, t.due)}
+
+    @app.post("/api/tasks/{task_id}")
+    def patch_task(task_id: int, p: TaskPatch, user=Depends(current_user)):
+        if not db.set_task_done(user["id"], task_id, p.done):
+            raise HTTPException(404, "Not found")
+        return {"ok": True}
+
+    @app.delete("/api/tasks/{task_id}")
+    def delete_task(task_id: int, user=Depends(current_user)):
+        if not db.delete_task(user["id"], task_id):
+            raise HTTPException(404, "Not found")
+        return {"ok": True}
+
+    @app.get("/api/reminders")
+    def list_reminders(user=Depends(current_user)):
+        return db.reminders(user["id"])
+
+    @app.delete("/api/reminders/{rid}")
+    def delete_reminder(rid: int, user=Depends(current_user)):
+        if not db.delete_reminder(user["id"], rid):
+            raise HTTPException(404, "Not found")
+        return {"ok": True}
+
+    @app.get("/api/notes")
+    def list_notes(user=Depends(current_user)):
+        return db.notes(user["id"])
+
+    @app.post("/api/notes")
+    def add_note(n: NoteIn, user=Depends(current_user)):
+        if not n.body.strip():
+            raise HTTPException(400, "The note is empty")
+        return {"id": db.add_note(user["id"], n.title, n.body)}
+
+    @app.delete("/api/notes/{nid}")
+    def delete_note(nid: int, user=Depends(current_user)):
+        if not db.delete_note(user["id"], nid):
+            raise HTTPException(404, "Not found")
+        return {"ok": True}
+
     # ---------- websocket ----------
     agent_holder = {}
 
@@ -205,7 +306,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             if first.get("role") == "device":
                 await run_device(ws, user["id"])
             else:
-                await run_chat(ws, user)
+                await run_chat(ws, user, str(first.get("tz", ""))[:64])
         except WebSocketDisconnect:
             pass
 
@@ -222,13 +323,13 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         finally:
             await hub.drop_device(uid, ws)
 
-    async def run_chat(ws: WebSocket, user):
+    async def run_chat(ws: WebSocket, user, tz: str = ""):
         uid = user["id"]
         history = [{"role": m["role"], "content": m["text"]} for m in db.recent_messages(uid, 20)]
         # history must start with a user turn
         while history and history[0]["role"] != "user":
             history.pop(0)
-        sess = Session(uid, ws, history)
+        sess = Session(uid, ws, history, tz)
         hub.add_chat(uid, ws)
         tasks = set()
 
@@ -257,7 +358,12 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                 db.add_message(uid, "assistant", reply)
                 await send({"type": "reply", "text": reply, "used": db.used_today(uid), "limit": limit})
             except asyncio.CancelledError:
-                raise
+                if not sess.stopped:
+                    raise  # connection closed: just unwind
+                sess.stopped = False  # the user pressed Stop: give the message back and say so
+                if consumed:
+                    db.refund(uid)
+                await send({"type": "stopped"})
             except Exception:
                 log.exception("agent failure")
                 if consumed:
@@ -278,6 +384,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     "history": db.recent_messages(uid, 30),
                 }
             )
+            await deliver_reminders(uid)  # anything that came due while the user was away
             while True:
                 msg = await ws.receive_json()
                 if not isinstance(msg, dict):
@@ -291,9 +398,18 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                         await send({"type": "error", "text": "Still working on your last request."})
                         continue
                     sess.busy = True
+                    if msg.get("tz"):
+                        sess.tz = str(msg["tz"])[:64]
                     t = asyncio.create_task(handle_chat(text))
+                    sess.task = t
                     tasks.add(t)
                     t.add_done_callback(tasks.discard)
+                elif kind == "stop":
+                    if sess.busy and sess.task and not sess.task.done():
+                        sess.stopped = True
+                        sess.task.cancel()
+                elif kind == "ping":
+                    pass
                 elif kind == "confirm_response":
                     hub.resolve(msg.get("id"), bool(msg.get("ok")), uid)
                 elif kind == "reset" and not sess.busy:

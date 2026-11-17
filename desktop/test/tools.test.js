@@ -79,3 +79,29 @@ test("key combo translation for SendKeys", () => {
   assert.throws(() => tools.comboToSendKeys("ctrl+banana"), /unknown key/);
   assert.strictEqual(tools.sendKeysEscape("a+b(c)"), "a{+}b{(}c{)}");
 });
+
+test("volumePlan turns a level into key presses and rejects nonsense", () => {
+  assert.deepStrictEqual(tools.volumePlan("0"), [[174, 50]]);
+  assert.deepStrictEqual(tools.volumePlan("40"), [[174, 50], [175, 20]]);
+  assert.deepStrictEqual(tools.volumePlan("up"), [[175, 5]]);
+  assert.deepStrictEqual(tools.volumePlan("mute"), [[173, 1]]);
+  assert.throws(() => tools.volumePlan("loud"));
+  assert.throws(() => tools.volumePlan("150"));
+});
+
+test("find_files searches inside the allowed folders only", async () => {
+  fs.mkdirSync(path.join(sandbox, "deep", "er"), { recursive: true });
+  fs.writeFileSync(path.join(sandbox, "deep", "er", "Budget-2026.xlsx"), "x");
+  assert.match(await tools.run("find_files", { query: "budget" }), /Budget-2026\.xlsx/);
+  assert.match(await tools.run("find_files", { query: "zzzz-nothing" }), /No matching files/);
+  assert.match(await tools.run("find_files", { query: "a" }), /^Error: give at least 2/);
+});
+
+test("windows-only tools fail cleanly elsewhere and unknown names are refused", async () => {
+  if (process.platform !== "win32") {
+    assert.match(await tools.run("lock_screen", {}), /^Error: .*Windows/);
+    assert.match(await tools.run("close_app", { name: "notepad" }), /^Error: .*Windows/);
+  }
+  assert.match(await tools.run("media_control", { action: "explode" }), /^Error/);
+  assert.match(await tools.run("close_app", { name: "x; rm -rf /" }), /^Error/);
+});

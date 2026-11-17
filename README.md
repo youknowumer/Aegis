@@ -23,6 +23,19 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
   open apps/URLs, files, screenshots, typing, shell. Risky actions always ask first.
 - **Safe**: scrypt passwords, throttled logins, signed tokens, CORS + websocket origin allow-list, strict file sandbox.
 
+## What's new in v2
+
+- **Streaming replies**: answers type out word by word, with a **Stop** button (or `Esc`) to cancel a long answer.
+- **Personal assistant tools**: to-do list, **reminders that pop up and are spoken at the right time**, notes, a
+  `daily_briefing` ("good morning, brief me"), live currency conversion, Wikipedia lookups, and reading any public web
+  page (`fetch_url`, SSRF-protected: private/LAN addresses are refused).
+- **Time-zone aware**: the browser sends its zone, so "remind me tomorrow at 9" means 9 in *your* time.
+- **More PC control** (desktop app): open files, find files, clipboard read/write, volume, media keys, notifications,
+  list/close apps, lock screen. Anything destructive still asks first.
+- **New interface**: command palette (`Ctrl K`), settings dialog (voice, accent colour, notifications), tasks and
+  reminders panels, message actions (copy / read aloud), compact orb once a chat starts, focus mode.
+- REST: `/api/tasks`, `/api/reminders`, `/api/notes` (all per-user).
+
 ## Voice and instant commands
 
 Typed or spoken (English, Roman Urdu, Urdu, Hindi), answered in the browser in milliseconds, free, no AI quota, and they
@@ -126,8 +139,8 @@ Plans/limits: edit `PLAN_LIMITS` in `server/app/settings.py`. Activate a paying 
 ## Tests
 
 ```
-cd server  && pip install pytest httpx && pytest      # 25 tests, fake AI, no API key needed
-cd desktop && npm test                                # 9 tests
+cd server  && pip install pytest httpx && pytest      # 35 tests, fake AI, no API key needed
+cd desktop && npm test                                # 12 tests
 node --test tests/commands.test.js                                   # voice-command router
 ```
 
@@ -142,6 +155,7 @@ node --test tests/commands.test.js                                   # voice-com
 | `config.js` | **Server address**: the only thing to edit after deploying |
 | `server/app/agent.py` | AI tool-use loop and persona |
 | `server/app/tools.py` | Tool list (add new tools here) |
+| `server/app/utilities.py` | Safe helpers: calculator, weather, web page reader, Wikipedia, currency, reminder times |
 | `server/app/main.py` | Accounts, memory API, websocket, CORS, static hosting |
 | `desktop/` | Electron app + the PC tools |
 | `render.yaml`, `Dockerfile`, `.env.example` | Deployment |
@@ -151,9 +165,11 @@ node --test tests/commands.test.js                                   # voice-com
 - Wake word and Voice mode use the browser's speech recognition: Chrome/Edge, HTTPS, mic permission, and the tab must
   stay open. Firefox has no speech recognition. Wake-word accuracy depends on the browser's recognizer.
 - A website can't control your PC. PC actions need the desktop app (Windows only for apps/typing/keys).
-- Replies arrive whole (not streamed word by word).
+- Streaming uses the Anthropic SDK stream and is covered by tests with a fake stream; try it once against your real key.
+- Reminders fire while the server is running and a chat tab is open (or the next time you open one). Free hosts that sleep will miss them until you reconnect.
+- Volume/mute use the Windows media keys (steps of 2%), and "mute" toggles.
 - Web search is untested against a live account here; turn it on only after enabling it in the Anthropic Console.
 - Not built: payments, Google sign-in, installer code-signing, multi-instance scaling (connections live in memory,
   run one process or add Redis).
-- I could verify the server (25 tests), desktop tools (9) and the UI logic in a simulated browser (11 tests). I could not
+- I could verify the server (35 tests), desktop tools (12) and the UI logic in a simulated browser (11 tests). I could not
   open a real browser here, so click through the UI once and check how it looks on your screen.

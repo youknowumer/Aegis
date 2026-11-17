@@ -105,6 +105,46 @@ function comboToSendKeys(combo) {
   return prefix + key;
 }
 
+
+// ---- volume / media keys (Windows): WScript.Shell can press the hardware keys ----
+const MEDIA_KEYS = { play_pause: 179, playpause: 179, play: 179, pause: 179, next: 176, previous: 177, prev: 177, stop: 178 };
+function wscriptKeys(codes) {
+  // codes: array of [virtualKeyChar, repeat]
+  const body = codes.map(([c, n]) => `1..${n} | ForEach-Object { $w.SendKeys([char]${c}) }`).join("; ");
+  return run("powershell", ["-NoProfile", "-NonInteractive", "-Command", `$w = New-Object -ComObject WScript.Shell; ${body}`]);
+}
+// Each volume key press moves the level by 2%. Returns the key presses needed to reach `level`.
+function volumePlan(level) {
+  const v = String(level).trim().toLowerCase();
+  if (v === "mute" || v === "unmute") return [[173, 1]]; // Windows only exposes a mute TOGGLE key
+  if (v === "up") return [[175, 5]];
+  if (v === "down") return [[174, 5]];
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("volume must be 0-100, mute, up or down");
+  const steps = Math.round(n / 2);
+  return steps === 0 ? [[174, 50]] : [[174, 50], [175, steps]];
+}
+
+function findInRoots(query, limit = 40) {
+  const q = String(query || "").trim().toLowerCase();
+  if (q.length < 2) throw new Error("give at least 2 characters to search for");
+  const out = [];
+  const walk = (dir, depth) => {
+    if (out.length >= limit || depth > 4) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (out.length >= limit) return;
+      if (e.name.startsWith(".") || e.name === "node_modules") continue;
+      const full = path.join(dir, e.name);
+      if (e.name.toLowerCase().includes(q)) out.push((e.isDirectory() ? "[DIR] " : "") + full);
+      if (e.isDirectory()) walk(full, depth + 1);
+    }
+  };
+  for (const r of safeRoots()) walk(r, 0);
+  return out;
+}
+
 const impl = {
   async open_app({ name }) {
     if (typeof name !== "string" || !/^[\w .+()-]{1,60}$/.test(name.trim())) {
@@ -207,6 +247,83 @@ const impl = {
     return `Deleted ${p}`;
   },
 
+
+  async open_file({ path: file }) {
+    const { shell } = require("electron");
+    const p = safePath(file);
+    const st = await fs.promises.stat(p);
+    if (!st.isFile()) throw new Error("not a file");
+    if (/\.(exe|bat|cmd|ps1|vbs|msi|scr|com|lnk|js|jar)$/i.test(p)) throw new Error("refusing to launch programs or scripts this way");
+    const err = await shell.openPath(p);
+    if (err) throw new Error(err);
+    return `Opened ${p}`;
+  },
+
+  async find_files({ query }) {
+    const hits = findInRoots(query);
+    return hits.length ? hits.join("\n") : "No matching files in Documents, Desktop or Downloads.";
+  },
+
+  async clipboard_read() {
+    const { clipboard } = require("electron");
+    const t = clipboard.readText();
+    return t ? t.slice(0, 4000) : "(the clipboard has no text)";
+  },
+
+  async clipboard_write({ text }) {
+    const { clipboard } = require("electron");
+    const t = String(text ?? "");
+    if (!t || t.length > 20000) throw new Error("text must be 1-20000 characters");
+    clipboard.writeText(t);
+    return `Copied ${t.length} characters to the clipboard`;
+  },
+
+  async set_volume({ level }) {
+    if (!IS_WIN) throw new Error("volume control is only supported on Windows");
+    const plan = volumePlan(level);
+    await wscriptKeys(plan);
+    const v = String(level).toLowerCase();
+    return v === "mute" || v === "unmute" ? "Toggled mute" : /^\d/.test(v) ? `Volume set to about ${Math.round(Number(v) / 2) * 2}%` : `Volume ${v}`;
+  },
+
+  async media_control({ action }) {
+    if (!IS_WIN) throw new Error("media keys are only supported on Windows");
+    const code = MEDIA_KEYS[String(action || "").toLowerCase().replace(/[\s-]+/g, "_")];
+    if (!code) throw new Error("action must be play_pause, next, previous or stop");
+    await wscriptKeys([[code, 1]]);
+    return `Sent media key: ${action}`;
+  },
+
+  async notify({ title, message }) {
+    const { Notification } = require("electron");
+    const body = String(message ?? "").slice(0, 300);
+    if (!body) throw new Error("empty message");
+    new Notification({ title: String(title || "Aegis").slice(0, 80), body }).show();
+    return "Notification shown";
+  },
+
+  async running_apps() {
+    if (!IS_WIN) throw new Error("listing windows is only supported on Windows");
+    const out = await run("powershell", ["-NoProfile", "-NonInteractive", "-Command",
+      "Get-Process | Where-Object { $_.MainWindowTitle } | ForEach-Object { $_.ProcessName + ' | ' + $_.MainWindowTitle }"]);
+    return out.split(/\r?\n/).slice(0, 40).join("\n") || "(no open windows)";
+  },
+
+  async close_app({ name }) {
+    if (!IS_WIN) throw new Error("closing apps is only supported on Windows");
+    const n = String(name || "").trim().replace(/\.exe$/i, "");
+    if (!/^[\w .+()-]{1,60}$/.test(n)) throw new Error("invalid app name");
+    if (/^(explorer|csrss|winlogon|services|lsass|svchost|system|wininit|dwm)$/i.test(n)) throw new Error("that is a protected system process");
+    await run("taskkill", ["/IM", `${n}.exe`]); // no /F: asks the app to close politely so unsaved work can prompt
+    return `Asked ${n} to close`;
+  },
+
+  async lock_screen() {
+    if (!IS_WIN) throw new Error("locking is only supported on Windows");
+    await run("rundll32.exe", ["user32.dll,LockWorkStation"]);
+    return "Screen locked";
+  },
+
   async take_screenshot() {
     const { desktopCapturer, screen } = require("electron");
     const { width, height } = screen.getPrimaryDisplay().size;
@@ -255,4 +372,4 @@ async function runTool(name, args) {
   }
 }
 
-module.exports = { run: runTool, safePath, comboToSendKeys, sendKeysEscape };
+module.exports = { run: runTool, safePath, comboToSendKeys, sendKeysEscape, volumePlan, findInRoots, MEDIA_KEYS };

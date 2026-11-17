@@ -1,5 +1,6 @@
 """Small safe helpers for server tools: math evaluator and weather lookup (Open-Meteo, no API key)."""
 import ast
+import re
 import json
 import math
 import operator as op
@@ -99,3 +100,211 @@ def weather_for(city: str) -> str:
             f"rain chance {dy['precipitation_probability_max'][i]}%."
         )
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------------------------
+# Web helpers: read a page, Wikipedia, currency. All free, no API keys.
+# ---------------------------------------------------------------------------------------------
+import ipaddress  # noqa: E402
+import socket  # noqa: E402
+import urllib.error  # noqa: E402
+from datetime import datetime, timedelta, timezone  # noqa: E402
+from html.parser import HTMLParser  # noqa: E402
+
+MAX_PAGE_BYTES = 600_000
+
+
+def _ip_is_public(ip: str) -> bool:
+    try:
+        a = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return not (a.is_private or a.is_loopback or a.is_link_local or a.is_reserved or a.is_multicast or a.is_unspecified)
+
+
+def check_public_url(url: str) -> str:
+    """Return the URL if it is plain http(s) to a public host, else raise ValueError (blocks SSRF to localhost / LAN / cloud metadata)."""
+    p = urllib.parse.urlparse(str(url).strip())
+    if p.scheme not in ("http", "https") or not p.hostname:
+        raise ValueError("only http(s) links are allowed")
+    if p.username or p.password:
+        raise ValueError("links with embedded logins are not allowed")
+    try:
+        infos = socket.getaddrinfo(p.hostname, p.port or (443 if p.scheme == "https" else 80), proto=socket.IPPROTO_TCP)
+    except OSError:
+        raise ValueError("could not find that website")
+    if not infos or not all(_ip_is_public(i[4][0]) for i in infos):
+        raise ValueError("that address is not a public website")
+    return p.geturl()
+
+
+class _Redirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        check_public_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class _TextExtractor(HTMLParser):
+    SKIP = {"script", "style", "noscript", "svg", "nav", "footer", "header", "form", "iframe", "aside"}
+    BLOCK = {"p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "section", "article", "blockquote", "pre"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.out, self.title, self._skip, self._in_title = [], "", 0, False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.SKIP:
+            self._skip += 1
+        elif tag == "title":
+            self._in_title = True
+        elif tag in self.BLOCK:
+            self.out.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in self.SKIP and self._skip:
+            self._skip -= 1
+        elif tag == "title":
+            self._in_title = False
+        elif tag in self.BLOCK:
+            self.out.append("\n")
+
+    def handle_data(self, data):
+        if self._in_title:
+            self.title += data.strip()
+        elif not self._skip and data.strip():
+            self.out.append(data)
+
+
+def html_to_text(html: str):
+    ex = _TextExtractor()
+    try:
+        ex.feed(html)
+    except Exception:
+        pass
+    text = re.sub(r"[ \t\r\f\v]+", " ", "".join(ex.out))
+    text = re.sub(r"\n\s*\n+", "\n\n", text).strip()
+    return ex.title.strip(), text
+
+
+def fetch_page(url: str, max_chars: int = 5000) -> str:
+    """Download a public web page and return its readable text."""
+    try:
+        url = check_public_url(url)
+        opener = urllib.request.build_opener(_Redirect)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; Aegis/2.0)", "Accept": "text/html,text/plain,application/json;q=0.9,*/*;q=0.5"})
+        with opener.open(req, timeout=10) as r:
+            ctype = (r.headers.get("Content-Type") or "").lower()
+            if not any(k in ctype for k in ("text/", "json", "xml")):
+                return f"Error: that link is not a readable page ({ctype or 'unknown type'})."
+            raw = r.read(MAX_PAGE_BYTES)
+            charset = r.headers.get_content_charset() or "utf-8"
+    except ValueError as e:
+        return f"Error: {e}."
+    except urllib.error.HTTPError as e:
+        return f"Error: the site answered with HTTP {e.code}."
+    except Exception:
+        return "Error: could not open that page."
+    body = raw.decode(charset, errors="replace")
+    if "html" in ctype:
+        title, text = html_to_text(body)
+    else:
+        title, text = "", body.strip()
+    if not text:
+        return "Error: the page has no readable text."
+    head = f"Title: {title}\n" if title else ""
+    more = "\n[...truncated]" if len(text) > max_chars else ""
+    return f"{head}{text[:max_chars]}{more}"
+
+
+def wikipedia_summary(query: str, lang: str = "en") -> str:
+    query = str(query).strip()[:120]
+    lang = lang if re.fullmatch(r"[a-z]{2,3}", str(lang)) else "en"
+    if not query:
+        return "Error: give a topic."
+    try:
+        s = _get(f"https://{lang}.wikipedia.org/w/api.php?action=opensearch&limit=1&format=json&search=" + urllib.parse.quote(query))
+        if not s[1]:
+            return f"Nothing found on Wikipedia for {query}."
+        title = s[1][0]
+        d = _get(f"https://{lang}.wikipedia.org/api/rest_v1/page/summary/" + urllib.parse.quote(title.replace(" ", "_")))
+    except Exception:
+        return "Error: Wikipedia is not reachable right now."
+    extract = (d.get("extract") or "").strip()
+    if not extract:
+        return f"Nothing useful found on Wikipedia for {query}."
+    link = (d.get("content_urls", {}).get("desktop", {}) or {}).get("page", "")
+    return f"{d.get('title', title)}: {extract[:1800]}" + (f"\nSource: {link}" if link else "")
+
+
+def convert_currency(amount, src: str, dst: str) -> str:
+    src, dst = str(src).strip().upper(), str(dst).strip().upper()
+    try:
+        amount = float(amount)
+    except (TypeError, ValueError):
+        return "Error: amount must be a number."
+    if not (re.fullmatch(r"[A-Z]{3}", src) and re.fullmatch(r"[A-Z]{3}", dst)):
+        return "Error: use 3-letter currency codes such as USD, PKR, EUR."
+    try:
+        d = _get("https://open.er-api.com/v6/latest/" + src)
+        rate = d["rates"][dst]
+    except Exception:
+        return "Error: could not get the exchange rate right now (check the currency codes)."
+    return f"{amount:,.2f} {src} = {amount * rate:,.2f} {dst} (1 {src} = {rate:,.4f} {dst}, live rate)"
+
+
+# ---------------------------------------------------------------------------------------------
+# Time helpers (reminders, current time in any zone)
+# ---------------------------------------------------------------------------------------------
+def get_zone(name: str):
+    from zoneinfo import ZoneInfo
+
+    try:
+        return ZoneInfo(str(name).strip()) if name else timezone.utc
+    except Exception:
+        return timezone.utc
+
+
+def now_in(tz_name: str = "") -> datetime:
+    return datetime.now(get_zone(tz_name))
+
+
+def resolve_due(args: dict, tz_name: str = "", now: datetime = None):
+    """Work out when a reminder fires. Accepts in_minutes, or at = 'YYYY-MM-DD HH:MM' (or 'HH:MM' for today/tomorrow)
+    in the user's own timezone. Returns (epoch_seconds, human_text) or raises ValueError."""
+    zone = get_zone(tz_name)
+    now = (now or datetime.now(timezone.utc)).astimezone(zone)
+    mins = args.get("in_minutes")
+    if mins not in (None, ""):
+        try:
+            mins = float(mins)
+        except (TypeError, ValueError):
+            raise ValueError("in_minutes must be a number")
+        if not (0 < mins <= 60 * 24 * 365):
+            raise ValueError("choose a time between now and one year from now")
+        due = now + timedelta(minutes=mins)
+    else:
+        at = str(args.get("at", "")).strip()
+        if not at:
+            raise ValueError("give in_minutes or at")
+        m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})", at)
+        if m:
+            y, mo, d, h, mi = map(int, m.groups())
+            try:
+                due = datetime(y, mo, d, h, mi, tzinfo=zone)
+            except ValueError:
+                raise ValueError("that date does not exist")
+        else:
+            m = re.fullmatch(r"(\d{1,2}):(\d{2})", at)
+            if not m:
+                raise ValueError("use at = 'YYYY-MM-DD HH:MM'")
+            h, mi = int(m.group(1)), int(m.group(2))
+            if h > 23 or mi > 59:
+                raise ValueError("that time does not exist")
+            due = now.replace(hour=h, minute=mi, second=0, microsecond=0)
+            if due <= now:
+                due += timedelta(days=1)
+        if due <= now:
+            raise ValueError("that time is already in the past")
+        if due - now > timedelta(days=366):
+            raise ValueError("choose a time within the next year")
+    return due.timestamp(), due.strftime("%A %d %B, %H:%M")

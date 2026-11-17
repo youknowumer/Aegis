@@ -140,7 +140,8 @@ def test_chat_remember_and_memory_api(env):
     # system prompt of the first call must tell the AI there is no desktop, and expose no desktop tools
     first = fake.calls[0]
     assert "NOT connected" in first["system"]
-    assert {t["name"] for t in first["tools"]} == {"remember", "recall", "forget", "current_time", "calculate", "get_weather"}
+    from app import tools as tool_catalogue
+    assert {t["name"] for t in first["tools"]} == {t.name for t in tool_catalogue.TOOLS if t.where == "server"}
     assert c.delete(f"/api/memory/{facts[0]['id']}", headers=auth(token)).status_code == 200
     assert c.get("/api/memory", headers=auth(token)).json() == []
 
@@ -494,3 +495,170 @@ def test_safe_calc():
 def test_new_tools_registered():
     from app import tools
     assert {"calculate", "get_weather"} <= {t["name"] for t in tools.schemas(False)}
+
+
+# ---------- streaming, stop, tasks, reminders, notes, web safety ----------
+class _Stream:
+    def __init__(self, final, chunks):
+        self.final, self.chunks = final, chunks
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    def __aiter__(self):
+        async def gen():
+            for c in self.chunks:
+                yield SimpleNamespace(type="text", text=c)
+        return gen()
+
+    async def get_final_message(self):
+        return self.final
+
+
+class FakeStreamClient:
+    """Mimics anthropic.AsyncAnthropic().messages.stream(...)."""
+
+    def __init__(self, script):
+        self.script = list(script)
+        self.messages = self
+
+    def stream(self, **kw):
+        final, chunks = self.script.pop(0)
+        return _Stream(final, chunks)
+
+
+def test_reply_is_streamed_in_deltas(tmp_path):
+    fake = FakeStreamClient([(resp(text("Hello there")), ["Hel", "lo ", "there"])])
+    app = create_app(client=fake, db_path=str(tmp_path / "s.db"))
+    with TestClient(app) as c:
+        token = register(c)
+        ws, s = connect(c, token)
+        try:
+            s.receive_json()
+            s.send_json({"type": "chat", "text": "hi"})
+            seen = []
+            for _ in range(20):
+                m = s.receive_json()
+                seen.append(m)
+                if m["type"] == "reply":
+                    break
+            assert "".join(m["text"] for m in seen if m["type"] == "delta") == "Hello there"
+            assert seen[-1]["text"] == "Hello there"
+        finally:
+            ws.__exit__(None, None, None)
+
+
+def test_stop_cancels_and_refunds(tmp_path):
+    import asyncio
+
+    class Slow:
+        def __init__(self):
+            self.messages = self
+
+        async def create(self, **kw):
+            await asyncio.sleep(30)
+
+    app = create_app(client=Slow(), db_path=str(tmp_path / "x.db"))
+    with TestClient(app) as c:
+        token = register(c)
+        ws, s = connect(c, token)
+        try:
+            s.receive_json()
+            s.send_json({"type": "chat", "text": "think hard"})
+            s.send_json({"type": "stop"})
+            assert drain_until(s, "stopped")["type"] == "stopped"
+            assert c.get("/api/me", headers=auth(token)).json()["used"] == 0
+            # the session is usable again afterwards
+            s.send_json({"type": "chat", "text": "again"})
+            s.send_json({"type": "stop"})
+            drain_until(s, "stopped")
+        finally:
+            ws.__exit__(None, None, None)
+
+
+def test_task_reminder_note_tools_via_chat(env):
+    c, fake = env.client, env.fake
+    token = register(c)
+    fake.script = [
+        resp(tool("1", "add_task", text="Buy milk"), tool("2", "set_reminder", text="Call mum", in_minutes=30), tool("3", "save_note", title="Idea", content="Build Aegis mobile app")),
+        resp(tool("4", "list_tasks"), tool("5", "list_reminders"), tool("6", "search_notes", query="aegis")),
+        resp(text("All set.")),
+    ]
+    ws, s = connect(c, token)
+    try:
+        s.receive_json()
+        s.send_json({"type": "chat", "text": "plan my evening", "tz": "Asia/Karachi"})
+        assert drain_until(s, "reply")["text"] == "All set."
+    finally:
+        ws.__exit__(None, None, None)
+    h = auth(token)
+    assert [t["text"] for t in c.get("/api/tasks", headers=h).json()] == ["Buy milk"]
+    assert [r["text"] for r in c.get("/api/reminders", headers=h).json()] == ["Call mum"]
+    assert c.get("/api/notes", headers=h).json()[0]["title"] == "Idea"
+    # the tool results fed back to the model
+    results = fake.calls[2]["messages"][-1]["content"]
+    assert "Buy milk" in results[0]["content"] and "Call mum" in results[1]["content"] and "Aegis mobile app" in results[2]["content"]
+    # the system prompt carries the user's own local time zone
+    assert "Asia/Karachi" in fake.calls[0]["system"]
+
+
+def test_tasks_rest_and_isolation(env):
+    c = env.client
+    t1, t2 = register(c, "a@example.com"), register(c, "b@example.com")
+    tid = c.post("/api/tasks", json={"text": "  Pay rent  "}, headers=auth(t1)).json()["id"]
+    assert c.post("/api/tasks", json={"text": "   "}, headers=auth(t1)).status_code == 400
+    assert c.post(f"/api/tasks/{tid}", json={"done": True}, headers=auth(t1)).status_code == 200
+    assert c.get("/api/tasks", headers=auth(t1)).json()[0]["done"] == 1
+    assert c.get("/api/tasks", headers=auth(t2)).json() == []
+    assert c.delete(f"/api/tasks/{tid}", headers=auth(t2)).status_code == 404
+    assert c.delete(f"/api/tasks/{tid}", headers=auth(t1)).status_code == 200
+
+
+def test_due_reminder_is_pushed_on_connect(env):
+    import time as _t
+
+    c = env.client
+    token = register(c)
+    uid = 1  # first registered user in a fresh database
+    c.app.state.db.add_reminder(uid, "Take medicine", _t.time() - 5)
+    ws, s = connect(c, token)
+    try:
+        s.receive_json()
+        m = drain_until(s, "reminder")
+        assert m["text"] == "Take medicine"
+    finally:
+        ws.__exit__(None, None, None)
+    assert c.get("/api/reminders", headers=auth(token)).json() == []  # fired once, not repeated
+
+
+def test_fetch_url_refuses_private_addresses():
+    from app import utilities
+
+    for bad in ("http://127.0.0.1:8000/", "http://localhost/", "http://169.254.169.254/latest/meta-data", "http://10.0.0.5/", "file:///etc/passwd", "ftp://example.com/x"):
+        assert utilities.fetch_page(bad).startswith("Error"), bad
+
+
+def test_resolve_due():
+    from datetime import datetime, timezone
+    from app import utilities
+
+    now = datetime(2026, 11, 17, 10, 0, tzinfo=timezone.utc)  # 15:00 in Karachi
+    ts, human = utilities.resolve_due({"in_minutes": 20}, "Asia/Karachi", now)
+    assert ts == now.timestamp() + 1200
+    ts, human = utilities.resolve_due({"at": "09:00"}, "Asia/Karachi", now)  # already past today -> tomorrow
+    assert "Wednesday 18 November, 09:00" == human
+    ts, human = utilities.resolve_due({"at": "2026-11-17 18:30"}, "Asia/Karachi", now)
+    assert "18:30" in human
+    for bad in ({}, {"in_minutes": -5}, {"in_minutes": "soon"}, {"at": "2026-11-17 09:00"}, {"at": "25:00"}, {"at": "banana"}):
+        with pytest.raises(ValueError):
+            utilities.resolve_due(bad, "Asia/Karachi", now)
+
+
+def test_html_to_text_drops_scripts_and_nav():
+    from app import utilities
+
+    title, text = utilities.html_to_text("<html><title>Hi</title><nav>menu</nav><script>evil()</script><p>Hello <b>world</b></p></html>")
+    assert title == "Hi" and text == "Hello world"

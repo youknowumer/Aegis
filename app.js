@@ -36,6 +36,8 @@
   let confirmTimer = null;
   const confirmQueue = [];
   const acts = new Map(); // tool call id -> { chip, li }
+  const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } })();
+  let streamEl = null, streamText = "", streamRaf = 0; // the Aegis message that is currently being typed out
 
   function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
   function safeSet(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} }
@@ -303,6 +305,21 @@
   function markChat() { $("stage").dataset.chat = "1"; $("welcome").classList.add("hidden"); }
 
   let lastAi = "";
+  function decorate(el, text) {
+    const bar = document.createElement("div");
+    bar.className = "msg-actions";
+    const copy = document.createElement("button");
+    copy.type = "button"; copy.textContent = "Copy";
+    copy.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(text); copy.textContent = "Copied"; } catch { copy.textContent = "Can't copy"; }
+      setTimeout(() => (copy.textContent = "Copy"), 1500);
+    });
+    const say = document.createElement("button");
+    say.type = "button"; say.textContent = "Read aloud";
+    say.addEventListener("click", () => speak(text, true));
+    bar.append(copy, say);
+    el.appendChild(bar);
+  }
   function addMsg(role, text) {
     if (role === "ai") lastAi = text;
     markChat();
@@ -310,13 +327,54 @@
     el.className = "msg " + role;
     el.dir = "auto"; // right-to-left for Urdu
     rich(el, text);
+    if (role === "ai") decorate(el, text);
     $("messages").appendChild(el);
     if (thinkingEl) $("messages").appendChild(thinkingEl);
     scrollDown();
     return el;
   }
 
+  // While text is still arriving, hide half-typed markdown (an unclosed ** or code fence) so it never flashes raw.
+  function partialSafe(t) {
+    if ((t.match(/```/g) || []).length % 2) t += "\n```";
+    const outside = t.split(/```/).filter((_, i) => i % 2 === 0).join("");
+    if ((outside.match(/\*\*/g) || []).length % 2) { const i = t.lastIndexOf("**"); t = t.slice(0, i) + t.slice(i + 2); }
+    return t;
+  }
+  // ---- streaming: the answer types out word by word
+  function onDelta(text) {
+    if (!streamEl) {
+      markChat();
+      streamEl = document.createElement("div");
+      streamEl.className = "msg ai streaming";
+      streamEl.dir = "auto";
+      streamText = "";
+      $("messages").appendChild(streamEl);
+    }
+    if (thinkingEl) thinkingEl.style.display = "none";
+    streamText += text;
+    if (!streamRaf) streamRaf = requestAnimationFrame(() => { streamRaf = 0; if (streamEl) { rich(streamEl, partialSafe(streamText)); scrollDown(); } });
+  }
+  // text = the final text to show (or undefined to keep what streamed in)
+  function endStream(text) {
+    if (streamRaf) { cancelAnimationFrame(streamRaf); streamRaf = 0; }
+    if (thinkingEl) thinkingEl.style.display = "";
+    const el = streamEl;
+    streamEl = null;
+    if (!el) return null;
+    const final = text !== undefined ? text : streamText;
+    if (!final.trim()) { el.remove(); return null; }
+    el.classList.remove("streaming");
+    rich(el, final);
+    decorate(el, final);
+    lastAi = final;
+    if (thinkingEl) $("messages").appendChild(thinkingEl);
+    scrollDown();
+    return el;
+  }
+
   function clearChat() {
+    streamEl = null;
     $("messages").querySelectorAll(".msg,.tool,.thinking").forEach((n) => n.remove());
     thinkingEl = null;
     $("welcome").classList.remove("hidden");
@@ -340,7 +398,8 @@
 
   function setBusy(b, skipVoiceSync) {
     busy = b;
-    $("send-btn").disabled = b;
+    $("send-btn").classList.toggle("hidden", b);
+    $("stop-btn").classList.toggle("hidden", !b);
     setThinking(b);
     refreshState();
     if (!skipVoiceSync) syncVoice();
@@ -353,6 +412,30 @@
     recall: (a) => "Searching memory" + (a.query ? ": " + a.query : ""),
     forget: () => "Forgetting memories",
     current_time: () => "Checking the time",
+    fetch_url: (a) => "Reading " + host(a.url),
+    wikipedia: (a) => "Wikipedia: " + (a.topic || ""),
+    convert_currency: (a) => "Converting " + (a.from_currency || "") + " to " + (a.to_currency || ""),
+    add_task: (a) => "Adding task: " + (a.text || ""),
+    list_tasks: () => "Reading your tasks",
+    complete_task: () => "Completing a task",
+    set_reminder: (a) => "Setting reminder: " + (a.text || ""),
+    list_reminders: () => "Checking reminders",
+    cancel_reminder: () => "Cancelling a reminder",
+    save_note: (a) => "Saving note: " + (a.title || ""),
+    search_notes: () => "Searching notes",
+    daily_briefing: () => "Preparing your briefing",
+    calculate: (a) => "Calculating " + (a.expression || ""),
+    get_weather: (a) => "Weather in " + (a.city || ""),
+    open_file: (a) => "Opening " + (a.path || "a file"),
+    find_files: (a) => "Finding files: " + (a.query || ""),
+    clipboard_read: () => "Reading the clipboard",
+    clipboard_write: () => "Copying to the clipboard",
+    set_volume: (a) => "Volume: " + (a.level || ""),
+    media_control: (a) => "Media: " + (a.action || ""),
+    notify: () => "Showing a notification",
+    running_apps: () => "Listing open apps",
+    close_app: (a) => "Closing " + (a.name || "an app"),
+    lock_screen: () => "Locking the screen",
     open_app: (a) => "Opening " + (a.name || "an app"),
     open_url: (a) => "Opening " + host(a.url),
     browser_search: (a) => "Searching: " + (a.query || ""),
@@ -399,7 +482,11 @@
     scrollDown();
   }
 
+  const TASK_TOOLS = new Set(["add_task", "complete_task"]);
+  const REMIND_TOOLS = new Set(["set_reminder", "cancel_reminder"]);
   function doneTool(m) {
+    if (TASK_TOOLS.has(m.name)) loadTasks();
+    if (REMIND_TOOLS.has(m.name)) loadReminders();
     const a = acts.get(m.id);
     if (!a) return;
     const cls = m.ok ? "ok" : "fail";
@@ -448,6 +535,78 @@
     } catch {}
   }
 
+  // ---- tasks and reminders
+  function emptyToggle(listId, emptyId, countId, n) {
+    $(emptyId).classList.toggle("hidden", n > 0);
+    $(countId).textContent = n;
+  }
+  async function loadTasks() {
+    if (LOCAL || !token) return;
+    try {
+      const rows = await api("/api/tasks");
+      if (!Array.isArray(rows)) return;
+      const ul = $("task-list");
+      ul.textContent = "";
+      rows.forEach((t) => {
+        const li = document.createElement("li");
+        if (t.done) li.className = "done";
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.className = "check"; cb.checked = !!t.done; cb.setAttribute("aria-label", "Done: " + t.text);
+        cb.addEventListener("change", async () => { try { await api("/api/tasks/" + t.id, { method: "POST", body: JSON.stringify({ done: cb.checked }) }); } catch {} loadTasks(); });
+        const s = document.createElement("span"); s.dir = "auto"; s.textContent = t.text;
+        li.append(cb, s);
+        if (t.due) { const w = document.createElement("span"); w.className = "when"; w.textContent = t.due; li.appendChild(w); }
+        const x = document.createElement("button");
+        x.type = "button"; x.className = "x"; x.textContent = "\u00d7"; x.setAttribute("aria-label", "Delete task");
+        x.addEventListener("click", async () => { try { await api("/api/tasks/" + t.id, { method: "DELETE" }); } catch {} loadTasks(); });
+        li.appendChild(x);
+        ul.appendChild(li);
+      });
+      emptyToggle("task-list", "task-empty", "task-count", rows.filter((t) => !t.done).length);
+    } catch {}
+  }
+  $("task-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const v = $("task-input").value.trim();
+    if (!v) return;
+    if (LOCAL) return toast("Tasks need the AI server.");
+    $("task-input").value = "";
+    try { await api("/api/tasks", { method: "POST", body: JSON.stringify({ text: v }) }); } catch (err) { toast(err.message); }
+    loadTasks();
+  });
+
+  function whenLabel(ts) {
+    const d = new Date(ts * 1000), now = new Date();
+    const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (d.toDateString() === now.toDateString()) return hm;
+    return d.toLocaleDateString([], { weekday: "short" }) + " " + hm;
+  }
+  async function loadReminders() {
+    if (LOCAL || !token) return;
+    try {
+      const rows = await api("/api/reminders");
+      if (!Array.isArray(rows)) return;
+      const ul = $("remind-list");
+      ul.textContent = "";
+      rows.forEach((r) => {
+        const li = document.createElement("li");
+        const w = document.createElement("span"); w.className = "when"; w.textContent = whenLabel(r.due);
+        const s = document.createElement("span"); s.dir = "auto"; s.textContent = r.text;
+        const x = document.createElement("button");
+        x.type = "button"; x.className = "x"; x.textContent = "\u00d7"; x.setAttribute("aria-label", "Cancel reminder");
+        x.addEventListener("click", async () => { try { await api("/api/reminders/" + r.id, { method: "DELETE" }); } catch {} loadReminders(); });
+        li.append(w, s, x);
+        ul.appendChild(li);
+      });
+      emptyToggle("remind-list", "remind-empty", "remind-count", rows.length);
+    } catch {}
+  }
+  function onReminder(m) {
+    const text = "Reminder: " + m.text;
+    alertUser(text);
+    loadReminders();
+  }
+
   async function checkDownload() {
     if (desktop) return; // already inside the desktop app
     try {
@@ -465,7 +624,7 @@
     setLink(retry ? "reconnecting" : "connecting");
     sock.onopen = () => {
       retry = 0;
-      sock.send(JSON.stringify({ type: "auth", token, role: "chat" }));
+      sock.send(JSON.stringify({ type: "auth", token, role: "chat", tz: TZ }));
       clearInterval(pingTimer);
       pingTimer = setInterval(() => send({ type: "ping" }), 25000); // keeps proxies from closing an idle socket
     };
@@ -497,22 +656,27 @@
         setDevice(m.device);
         $("messages").querySelectorAll(".msg,.tool").forEach((n) => n.remove());
         (m.history || []).forEach((h) => addMsg(h.role === "user" ? "user" : "ai", h.text));
-        loadMemory();
+        streamEl = null;
+        loadMemory(); loadTasks(); loadReminders();
         refreshState();
         syncVoice();
         break;
       case "status": setDevice(m.device); break;
+      case "delta": onDelta(m.text || ""); break;
+      case "delta_end": endStream(); break;
+      case "stopped": endStream(); setBusy(false); toast("Stopped."); break;
+      case "reminder": onReminder(m); break;
       case "tool": addTool(m); break;
       case "tool_done": doneTool(m); break;
       case "confirm": confirmQueue.push(m); showConfirm(); break;
       case "reply":
         setBusy(false, true); // speak() re-syncs the microphone once it knows whether Aegis will talk
-        addMsg("ai", m.text);
+        if (!endStream(m.text)) addMsg("ai", m.text);
         setUsage(m.used, m.limit);
-        loadMemory();
+        loadMemory(); loadTasks(); loadReminders();
         speak(m.text);
         break;
-      case "error": setBusy(false); addMsg("err", m.text); break;
+      case "error": endStream(); setBusy(false); addMsg("err", m.text); break;
       case "cleared": clearChat(); break;
     }
   }
@@ -591,6 +755,7 @@
     addMsg("ai", text);
     speak(text, true);
     beep(); setTimeout(beep, 260); setTimeout(beep, 520);
+    try { if (document.hidden && "Notification" in window && Notification.permission === "granted") new Notification("Aegis", { body: text }); } catch {}
     try { if (document.hidden) { const old = document.title; document.title = "\u23f0 " + text; setTimeout(() => (document.title = old), 15000); } } catch {}
   }
   const cmdCtx = {
@@ -644,7 +809,7 @@
     manual = false;
     followUp = false;
     addMsg("user", text);
-    send({ type: "chat", text });
+    send({ type: "chat", text, tz: TZ });
     setBusy(true);
   }
   $("composer").addEventListener("submit", (e) => {
@@ -679,15 +844,141 @@
   $("activity-btn").addEventListener("click", () => openDrawer("right"));
   $("scrim").addEventListener("click", closeDrawers);
 
+  $("stop-btn").addEventListener("click", () => { send({ type: "stop" }); stopSpeaking(); });
+
   // keyboard shortcuts
   document.addEventListener("keydown", (e) => {
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "");
-    if ((e.key === "/" && !typing) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k")) {
-      if (authed) { e.preventDefault(); $("input").focus(); }
-    } else if (e.key === "Escape" && authed && !$("confirm").open) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      if (authed) { e.preventDefault(); openPalette(); }
+    } else if (e.key === "/" && !typing && authed) {
+      e.preventDefault(); $("input").focus();
+    } else if (e.key === "Escape" && authed && !document.querySelector("dialog[open]")) {
+      if (busy) send({ type: "stop" });
       stopSpeaking(); convo = false; manual = false; followUp = false; syncToggles(); syncVoice();
     }
   });
+
+  // ------------------------------------------------------------------ command palette
+  const ACTIONS = [
+    { g: "Aegis", ic: "\u25d0", t: "Toggle focus mode", run: () => setFocus() },
+    { g: "Aegis", ic: "\u25cf", t: "Turn voice mode on", run: () => cmdCtx.setVoiceMode(true) },
+    { g: "Aegis", ic: "\u25cb", t: "Turn voice mode off", run: () => cmdCtx.setVoiceMode(false) },
+    { g: "Aegis", ic: "\u2699", t: "Open settings", run: () => openSettings() },
+    { g: "Aegis", ic: "\u21bb", t: "Clear this conversation", run: () => { if (confirm("Clear this conversation?")) send({ type: "reset" }); } },
+    { g: "Aegis", ic: "\u21aa", t: "Sign out", run: () => logout() },
+  ];
+  const ASKS = [
+    ["Good morning, brief me on my day", "Brief me on my day", "\u2600"],
+    ["Remind me in 20 minutes to stretch", "Set a reminder", "\u23f0"],
+    ["Add a task to call the bank tomorrow", "Add a task", "\u2611"],
+    ["What's the latest news today?", "Latest news", "\u25a4"],
+    ["Convert 100 USD to PKR", "Convert currency", "$"],
+    ["Who is Ada Lovelace?", "Look something up", "?"],
+    ["What do you remember about me?", "What do you remember?", "\u2606"],
+    ["open YouTube", "Open YouTube", "\u2197"],
+    ["google latest AI news", "Search Google", "\u2197"],
+    ["weather in Lahore", "Weather", "\u2601"],
+    ["set a timer for 5 minutes", "Timer: 5 minutes", "\u23f1"],
+    ["calculate 15% of 2400", "Calculate", "="],
+    ["convert 10 km to miles", "Convert units", "\u21c4"],
+    ["take a note call the bank tomorrow", "Take a note", "\u270e"],
+    ["show my notes", "Show my notes", "\u270e"],
+    ["switch to Urdu", "Switch to Urdu", "\u0627"],
+    ["Check my system health", "PC: system health", "\u25a3"],
+    ["Take a screenshot", "PC: take a screenshot", "\u25a3"],
+    ["List the files in my Downloads folder", "PC: list Downloads", "\u25a3"],
+    ["Organize my Downloads folder", "PC: organize Downloads", "\u25a3"],
+    ["help", "Everything I can do", "\u2139"],
+  ].map(([q, t, ic]) => ({ g: "Ask Aegis", ic, t, sub: q, run: () => submitText(q) }));
+  Object.keys(THEME_RGB).forEach((n) => ACTIONS.push({ g: "Theme", ic: "\u25cf", t: "Accent colour: " + n, run: () => applyTheme(n) }));
+
+  let palItems = [], palSel = 0;
+  function renderPalette() {
+    const q = $("pal-input").value.trim().toLowerCase();
+    const all = ACTIONS.concat(ASKS);
+    palItems = q ? all.filter((i) => (i.t + " " + (i.sub || "")).toLowerCase().includes(q)) : all.filter((i) => i.g !== "Theme");
+    if (q) palItems.unshift({ g: "Ask Aegis", ic: "\u279c", t: "Ask: " + $("pal-input").value.trim(), run: () => submitText($("pal-input").value.trim()) });
+    if (palSel >= palItems.length) palSel = Math.max(0, palItems.length - 1);
+    const ul = $("pal-list");
+    ul.textContent = "";
+    let group = "";
+    palItems.forEach((it, i) => {
+      if (it.g !== group) { group = it.g; const h = document.createElement("li"); h.className = "pal-group"; h.setAttribute("role", "presentation"); h.textContent = group; ul.appendChild(h); }
+      const li = document.createElement("li");
+      li.className = "pal-item"; li.setAttribute("role", "option"); li.setAttribute("aria-selected", i === palSel ? "true" : "false");
+      const ic = document.createElement("span"); ic.className = "ic"; ic.textContent = it.ic;
+      const t = document.createElement("span"); t.textContent = it.t;
+      li.append(ic, t);
+      if (it.sub && it.sub !== it.t) { const s = document.createElement("small"); s.textContent = it.sub.length > 34 ? it.sub.slice(0, 33) + "\u2026" : it.sub; li.appendChild(s); }
+      li.addEventListener("click", () => runPalette(i));
+      li.addEventListener("mousemove", () => { if (palSel !== i) { palSel = i; markPal(); } });
+      ul.appendChild(li);
+    });
+    if (!palItems.length) { const e = document.createElement("li"); e.className = "pal-group"; e.textContent = "No match. Press Enter to ask Aegis."; ul.appendChild(e); }
+  }
+  function markPal() {
+    document.querySelectorAll("#pal-list .pal-item").forEach((li, i) => {
+      const on = i === palSel; li.setAttribute("aria-selected", on ? "true" : "false");
+      if (on) li.scrollIntoView({ block: "nearest" });
+    });
+  }
+  function runPalette(i) {
+    const it = palItems[i];
+    const typed = $("pal-input").value.trim();
+    $("palette").close();
+    if (it) it.run(); else if (typed) submitText(typed);
+  }
+  function openPalette() {
+    const d = $("palette");
+    if (d.open || !authed) return;
+    $("pal-input").value = ""; palSel = 0; renderPalette();
+    d.showModal();
+    $("pal-input").focus();
+  }
+  $("pal-input").addEventListener("input", () => { palSel = 0; renderPalette(); });
+  $("pal-input").addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); palSel = Math.min(palItems.length - 1, palSel + 1); markPal(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); palSel = Math.max(0, palSel - 1); markPal(); }
+    else if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); runPalette(palSel); }
+  });
+  $("palette").addEventListener("click", (e) => { if (e.target === $("palette")) $("palette").close(); });
+  $("palette-btn").addEventListener("click", openPalette);
+
+  // ------------------------------------------------------------------ settings + focus
+  function buildSwatches() {
+    const box = $("swatches");
+    box.textContent = "";
+    const cur = safeGet("aegis_theme") || "cyan";
+    Object.keys(THEME_RGB).forEach((n) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "swatch"; b.title = n; b.setAttribute("role", "radio"); b.setAttribute("aria-label", n);
+      b.setAttribute("aria-checked", n === cur ? "true" : "false");
+      b.style.background = "rgb(" + THEME_RGB[n].join(",") + ")";
+      b.addEventListener("click", () => { applyTheme(n); buildSwatches(); });
+      box.appendChild(b);
+    });
+  }
+  function refreshNotifBtn() {
+    const nb = $("notif-btn");
+    if (!("Notification" in window)) { nb.disabled = true; nb.textContent = "Not supported in this browser"; }
+    else if (Notification.permission === "granted") { nb.disabled = true; nb.textContent = "Notifications are on"; }
+    else if (Notification.permission === "denied") { nb.disabled = true; nb.textContent = "Blocked: allow them in the address bar"; }
+    else { nb.disabled = false; nb.textContent = "Allow notifications"; }
+  }
+  function openSettings() {
+    buildSwatches();
+    refreshNotifBtn();
+    if (!$("settings").open) $("settings").showModal();
+  }
+  $("settings-btn").addEventListener("click", openSettings);
+  $("settings-close").addEventListener("click", () => $("settings").close());
+  $("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });
+  $("notif-btn").addEventListener("click", async () => {
+    try { const r = await Notification.requestPermission(); toast(r === "granted" ? "Notifications are on." : "Notifications stay off."); } catch {}
+    refreshNotifBtn();
+  });
+  $("focus-btn").addEventListener("click", () => setFocus());
 
   // ------------------------------------------------------------------ voice
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;

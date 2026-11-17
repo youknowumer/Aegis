@@ -16,8 +16,8 @@
   function clock() {
     const d = new Date();
     txt("hud-day", pad(d.getDate()));
-    txt("hud-month", d.toLocaleDateString([], { month: "long" }).toUpperCase());
-    txt("hud-weekday", d.toLocaleDateString([], { weekday: "long" }).toUpperCase());
+    txt("hud-month", d.toLocaleDateString([], { month: "long" }));
+    txt("hud-weekday", d.toLocaleDateString([], { weekday: "long" }));
     txt("hud-time", pad(d.getHours()) + ":" + pad(d.getMinutes()));
     txt("hud-sec", pad(d.getSeconds()));
     const up = Math.floor((Date.now() - started) / 1000);

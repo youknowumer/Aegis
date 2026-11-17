@@ -27,6 +27,32 @@ CREATE TABLE IF NOT EXISTS messages (
   created REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id, id);
+CREATE TABLE IF NOT EXISTS tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  due TEXT NOT NULL DEFAULT '',
+  done INTEGER NOT NULL DEFAULT 0,
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id, done);
+CREATE TABLE IF NOT EXISTS reminders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  due REAL NOT NULL,
+  fired INTEGER NOT NULL DEFAULT 0,
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(fired, due);
+CREATE TABLE IF NOT EXISTS notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
 CREATE TABLE IF NOT EXISTS usage (
   user_id INTEGER NOT NULL,
   day TEXT NOT NULL,
@@ -138,3 +164,85 @@ class DB:
 
     def clear_messages(self, uid):
         self.execute("DELETE FROM messages WHERE user_id = ?", (uid,))
+
+    # ---- tasks ----
+    def add_task(self, uid, text, due=""):
+        return self.execute(
+            "INSERT INTO tasks (user_id, text, due, created) VALUES (?, ?, ?, ?)",
+            (uid, text.strip()[:300], str(due or "")[:40], time.time()),
+        ).lastrowid
+
+    def tasks(self, uid, include_done=True):
+        sql = "SELECT id, text, due, done FROM tasks WHERE user_id = ?"
+        if not include_done:
+            sql += " AND done = 0"
+        return [dict(r) for r in self.all(sql + " ORDER BY done, id DESC LIMIT 200", (uid,))]
+
+    def set_task_done(self, uid, task_id, done=True):
+        return self.execute(
+            "UPDATE tasks SET done = ? WHERE id = ? AND user_id = ?", (1 if done else 0, task_id, uid)
+        ).rowcount
+
+    def complete_task_matching(self, uid, text):
+        """Mark the newest open task whose text contains `text` as done. Returns the task text or None."""
+        row = self.one(
+            "SELECT id, text FROM tasks WHERE user_id = ? AND done = 0 AND text LIKE ? ORDER BY id DESC LIMIT 1",
+            (uid, f"%{text}%"),
+        )
+        if not row:
+            return None
+        self.set_task_done(uid, row["id"], True)
+        return row["text"]
+
+    def delete_task(self, uid, task_id):
+        return self.execute("DELETE FROM tasks WHERE id = ? AND user_id = ?", (task_id, uid)).rowcount
+
+    # ---- reminders ----
+    def add_reminder(self, uid, text, due_ts):
+        return self.execute(
+            "INSERT INTO reminders (user_id, text, due, created) VALUES (?, ?, ?, ?)",
+            (uid, text.strip()[:300], float(due_ts), time.time()),
+        ).lastrowid
+
+    def reminders(self, uid):
+        return [dict(r) for r in self.all(
+            "SELECT id, text, due FROM reminders WHERE user_id = ? AND fired = 0 ORDER BY due LIMIT 100", (uid,))]
+
+    def due_reminders(self, now=None):
+        return [dict(r) for r in self.all(
+            "SELECT id, user_id, text, due FROM reminders WHERE fired = 0 AND due <= ? ORDER BY due LIMIT 100",
+            (now if now is not None else time.time(),))]
+
+    def due_reminders_for(self, uid, now=None):
+        return [r for r in self.due_reminders(now) if r["user_id"] == uid]
+
+    def mark_reminder_fired(self, rid):
+        return self.execute("UPDATE reminders SET fired = 1 WHERE id = ?", (rid,)).rowcount
+
+    def delete_reminder(self, uid, rid):
+        return self.execute("DELETE FROM reminders WHERE id = ? AND user_id = ?", (rid, uid)).rowcount
+
+    def cancel_reminders_matching(self, uid, text):
+        return self.execute(
+            "DELETE FROM reminders WHERE user_id = ? AND fired = 0 AND text LIKE ?", (uid, f"%{text}%")
+        ).rowcount
+
+    # ---- notes ----
+    def add_note(self, uid, title, body):
+        return self.execute(
+            "INSERT INTO notes (user_id, title, body, created) VALUES (?, ?, ?, ?)",
+            (uid, title.strip()[:120] or "Untitled", body.strip()[:8000], time.time()),
+        ).lastrowid
+
+    def notes(self, uid, query=""):
+        if query:
+            like = f"%{query}%"
+            rows = self.all(
+                "SELECT id, title, body, created FROM notes WHERE user_id = ? AND (title LIKE ? OR body LIKE ?) "
+                "ORDER BY id DESC LIMIT 20", (uid, like, like))
+        else:
+            rows = self.all("SELECT id, title, body, created FROM notes WHERE user_id = ? ORDER BY id DESC LIMIT 100", (uid,))
+        return [dict(r) for r in rows]
+
+    def delete_note(self, uid, nid):
+        return self.execute("DELETE FROM notes WHERE id = ? AND user_id = ?", (nid, uid)).rowcount
