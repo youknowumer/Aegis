@@ -8,6 +8,11 @@
   const CFG = window.AEGIS_CONFIG || {};
   const API = String(CFG.API_BASE || "").replace(/\/+$/, "");
   const API_MISSING = /YOUR-AEGIS-SERVER/i.test(API);
+  // Local login mode: no server needed. Accounts live in THIS browser on THIS computer only
+  // (localStorage, passwords PBKDF2-hashed). Used automatically while config.js has no real server yet,
+  // or force it with LOCAL_LOGIN: true. Chat/AI still needs the real server.
+  const LOCAL = API_MISSING || CFG.LOCAL_LOGIN === true;
+  const LOCAL_USERS_KEY = "aegis_local_users";
   const WS_URL =
     (API ? API.replace(/^http/i, "ws") : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/ws";
   const TOKEN_KEY = "aegis_token";
@@ -78,7 +83,43 @@
     }
   }
 
+  const b2h = (buf) => Array.from(new Uint8Array(buf)).map((x) => x.toString(16).padStart(2, "0")).join("");
+  const h2b = (h) => new Uint8Array((h.match(/../g) || []).map((x) => parseInt(x, 16)));
+  async function localHash(pw, saltHex) {
+    if (!(window.crypto && crypto.subtle)) throw new Error("This browser blocks secure login here. Open the site over https:// or localhost.");
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
+    return b2h(await crypto.subtle.deriveBits({ name: "PBKDF2", salt: h2b(saltHex), iterations: 150000, hash: "SHA-256" }, key, 256));
+  }
+  function localUsers() { try { return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || "{}"); } catch { return {}; } }
+  async function localApi(path, opts) {
+    const body = opts.body ? JSON.parse(opts.body) : {};
+    const email = String(body.email || "").trim().toLowerCase();
+    if (path === "/api/register" || path === "/api/login") {
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Enter a valid email address");
+      const users = localUsers();
+      if (path === "/api/register") {
+        if (String(body.password).length < 8) throw new Error("Password must be 8 to 200 characters");
+        if (users[email]) throw new Error("An account with this email already exists");
+        const salt = b2h(crypto.getRandomValues(new Uint8Array(16)));
+        users[email] = { salt, hash: await localHash(body.password, salt) };
+        localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
+      } else {
+        const u = users[email];
+        if (!u || (await localHash(body.password, u.salt)) !== u.hash) throw new Error("Invalid email or password");
+      }
+      return { token: "local:" + email };
+    }
+    if (path === "/api/me") {
+      const email = String(token || "").replace(/^local:/, "");
+      if (!localUsers()[email]) { logout(); throw new Error("Please sign in again."); }
+      return { email, plan: "local", used: 0, limit: 0, device: false, app_name: "Aegis", web_search: false };
+    }
+    if (path === "/api/memory") return [];
+    return {};
+  }
+
   async function api(path, opts = {}) {
+    if (LOCAL) return localApi(path, opts);
     const headers = { "Content-Type": "application/json" };
     if (token) headers.Authorization = "Bearer " + token;
     const ctl = new AbortController();
@@ -104,14 +145,11 @@
   // Free hosts put idle servers to sleep. Poke it as soon as the page opens so login is fast.
   async function warmServer() {
     const pill = $("server-state");
-    if (API_MISSING) {
-      setPill(pill, "Server not set up", "warn");
+    if (LOCAL) {
+      setPill(pill, "Local login (this computer)", "warn");
       const w = $("config-warning");
       w.classList.remove("hidden");
-      w.textContent = "";
-      w.append("Open ", Object.assign(document.createElement("code"), { textContent: "config.js" }),
-        " and replace YOUR-AEGIS-SERVER.onrender.com with your server's address, then reload.");
-      $("auth-submit").disabled = true;
+      w.textContent = "Local mode: your account is saved only in this browser on this computer. Chat/AI needs the Aegis server (set API_BASE in config.js).";
       return;
     }
     setPill(pill, "Connecting...", "off");
@@ -152,7 +190,6 @@
 
   $("auth-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (API_MISSING) return;
     const btn = $("auth-submit");
     btn.disabled = true;
     $("auth-error").textContent = "";
@@ -417,6 +454,7 @@
   // ------------------------------------------------------------------ websocket
   function connect() {
     if (!token || ws) return;
+    if (LOCAL) { setLink("offline"); return; }
     const sock = new WebSocket(WS_URL);
     ws = sock;
     setLink(retry ? "reconnecting" : "connecting");
@@ -525,7 +563,7 @@
   function submitText(text) {
     text = String(text || "").trim();
     if (!text || busy) return;
-    if (!ws || ws.readyState !== 1 || !wsOpen) return addMsg("err", "Not connected. Reconnecting...");
+    if (!ws || ws.readyState !== 1 || !wsOpen) return addMsg("err", LOCAL ? "Local login mode: the AI server isn't connected yet. Set API_BASE in config.js to your deployed server." : "Not connected. Reconnecting...");
     stopSpeaking();
     stopRec();
     setInterim("");
