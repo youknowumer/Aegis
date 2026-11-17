@@ -17,6 +17,6 @@ services:
       - key: AEGIS_JWT_SECRET
         generateValue: true
       - key: AEGIS_ALLOWED_ORIGINS
-        value: https://youknowumer.github.io   # <- your GitHub Pages origin (no /Aegis path, no trailing slash)
+        value: https://youknowumer.github.io,https://YOUR-PROJECT.pages.dev,https://*.pages.dev   # <- your GitHub Pages origin (no /Aegis path, no trailing slash)
       - key: AEGIS_WEB_SEARCH
         value: "0"             # set to 1 after enabling web search in the Anthropic Console

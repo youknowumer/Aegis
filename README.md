@@ -36,6 +36,14 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 
 Other hosts work too: `docker build -t aegis . && docker run -p 8000:8000 -v aegis-data:/data --env-file .env aegis`.
 
+## 1b. Cloudflare Pages (website) + login
+
+Cloudflare Pages is static hosting only (like GitHub Pages), so login will NOT work until the server from step 1 is
+running elsewhere. Cloudflare Pages settings: framework preset **None**, build command empty, output directory `/`.
+Then: (1) set `API_BASE` in `config.js` to your server URL, (2) on the server set
+`AEGIS_ALLOWED_ORIGINS=https://YOUR-PROJECT.pages.dev,https://*.pages.dev` (wildcards allowed, no trailing slash),
+(3) push to git so Cloudflare redeploys.
+
 ## 2. Point the website at the server
 
 Open `config.js` and replace the one URL:

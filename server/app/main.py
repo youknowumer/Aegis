@@ -5,6 +5,7 @@ Run:  uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000
 import asyncio
 import logging
 import os
+import re
 import time
 from collections import defaultdict, deque
 
@@ -55,11 +56,20 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     state = {"client": client}
     origins = [o.rstrip("/") for o in (settings.ALLOWED_ORIGINS if allowed_origins is None else allowed_origins)]
 
-    # Frontend on another site (GitHub Pages) -> browser needs CORS to call this API.
+    # Entries like https://*.pages.dev are wildcards (Cloudflare Pages preview URLs change per deploy).
+    exact = [o for o in origins if "*" not in o]
+    wild = [re.compile("^" + re.escape(o).replace(r"\*", "[A-Za-z0-9-]+") + "$") for o in origins if "*" in o]
+
+    def origin_allowed(origin: str) -> bool:
+        origin = origin.rstrip("/")
+        return origin in exact or any(w.match(origin) for w in wild)
+
+    # Frontend on another site (GitHub Pages / Cloudflare Pages) -> browser needs CORS to call this API.
     if origins:
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=origins,
+            allow_origins=exact,
+            allow_origin_regex="|".join(w.pattern for w in wild) or None,
             allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
             allow_headers=["Authorization", "Content-Type"],
             max_age=600,
@@ -70,7 +80,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         No Origin header = not a browser (the Electron desktop app), which is fine: it still needs a valid token."""
         if not origin:
             return True
-        if origin.rstrip("/") in origins:
+        if origin_allowed(origin):
             return True
         return urlparse(origin).netloc == host  # the UI served by this very server
 
