@@ -60,6 +60,7 @@
     <div class="brand"><span class="orb"></span><span class="app-name">Aegis</span></div>
     <span id="link-pill" class="pill off" role="status">Offline</span>
     <div class="grow"></div>
+    <button id="connect-btn" class="btn ghost small-btn tb-btn" type="button">Connect AI</button>
     <span id="clock" class="clock" aria-hidden="true"></span>
     <button id="activity-btn" class="icon-btn only-mobile" aria-label="Open activity panel">&#9889;</button>
   </header>
@@ -84,21 +85,18 @@
       <div class="row small muted"><span>Session</span><span id="v-up" class="mono">00:00:00</span></div>
     </div>
 
-    <div class="panel hud">
-      <h3 class="panel-title">Systems</h3>
+    <div class="panel hud statusbox">
+      <h3 class="panel-title">Status</h3>
       <div class="row"><span class="label">PC link</span><span id="device-pill" class="pill off">Not connected</span></div>
       <p id="device-hint" class="muted small">Install the desktop app to let Aegis control your PC.</p>
       <a id="download-link" class="btn ghost small-btn hidden" href="downloads/Aegis-Setup.exe">Download for Windows</a>
-    </div>
-
-    <div class="panel hud">
-      <div class="row"><h3 class="panel-title">Messages today</h3><span id="usage-text" class="muted small">0 / 0</span></div>
+      <div class="row"><span class="label">Messages today</span><span id="usage-text" class="muted small mono">0 / 0</span></div>
       <div class="meter"><div id="usage-bar"></div></div>
-      <p class="muted small">Plan: <strong id="plan-name">free</strong></p>
+      <div class="row small muted"><span>Plan</span><strong id="plan-name">free</strong></div>
     </div>
 
-    <div class="panel hud grow">
-      <div class="row"><h3 class="panel-title">Memory</h3><span id="memory-count" class="muted small">0</span></div>
+    <div class="panel hud grow membox">
+      <div class="row"><h3 class="panel-title">Memory</h3><span id="memory-count" class="muted small mono">0</span></div>
       <ul id="memory-list" class="memory"></ul>
       <p id="memory-empty" class="muted small">Nothing yet. Say "remember that..." and it will show up here.</p>
     </div>
@@ -121,7 +119,6 @@
         <g class="d-spin s2"><circle cx="200" cy="200" r="148" class="d-dash2"/></g>
         <g class="d-sweep"><path d="M200 200 L200 12 A188 188 0 0 1 332 67 Z"/></g>
         <path class="d-tick" d="M200 6v14M200 380v14M6 200h14M380 200h14"/>
-        <path class="d-brk" d="M30 110V60a30 30 0 0 1 30-30h50M370 110V60a30 30 0 0 0-30-30h-50M30 290v50a30 30 0 0 0 30 30h50M370 290v50a30 30 0 0 1-30 30h-50"/>
       </svg>
       <canvas id="orb" aria-hidden="true"></canvas>
       <div id="orb-label" class="orb-label" role="status">Offline</div>
@@ -130,13 +127,16 @@
     <section id="messages" class="messages" aria-live="polite" aria-label="Conversation">
       <div id="welcome" class="welcome">
         <h2 id="greeting">How can I help?</h2>
-        <p class="muted">Ask me anything. Type, tap the mic, or turn on Voice mode and just talk. Say "help" for instant commands.</p>
-        <div class="suggest">
-          <button class="chip" type="button" data-q="Remember that my sister's birthday is on Friday">Remember something</button>
-          <button class="chip" type="button" data-q="What's the latest news today?">Latest news</button>
-          <button class="chip" type="button" data-q="Open Chrome and search for SpaceX launches">Open Chrome &amp; search</button>
-          <button class="chip" type="button" data-q="Organize my Downloads folder">Organize Downloads</button>
-          <button class="chip" type="button" data-q="Check my system health">Check my PC</button>
+        <p class="muted">Ask me anything. Type, tap the mic, or turn on Voice mode and just talk.</p>
+        <div class="qcards">
+          <button class="qcard" type="button" data-q="Explain black holes in simple words"><b>Ask anything</b><span>Science, code, advice, writing</span></button>
+          <button class="qcard" type="button" data-q="open YouTube"><b>Open &amp; search</b><span>"open YouTube", "google ..."</span></button>
+          <button class="qcard" type="button" data-q="set a timer for 5 minutes"><b>Timers &amp; notes</b><span>"timer 5 minutes"</span></button>
+          <button class="qcard" type="button" data-q="calculate 15% of 2400"><b>Math &amp; units</b><span>"15% of 2400"</span></button>
+          <button class="qcard" type="button" data-q="weather in Karachi"><b>Weather</b><span>"weather in Lahore"</span></button>
+          <button class="qcard" type="button" data-q="Remember that my sister's birthday is on Friday"><b>Remember</b><span>"remember that ..."</span></button>
+          <button class="qcard" type="button" data-q="What's the latest news today?"><b>Live news</b><span>Needs the AI server</span></button>
+          <button class="qcard" type="button" data-q="help"><b>All commands</b><span>Say "help"</span></button>
         </div>
       </div>
     </section>
@@ -153,11 +153,11 @@
 
     <div class="toggles">
       <label class="toggle"><input id="voice-mode" type="checkbox"><span>Voice mode</span></label>
-      <label class="toggle"><input id="wake" type="checkbox"><span>Say "Hey Aegis"</span></label>
-      <label class="toggle"><input id="speak" type="checkbox"><span>Read replies aloud</span></label>
+      <label class="toggle"><input id="wake" type="checkbox"><span>"Hey Aegis"</span></label>
+      <label class="toggle"><input id="speak" type="checkbox"><span>Read aloud</span></label>
       <label class="toggle sel"><span>Voice</span><select id="voice-pick" aria-label="Assistant voice"></select></label>
       <label class="toggle sel"><span>Speed</span><input id="rate" type="range" min="0.8" max="1.4" step="0.05" value="1.02" aria-label="Speaking speed"></label>
-      <label class="toggle sel"><span>Language</span>
+      <label class="toggle sel"><span>Lang</span>
         <select id="lang" aria-label="Voice language">
           <option value="en-US">English</option>
           <option value="ur-PK">اردو</option>
@@ -199,34 +199,20 @@
       </div>
     </div>
 
-    <div class="panel hud grow">
-      <div class="row"><h3 class="panel-title">Activity</h3><span id="activity-count" class="muted small">0</span></div>
+    <div class="panel hud grow actbox">
+      <div class="row"><h3 class="panel-title">Activity</h3><span id="activity-count" class="muted small mono">0</span></div>
       <ul id="activity" class="activity"></ul>
       <p id="activity-empty" class="muted small">What Aegis does for you shows up here, step by step.</p>
     </div>
 
-    <div class="panel hud">
-      <h3 class="panel-title">Quick commands</h3>
-      <div class="quick">
-        <button class="chip" type="button" data-q="Check my system health">PC health</button>
-        <button class="chip" type="button" data-q="Take a screenshot">Screenshot</button>
-        <button class="chip" type="button" data-q="List the files in my Downloads folder">List Downloads</button>
-        <button class="chip" type="button" data-q="Organize my Downloads folder">Organize Downloads</button>
-        <button class="chip" type="button" data-q="What do you remember about me?">What do you know?</button>
-        <button class="chip" type="button" data-q="What time is it?">Time</button>
-      </div>
-      <p class="muted small keys"><kbd>/</kbd> focus &nbsp; <kbd>Esc</kbd> stop talking</p>
-    </div>
-
-    <div class="panel hud">
-      <h3 class="panel-title">Voice commands</h3>
-      <p class="muted small">Instant, free, work in English, Roman Urdu, Urdu and Hindi. Tap to try.</p>
+    <div class="panel hud cmdbox">
+      <h3 class="panel-title">Commands</h3>
       <div class="cmd-groups">
         <details open><summary>Open &amp; search</summary><div class="quick">
           <button class="chip" type="button" data-q="open YouTube">open YouTube</button>
-          <button class="chip" type="button" data-q="google latest AI news">google latest AI news</button>
+          <button class="chip" type="button" data-q="google latest AI news">google AI news</button>
           <button class="chip" type="button" data-q="gmail kholo">gmail kholo</button>
-          <button class="chip" type="button" data-q="directions to Islamabad">directions to Islamabad</button>
+          <button class="chip" type="button" data-q="directions to Islamabad">directions</button>
         </div></details>
         <details><summary>Time, math &amp; units</summary><div class="quick">
           <button class="chip" type="button" data-q="what time is it">time</button>
@@ -248,11 +234,39 @@
           <button class="chip" type="button" data-q="system status">system status</button>
           <button class="chip" type="button" data-q="help">all commands</button>
         </div></details>
+        <details><summary>PC actions (desktop app)</summary><div class="quick">
+          <button class="chip" type="button" data-q="Check my system health">PC health</button>
+          <button class="chip" type="button" data-q="Take a screenshot">Screenshot</button>
+          <button class="chip" type="button" data-q="List the files in my Downloads folder">List Downloads</button>
+          <button class="chip" type="button" data-q="Organize my Downloads folder">Organize Downloads</button>
+          <button class="chip" type="button" data-q="What do you remember about me?">What do you know?</button>
+        </div></details>
       </div>
+      <p class="muted small keys"><kbd>/</kbd> focus &nbsp; <kbd>Esc</kbd> stop talking</p>
     </div>
   </aside>
   <div id="scrim" class="scrim hidden"></div>
 </div>
+
+<!-- ============ CONNECT AI ============ -->
+<dialog id="connect" class="confirm hud connect">
+  <p class="eyebrow">Connect the AI</p>
+  <h3>Link Aegis to your server</h3>
+  <p class="muted small">The AI key never goes in the website. It lives on your Aegis server, and this page only needs that server's address.</p>
+  <ol class="steps">
+    <li>Get a key: <b>console.anthropic.com</b> &rarr; API keys &rarr; Create key (starts with <code>sk-ant-</code>).</li>
+    <li>On <b>Render</b> (or any host) deploy this repo, then add it as the environment variable <code>ANTHROPIC_API_KEY</code>.</li>
+    <li>Set <code>AEGIS_ALLOWED_ORIGINS</code> to this website's address: <code id="connect-origin"></code></li>
+    <li>Paste your server's address below and save.</li>
+  </ol>
+  <label>Server address<input id="connect-url" type="url" placeholder="https://your-aegis.onrender.com" autocomplete="off"></label>
+  <p id="connect-msg" class="error" role="alert"></p>
+  <div class="row gap end">
+    <button id="connect-reset" class="btn ghost" type="button">Use local mode</button>
+    <button id="connect-close" class="btn ghost" type="button">Close</button>
+    <button id="connect-save" class="btn primary" type="button">Save &amp; connect</button>
+  </div>
+</dialog>
 
 <!-- ============ CONFIRM ============ -->
 <dialog id="confirm" class="confirm hud">

@@ -156,17 +156,6 @@
     },
   };
 
-  // ---------------------------------------------------------------- 3D pointer parallax
-  const appEl = $("app");
-  const fine = window.matchMedia && matchMedia("(pointer: fine)").matches;
-  const still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (appEl && fine && !still) {
-    let raf = 0, mx = 0, my = 0;
-    window.addEventListener("pointermove", (e) => {
-      mx = (e.clientX / innerWidth) * 2 - 1; my = (e.clientY / innerHeight) * 2 - 1;
-      if (!raf) raf = requestAnimationFrame(() => { raf = 0; appEl.style.setProperty("--mx", mx.toFixed(3)); appEl.style.setProperty("--my", my.toFixed(3)); });
-    }, { passive: true });
-  }
 
   function initWeather() {
     const saved = store.get(LOC_KEY);

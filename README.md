@@ -1,5 +1,7 @@
 # Aegis: Jarvis-style AI assistant for web + Windows PC
 
+**New here? Read `SETUP.md` (10-minute setup, including where the API key goes).**
+
 ```
  GitHub Pages (static site)                       Aegis server (Render / Railway / Fly / VPS)
  index.html  app.html  app.js  orb.js  ──HTTPS──►  FastAPI + SQLite ──► Claude API (the brain)

@@ -6,12 +6,15 @@
   // ------------------------------------------------------------------ config
   // config.js sets API_BASE. Empty = same origin (local dev, desktop app, server-hosted UI).
   const CFG = window.AEGIS_CONFIG || {};
-  const API = String(CFG.API_BASE || "").replace(/\/+$/, "");
+  const API_KEY_OVERRIDE = "aegis_api_base"; // set from the "Connect AI" dialog, wins over config.js
+  let apiOverride = "";
+  try { apiOverride = localStorage.getItem(API_KEY_OVERRIDE) || ""; } catch {}
+  const API = String(apiOverride || CFG.API_BASE || "").replace(/\/+$/, "");
   const API_MISSING = /YOUR-AEGIS-SERVER/i.test(API);
   // Local login mode: no server needed. Accounts live in THIS browser on THIS computer only
   // (localStorage, passwords PBKDF2-hashed). Used automatically while config.js has no real server yet,
   // or force it with LOCAL_LOGIN: true. Chat/AI still needs the real server.
-  const LOCAL = API_MISSING || CFG.LOCAL_LOGIN === true;
+  const LOCAL = !apiOverride && (API_MISSING || CFG.LOCAL_LOGIN === true);
   const LOCAL_USERS_KEY = "aegis_local_users";
   const WS_URL =
     (API ? API.replace(/^http/i, "ws") : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/ws";
@@ -656,7 +659,7 @@
   });
   function autosize() { const t = $("input"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 160) + "px"; }
   $("input").addEventListener("input", autosize);
-  document.querySelectorAll(".chip[data-q]").forEach((c) =>
+  document.querySelectorAll(".chip[data-q], .qcard[data-q]").forEach((c) =>
     c.addEventListener("click", () => { closeDrawers(); submitText(c.dataset.q); })
   );
   $("clear-btn").addEventListener("click", () => { if (confirm("Clear this conversation?")) send({ type: "reset" }); });
@@ -992,6 +995,30 @@
     refreshState();
     connect();
   }
+
+  // ---- Connect AI dialog (no code editing needed)
+  $("connect-btn").textContent = LOCAL ? "Connect AI" : "Server";
+  $("connect-btn").addEventListener("click", () => {
+    $("connect-origin").textContent = location.origin.startsWith("http") ? location.origin : "(your website address)";
+    $("connect-url").value = apiOverride || (API_MISSING ? "" : API);
+    $("connect-msg").textContent = "";
+    $("connect").showModal();
+  });
+  $("connect-close").addEventListener("click", () => $("connect").close());
+  $("connect-reset").addEventListener("click", () => { safeSet(API_KEY_OVERRIDE, null); location.reload(); });
+  $("connect-save").addEventListener("click", async () => {
+    let u = $("connect-url").value.trim().replace(/\/+$/, "");
+    if (!/^https?:\/\/[^\s/]+/i.test(u)) return ($("connect-msg").textContent = "Enter the full address, starting with https://");
+    $("connect-msg").textContent = "Checking...";
+    try {
+      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 30000);
+      const r = await fetch(u + "/healthz", { cache: "no-store", signal: ctl.signal });
+      if (!r.ok) throw 0;
+    } catch { return ($("connect-msg").textContent = "Can't reach that server. If it is on free hosting, wait 30 seconds and try again."); }
+    safeSet(API_KEY_OVERRIDE, u);
+    safeSet(TOKEN_KEY, null);
+    location.reload();
+  });
 
   applyTheme(safeGet("aegis_theme") || "cyan");
   tick();
