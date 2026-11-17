@@ -21,6 +21,28 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
   open apps/URLs, files, screenshots, typing, shell. Risky actions always ask first.
 - **Safe**: scrypt passwords, throttled logins, signed tokens, CORS + websocket origin allow-list, strict file sandbox.
 
+## Voice and instant commands
+
+Typed or spoken (English, Roman Urdu, Urdu, Hindi), answered in the browser in milliseconds, free, no AI quota, and they
+work even without the server (`commands.js`):
+
+| Say | Does |
+|---|---|
+| "open YouTube", "gmail kholo", "open github.com" | opens the site |
+| "google quantum computing", "play Coke Studio on YouTube", "directions to Islamabad" | searches / maps |
+| "what time is it", "time in Tokyo", "today's date" | time and date |
+| "calculate 15% of 2400", "convert 10 km to miles" | exact math and units |
+| "set a timer for 10 minutes", "how much time is left", "cancel timer" | timers with alarm + voice |
+| "take a note ...", "show my notes" | notes saved on this device |
+| "weather", "weather in Lahore" | live weather |
+| "system status", "battery" | device gauges |
+| "voice mode on", "be quiet", "switch to Urdu", "change theme to red", "focus mode", "full screen", "repeat that" | controls Aegis itself |
+| "help" | full list |
+
+Everything else goes to the AI, which now answers any question conversationally (replies in your language and script,
+short and natural for voice) and can use `calculate`, `get_weather`, memory, web search and PC tools.
+Pick a voice and speed under the chat box. Replies are read in the language they are written in.
+
 ## Local login mode
 
 While `config.js` still has the placeholder server URL (or `LOCAL_LOGIN: true`), sign-in works without a server:
@@ -104,6 +126,7 @@ Plans/limits: edit `PLAN_LIMITS` in `server/app/settings.py`. Activate a paying 
 ```
 cd server  && pip install pytest httpx && pytest      # 25 tests, fake AI, no API key needed
 cd desktop && npm test                                # 9 tests
+node --test tests/commands.test.js                                   # voice-command router
 ```
 
 ## Layout
@@ -112,6 +135,7 @@ cd desktop && npm test                                # 9 tests
 |---|---|
 | `index.html`, `landing.*` | Landing page |
 | `app.html`, `style.css`, `app.js`, `orb.js` | The assistant UI (login, HUD, chat, voice) |
+| `commands.js` | Instant voice/text commands (open, search, time, math, timers, notes, UI control) |
 | `hud.js` | HUD widgets: date/time, live system gauges, weather (Open-Meteo), shortcuts |
 | `config.js` | **Server address**: the only thing to edit after deploying |
 | `server/app/agent.py` | AI tool-use loop and persona |

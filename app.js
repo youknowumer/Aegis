@@ -64,7 +64,7 @@
   let listeningNow = false;
   function refreshState() {
     let st = "idle";
-    if (!wsOpen) st = "offline";
+    if (!wsOpen && !(LOCAL && authed)) st = "offline";
     else if (listeningNow) st = "listening";
     else if (busy) st = "thinking";
     else if (speaking) st = "speaking";
@@ -299,7 +299,9 @@
 
   function markChat() { $("stage").dataset.chat = "1"; $("welcome").classList.add("hidden"); }
 
+  let lastAi = "";
   function addMsg(role, text) {
+    if (role === "ai") lastAi = text;
     markChat();
     const el = document.createElement("div");
     el.className = "msg " + role;
@@ -454,7 +456,7 @@
   // ------------------------------------------------------------------ websocket
   function connect() {
     if (!token || ws) return;
-    if (LOCAL) { setLink("offline"); return; }
+    if (LOCAL) { setPill($("link-pill"), "Local mode", "warn"); return; }
     const sock = new WebSocket(WS_URL);
     ws = sock;
     setLink(retry ? "reconnecting" : "connecting");
@@ -560,10 +562,79 @@
   $("confirm").addEventListener("cancel", (e) => { e.preventDefault(); answerConfirm(false); }); // Esc = deny
 
   // ------------------------------------------------------------------ composer
+  // ---- instant commands (commands.js): answered locally, no server, no quota
+  const THEME_RGB = {
+    cyan: [47, 227, 255], blue: [90, 150, 255], green: [52, 230, 140], red: [255, 84, 96],
+    amber: [255, 176, 46], purple: [170, 130, 255], pink: [255, 105, 200],
+  };
+  function applyTheme(name) {
+    const rgb = THEME_RGB[name] || THEME_RGB.cyan;
+    const r = document.documentElement.style;
+    r.setProperty("--ac", rgb.join(", "));
+    r.setProperty("--accent", "rgb(" + rgb.join(",") + ")");
+    r.setProperty("--amber", name === "amber" ? "#ff5a36" : "#ffb02e");
+    if (window.AegisOrb) AegisOrb.setTheme(rgb);
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.content = "#03070d";
+    safeSet("aegis_theme", name);
+  }
+  function setFocus(on) {
+    const v = on === undefined ? !document.body.classList.contains("focus") : !!on;
+    document.body.classList.toggle("focus", v);
+    return v;
+  }
+  function alertUser(text) {
+    toast(text, 9000);
+    addMsg("ai", text);
+    speak(text, true);
+    beep(); setTimeout(beep, 260); setTimeout(beep, 520);
+    try { if (document.hidden) { const old = document.title; document.title = "\u23f0 " + text; setTimeout(() => (document.title = old), 15000); } } catch {}
+  }
+  const cmdCtx = {
+    get online() { return wsOpen; },
+    get hud() { return window.AegisHUD || null; },
+    say(text, o) {
+      o = o || {};
+      if (o.silent) { toast(text); return; }
+      addMsg("ai", text);
+      speak(o.speak || text);
+    },
+    alert: alertUser,
+    open(url) {
+      const w = window.open(url, "_blank", "noopener");
+      if (!w) {
+        const el = addMsg("ai", "Your browser blocked the pop-up. Open it here: " + url);
+        el.querySelector("a") && el.querySelector("a").setAttribute("target", "_blank");
+      }
+    },
+    setLang(code) { $("lang").value = code; $("lang").dispatchEvent(new Event("change")); },
+    setVoiceMode(on) { $("voice-mode").checked = on; $("voice-mode").dispatchEvent(new Event("change")); },
+    setSpeak(on) { $("speak").checked = on; safeSet("aegis_speak", on ? "1" : "0"); if (!on) stopSpeaking(); },
+    stopSpeaking,
+    clearChat() { if (ws && wsOpen) send({ type: "reset" }); clearChat(); },
+    lastReply() { return lastAi; },
+    repeatLast() { speak(lastAi, true); },
+    setTheme: applyTheme,
+    toggleFocus: setFocus,
+  };
+  const SILENT_CMDS = { stop: 1, mute: 1, unmute: 0 };
+
+  function runCommand(cmd, text) {
+    stopRec();
+    setInterim("");
+    manual = false;
+    followUp = false;
+    if (!SILENT_CMDS[cmd.name]) { stopSpeaking(); addMsg("user", text); }
+    cmd.run(cmdCtx).catch(() => addMsg("err", "That command failed. Try again."));
+  }
+
   function submitText(text) {
     text = String(text || "").trim();
-    if (!text || busy) return;
-    if (!ws || ws.readyState !== 1 || !wsOpen) return addMsg("err", LOCAL ? "Local login mode: the AI server isn't connected yet. Set API_BASE in config.js to your deployed server." : "Not connected. Reconnecting...");
+    if (!text) return;
+    const cmd = window.AegisCommands && AegisCommands.match(text, { online: wsOpen });
+    if (cmd) return runCommand(cmd, text);
+    if (busy) return;
+    if (!ws || ws.readyState !== 1 || !wsOpen) return addMsg("err", LOCAL ? "That one needs the AI server, which isn't connected yet (set API_BASE in config.js). Say \"help\" to see what I can do instantly without it." : "Not connected. Reconnecting...");
     stopSpeaking();
     stopRec();
     setInterim("");
@@ -626,6 +697,7 @@
   let noSpeechStreak = 0;
   let gestured = false;    // browsers only allow the mic after the person has interacted with the page
   let speakGen = 0;
+  let lastSpoken = "";
 
   // "Hey Aegis, open Chrome" -> "open Chrome". Returns null when there is no wake phrase.
   const WAKE_RE = /\b(?:(?:hey|hi|hello|ok|okay)\s+(?:aegis|aegus|ejis|edgis|eejis|ages|edges|jarvis)|aegis|jarvis)\b[\s,.:;!?-]*/i;
@@ -722,7 +794,7 @@
 
   // One place decides what the microphone should be doing right now.
   function syncVoice() {
-    if (!SR || !authed || !wsOpen || busy || speaking || $("confirm").open) return stopRec();
+    if (!SR || !authed || !(wsOpen || LOCAL) || busy || speaking || $("confirm").open) return stopRec();
     const want = manual || followUp || convo ? "once" : wake && gestured ? "wake" : null;
     if (!want) return stopRec();
     if (rec && recKind === want) return;
@@ -750,19 +822,41 @@
     if (cur.trim()) out.push(cur.trim());
     return out;
   }
-  function pickVoice(lang) {
-    const all = speechSynthesis.getVoices();
+  // Speak in the language the TEXT is written in, so an English answer isn't read with an Urdu voice and vice versa.
+  function langFor(text) {
+    if (/[\u0600-\u06ff]/.test(text)) return "ur-PK";
+    if (/[\u0900-\u097f]/.test(text)) return "hi-IN";
+    const sel = $("lang").value;
+    return sel.startsWith("en") ? sel : "en-US";
+  }
+  const VOICE_RANK = /neural|natural|online|premium|enhanced|google|samantha|daniel|aria|jenny|guy|libby|ryan/i;
+  function voicesFor(lang) {
+    if (!hasTTS) return [];
     const base = lang.split("-")[0];
-    const match = all.filter((v) => v.lang === lang || v.lang.startsWith(base));
-    return match.find((v) => /natural|online|google/i.test(v.name)) || match[0] || null;
+    return speechSynthesis.getVoices().filter((v) => v.lang === lang || v.lang.startsWith(base)).sort((x, y) => VOICE_RANK.test(y.name) - VOICE_RANK.test(x.name));
+  }
+  function pickVoice(lang) {
+    const list = voicesFor(lang);
+    const saved = safeGet("aegis_voice");
+    return list.find((v) => v.name === saved) || list[0] || null;
+  }
+  function fillVoices() {
+    const sel = $("voice-pick");
+    if (!hasTTS || !sel) return;
+    const list = voicesFor($("lang").value);
+    const saved = safeGet("aegis_voice");
+    sel.textContent = "";
+    if (!list.length) { sel.append(new Option("System default", "")); return; }
+    list.forEach((v) => sel.append(new Option(v.name.replace(/^(Microsoft|Google)\s+/, "").slice(0, 28), v.name)));
+    sel.value = list.some((v) => v.name === saved) ? saved : list[0].name;
   }
   function stopSpeaking() {
     speakGen++;
     if (hasTTS) speechSynthesis.cancel();
     if (speaking) { speaking = false; refreshState(); }
   }
-  function speak(text) {
-    const want = hasTTS && ($("speak").checked || convo);
+  function speak(text, force) {
+    const want = hasTTS && (force || $("speak").checked || convo);
     const parts = want ? chunkSpeech(plainSpeech(text)) : [];
     if (!parts.length) return syncVoice();
     speechSynthesis.cancel();
@@ -771,13 +865,14 @@
     speaking = true;
     refreshState();
     syncVoice(); // makes sure the mic is off while Aegis talks
-    const lang = $("lang").value;
+    const lang = langFor(text);
     const voice = pickVoice(lang);
+    const rate = parseFloat($("rate").value) || 1.02;
     parts.forEach((p) => {
       const u = new SpeechSynthesisUtterance(p);
       u.lang = lang;
       if (voice) u.voice = voice;
-      u.rate = 1.02;
+      u.rate = rate;
       const fin = () => {
         if (gen !== speakGen) return;
         if (--left === 0) { speaking = false; refreshState(); syncVoice(); }
@@ -800,7 +895,14 @@
   }
   if (!hasTTS) { $("speak").disabled = true; }
   $("lang").value = safeGet("aegis_lang") || "en-US";
-  $("lang").addEventListener("change", () => { safeSet("aegis_lang", $("lang").value); stopRec(); syncVoice(); });
+  $("lang").addEventListener("change", () => { safeSet("aegis_lang", $("lang").value); fillVoices(); stopRec(); syncVoice(); });
+  $("rate").value = safeGet("aegis_rate") || "1.02";
+  $("rate").addEventListener("input", () => safeSet("aegis_rate", $("rate").value));
+  $("voice-pick").addEventListener("change", () => {
+    safeSet("aegis_voice", $("voice-pick").value);
+    if (hasTTS) { stopSpeaking(); lastSpoken = ""; speak("Hello, this is how I sound.", true); }
+  });
+  if (hasTTS) { fillVoices(); speechSynthesis.addEventListener("voiceschanged", fillVoices); }
   $("speak").checked = safeGet("aegis_speak") === "1";
   $("speak").addEventListener("change", () => { safeSet("aegis_speak", $("speak").checked ? "1" : "0"); if (!$("speak").checked) stopSpeaking(); });
 
@@ -891,6 +993,7 @@
     connect();
   }
 
+  applyTheme(safeGet("aegis_theme") || "cyan");
   tick();
   setInterval(tick, 20000);
   mountOrbs();

@@ -140,7 +140,7 @@ def test_chat_remember_and_memory_api(env):
     # system prompt of the first call must tell the AI there is no desktop, and expose no desktop tools
     first = fake.calls[0]
     assert "NOT connected" in first["system"]
-    assert {t["name"] for t in first["tools"]} == {"remember", "recall", "forget", "current_time"}
+    assert {t["name"] for t in first["tools"]} == {"remember", "recall", "forget", "current_time", "calculate", "get_weather"}
     assert c.delete(f"/api/memory/{facts[0]['id']}", headers=auth(token)).status_code == 200
     assert c.get("/api/memory", headers=auth(token)).json() == []
 
@@ -477,3 +477,20 @@ def test_server_serves_all_frontend_files(env):
     assert "AEGIS_CONFIG" in c.get("/config.js").text
     for private in ("/server/app/main.py", "/aegis.db", "/.env", "/README.md"):
         assert c.get(private).status_code == 404, private
+
+
+def test_safe_calc():
+    from app.utilities import safe_calc
+    assert safe_calc("2+3*4") == "14"
+    assert safe_calc("(10+5)/4") == "3.75"
+    assert safe_calc("2^10") == "1024"
+    assert safe_calc("sqrt(144)+abs(-3)") == "15"
+    assert safe_calc("15% of 200".replace("% of", "/100*")) == "30"
+    assert safe_calc("1/0").startswith("Error")
+    assert safe_calc("__import__('os').system('id')").startswith("Error")
+    assert safe_calc("9**9**9").startswith("Error")
+
+
+def test_new_tools_registered():
+    from app import tools
+    assert {"calculate", "get_weather"} <= {t["name"] for t in tools.schemas(False)}

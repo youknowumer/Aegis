@@ -11,6 +11,8 @@
 </head>
 <body>
 <div class="bg-grid" aria-hidden="true"></div>
+<div class="bg-glow" aria-hidden="true"></div>
+<div class="bg-floor" aria-hidden="true"></div>
 <div class="bg-scan" aria-hidden="true"></div>
 
 <!-- ============ AUTH ============ -->
@@ -128,7 +130,7 @@
     <section id="messages" class="messages" aria-live="polite" aria-label="Conversation">
       <div id="welcome" class="welcome">
         <h2 id="greeting">How can I help?</h2>
-        <p class="muted">Type, tap the mic, or turn on Voice mode and just talk.</p>
+        <p class="muted">Ask me anything. Type, tap the mic, or turn on Voice mode and just talk. Say "help" for instant commands.</p>
         <div class="suggest">
           <button class="chip" type="button" data-q="Remember that my sister's birthday is on Friday">Remember something</button>
           <button class="chip" type="button" data-q="What's the latest news today?">Latest news</button>
@@ -153,6 +155,8 @@
       <label class="toggle"><input id="voice-mode" type="checkbox"><span>Voice mode</span></label>
       <label class="toggle"><input id="wake" type="checkbox"><span>Say "Hey Aegis"</span></label>
       <label class="toggle"><input id="speak" type="checkbox"><span>Read replies aloud</span></label>
+      <label class="toggle sel"><span>Voice</span><select id="voice-pick" aria-label="Assistant voice"></select></label>
+      <label class="toggle sel"><span>Speed</span><input id="rate" type="range" min="0.8" max="1.4" step="0.05" value="1.02" aria-label="Speaking speed"></label>
       <label class="toggle sel"><span>Language</span>
         <select id="lang" aria-label="Voice language">
           <option value="en-US">English</option>
@@ -213,6 +217,39 @@
       </div>
       <p class="muted small keys"><kbd>/</kbd> focus &nbsp; <kbd>Esc</kbd> stop talking</p>
     </div>
+
+    <div class="panel hud">
+      <h3 class="panel-title">Voice commands</h3>
+      <p class="muted small">Instant, free, work in English, Roman Urdu, Urdu and Hindi. Tap to try.</p>
+      <div class="cmd-groups">
+        <details open><summary>Open &amp; search</summary><div class="quick">
+          <button class="chip" type="button" data-q="open YouTube">open YouTube</button>
+          <button class="chip" type="button" data-q="google latest AI news">google latest AI news</button>
+          <button class="chip" type="button" data-q="gmail kholo">gmail kholo</button>
+          <button class="chip" type="button" data-q="directions to Islamabad">directions to Islamabad</button>
+        </div></details>
+        <details><summary>Time, math &amp; units</summary><div class="quick">
+          <button class="chip" type="button" data-q="what time is it">time</button>
+          <button class="chip" type="button" data-q="time in Tokyo">time in Tokyo</button>
+          <button class="chip" type="button" data-q="calculate 15% of 2400">15% of 2400</button>
+          <button class="chip" type="button" data-q="convert 10 km to miles">10 km to miles</button>
+        </div></details>
+        <details><summary>Timers &amp; notes</summary><div class="quick">
+          <button class="chip" type="button" data-q="set a timer for 5 minutes">timer 5 min</button>
+          <button class="chip" type="button" data-q="how much time is left">time left</button>
+          <button class="chip" type="button" data-q="take a note call the bank tomorrow">take a note</button>
+          <button class="chip" type="button" data-q="show my notes">my notes</button>
+        </div></details>
+        <details><summary>Control Aegis</summary><div class="quick">
+          <button class="chip" type="button" data-q="voice mode on">voice mode</button>
+          <button class="chip" type="button" data-q="switch to Urdu">Urdu</button>
+          <button class="chip" type="button" data-q="change theme to red">red theme</button>
+          <button class="chip" type="button" data-q="focus mode">focus mode</button>
+          <button class="chip" type="button" data-q="system status">system status</button>
+          <button class="chip" type="button" data-q="help">all commands</button>
+        </div></details>
+      </div>
+    </div>
   </aside>
   <div id="scrim" class="scrim hidden"></div>
 </div>
@@ -235,6 +272,7 @@
 
 <script src="config.js"></script>
 <script src="orb.js"></script>
+<script src="commands.js"></script>
 <script src="app.js"></script>
 <script src="hud.js"></script>
 </body>

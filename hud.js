@@ -93,6 +93,7 @@
   const wxName = (c) => (WX.slice().reverse().find((x) => c >= x[0]) || [0, "--"])[1];
   const LOC_KEY = "aegis_wx_loc";
 
+  let lastWx = "";
   async function loadWeather(loc) {
     try {
       const u = "https://api.open-meteo.com/v1/forecast?latitude=" + loc.lat + "&longitude=" + loc.lon +
@@ -115,12 +116,57 @@
         m.textContent = Math.round(d.daily.temperature_2m_max[i + 1]) + "° / " + Math.round(d.daily.temperature_2m_min[i + 1]) + "°";
         row.append(n, w, m); box.appendChild(row);
       });
+      lastWx = (loc.name || "Your location") + ": " + Math.round(c.temperature_2m) + " degrees, " + wxName(c.weather_code).toLowerCase() +
+        ", humidity " + c.relative_humidity_2m + " percent, wind " + Math.round(c.wind_speed_10m) + " kilometres per hour. Tomorrow " +
+        wxName(d.daily.weather_code[1]).toLowerCase() + ", " + Math.round(d.daily.temperature_2m_max[1]) + " degrees at most.";
       $("wx-setup").classList.add("hidden");
       ["wx-now", "wx-days", "wx-change"].forEach((id) => $(id).classList.remove("hidden"));
-    } catch { txt("wx-place", "weather unavailable"); }
+      return true;
+    } catch { txt("wx-place", "weather unavailable"); return false; }
   }
 
-  function setLoc(loc) { store.set(LOC_KEY, JSON.stringify(loc)); loadWeather(loc); }
+  async function setLoc(loc) { const ok = await loadWeather(loc); if (ok) store.set(LOC_KEY, JSON.stringify(loc)); return ok; }
+
+  // ---------------------------------------------------------------- public API for voice commands
+  async function geocode(q) {
+    const r = await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + encodeURIComponent(q));
+    const d = await r.json();
+    if (!d.results || !d.results.length) return null;
+    const g = d.results[0];
+    return { lat: g.latitude, lon: g.longitude, name: g.name + (g.country_code ? ", " + g.country_code : "") };
+  }
+  window.AegisHUD = {
+    async setCity(city) {
+      try {
+        const loc = await geocode(city);
+        if (!loc) return "I couldn't find a place called " + city + ".";
+        return (await setLoc(loc)) ? lastWx : "The weather service isn't reachable right now.";
+      } catch { return "The weather service isn't reachable right now."; }
+    },
+    weatherSummary() { return lastWx || "Tell me a city, for example: weather in Lahore. Or press Use my location in the weather panel."; },
+    statusLine() {
+      const parts = [];
+      const bat = $("v-bat").textContent, net = $("v-net").textContent, mem = $("v-mem").textContent, lat = $("v-lat").textContent;
+      if (bat && bat !== "--" && bat !== "n/a") parts.push("battery " + bat.replace("+", "and charging"));
+      parts.push("network " + (net === "offline" ? "offline" : net));
+      if (mem && mem !== "--" && mem !== "n/a") parts.push("browser memory " + mem);
+      if (lat && lat !== "--" && lat !== "no server") parts.push("server latency " + lat);
+      parts.push($("v-cpu").textContent);
+      return "All systems nominal. " + parts.join(", ") + ".";
+    },
+  };
+
+  // ---------------------------------------------------------------- 3D pointer parallax
+  const appEl = $("app");
+  const fine = window.matchMedia && matchMedia("(pointer: fine)").matches;
+  const still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (appEl && fine && !still) {
+    let raf = 0, mx = 0, my = 0;
+    window.addEventListener("pointermove", (e) => {
+      mx = (e.clientX / innerWidth) * 2 - 1; my = (e.clientY / innerHeight) * 2 - 1;
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; appEl.style.setProperty("--mx", mx.toFixed(3)); appEl.style.setProperty("--my", my.toFixed(3)); });
+    }, { passive: true });
+  }
 
   function initWeather() {
     const saved = store.get(LOC_KEY);
@@ -140,11 +186,9 @@
       if (!q) return;
       txt("wx-place", "searching...");
       try {
-        const r = await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + encodeURIComponent(q));
-        const d = await r.json();
-        if (!d.results || !d.results.length) return txt("wx-place", "city not found");
-        const g = d.results[0];
-        setLoc({ lat: g.latitude, lon: g.longitude, name: g.name + (g.country_code ? ", " + g.country_code : "") });
+        const loc = await geocode(q);
+        if (!loc) return txt("wx-place", "city not found");
+        setLoc(loc);
       } catch { txt("wx-place", "search failed"); }
     });
     $("wx-change").addEventListener("click", () => {

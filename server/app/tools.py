@@ -33,6 +33,8 @@ TOOLS: List[Tool] = [
     Tool("recall", "Search long-term memory for facts relevant to a query.", "server", {"query": S}, ["query"]),
     Tool("forget", "Delete memories that contain the given text.", "server", {"contains": S}, ["contains"], risky=True),
     Tool("current_time", "Get the current UTC date and time.", "server"),
+    Tool("calculate", "Evaluate a math expression exactly (+ - * / ** % parentheses, sqrt, sin, cos, tan, log, ln, abs, round, pi, e). Use it for any arithmetic instead of guessing.", "server", {"expression": S}, ["expression"]),
+    Tool("get_weather", "Get the current weather and a 3-day forecast for a city anywhere in the world.", "server", {"city": S}, ["city"]),
     # ---- desktop tools ----
     Tool("open_app", "Open a desktop application by name (chrome, notepad, calc, spotify...).", "device", {"name": S}, ["name"]),
     Tool("open_url", "Open a website in the user's default browser.", "device", {"url": S}, ["url"]),
