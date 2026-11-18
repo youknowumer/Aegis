@@ -3,6 +3,11 @@
 Aegis has two parts. The **website** (Cloudflare Pages / GitHub Pages) is only the screen. The **server** (Render) is the
 brain: login, memory and the AI. The website talks to the server, so you need both.
 
+## Fastest way: run it on your own PC
+Windows: double-click `start-local.bat` (needs Python from python.org). Mac/Linux: `./start-local.sh`.
+It opens `http://localhost:8000/app.html`, already linked to its own server. Create an account, then
+**Settings > AI provider**, paste your key, **Test**, **Save**. No Render needed.
+
 ## 1. Get the AI key (this is "the API")
 1. Go to **console.anthropic.com**, sign in, open **API keys**, press **Create key**, copy it (`sk-ant-...`).
 2. Add billing credit in the console (the API is pay-as-you-go, separate from a Claude chat subscription).
