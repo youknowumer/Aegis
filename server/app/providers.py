@@ -94,6 +94,9 @@ def parse_config(raw: dict, default_model: str, default_max_tokens: int) -> AICo
     if not p:
         raise ConfigError("Unknown AI provider.")
     key = str(raw.get("api_key", "")).strip()
+    if not key.isascii():
+        raise ConfigError("That API key has strange characters (maybe a copied placeholder or quote marks). Paste only the real key.")
+    key = key.strip("\"'")
     if len(key) > 400 or any(c.isspace() for c in key):
         raise ConfigError("That API key doesn't look right (spaces or too long). Paste only the key.")
     if not key:
@@ -315,7 +318,7 @@ class OpenAICompatClient:
 async def ping(cfg: AIConfig) -> str:
     """One tiny real request so the user learns right now whether key + model + URL work. Returns the model's short reply."""
     client = build_client(cfg)
-    kw = dict(model=cfg.model, max_tokens=24, system="Reply with the single word OK.", tools=[], messages=[{"role": "user", "content": "ping"}])
+    kw = dict(model=cfg.model, max_tokens=24, system="Reply with the single word OK.", messages=[{"role": "user", "content": "ping"}])
     if cfg.temperature is not None and cfg.provider.kind == "anthropic":
         kw["temperature"] = cfg.temperature
     resp = await asyncio.wait_for(client.messages.create(**kw), 45)

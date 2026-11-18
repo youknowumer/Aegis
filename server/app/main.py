@@ -153,7 +153,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         code = getattr(e, "status_code", None)
         if code:
             return {401: "The API key was rejected. Check it in AI Provider settings.", 403: "That key has no access to this model.",
-                    404: "That model name wasn't found for this provider.", 429: "Rate limit reached or no credit left on that account."}.get(code, f"The AI provider returned an error (HTTP {code}).")
+                    404: "That model name wasn't found for this provider.", 429: "Rate limit reached or no credit left on that account."}.get(code, f"The AI provider returned an error (HTTP {code}): {str(getattr(e, 'message', ''))[:160]}")
         if isinstance(e, asyncio.TimeoutError):
             return "The AI provider took too long to answer."
         if e.__class__.__module__.startswith("httpx"):
