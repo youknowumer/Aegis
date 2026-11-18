@@ -20,3 +20,12 @@ services:
         value: https://youknowumer.github.io,https://YOUR-PROJECT.pages.dev,https://*.pages.dev   # <- your GitHub Pages origin (no /Aegis path, no trailing slash)
       - key: AEGIS_WEB_SEARCH
         value: "0"             # set to 1 after enabling web search in the Anthropic Console
+      # Optional: server-wide keys for other providers. Users can also paste their own in Settings > AI provider.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false

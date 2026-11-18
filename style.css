@@ -580,3 +580,15 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 @media (prefers-reduced-motion: reduce) {
   .interim[data-live="1"]::before, #mic-btn.live, #connect-btn.nudge, #connect-btn[data-k] ::before { animation: none; }
 }
+
+
+/* ===================== AI provider dialog ===================== */
+.connect .field select { width: 100%; margin-top: 6px; }
+.aicfg .keyrow { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.aicfg .keyrow input { flex: 1; margin-top: 0 !important; width: auto !important; }
+.aicfg .field span a { color: var(--accent, #4fd1ff); font-size: 12.5px; margin-left: 4px; }
+.aicfg .field.chk { flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; }
+.aicfg .field.chk input { width: 18px; margin: 0; }
+.aicfg .adv { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
+.aicfg .adv summary { cursor: pointer; margin-bottom: 10px; }
+.aicfg .hidden { display: none !important; }

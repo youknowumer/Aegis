@@ -7,6 +7,7 @@ import contextlib
 import logging
 import os
 import re
+import sys
 import time
 from collections import defaultdict, deque
 
@@ -18,7 +19,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import settings
+from . import providers, settings
 from .agent import Agent, Session
 from .auth import EMAIL_RE, hash_password, make_token, read_token, verify_password
 from .db import DB
@@ -39,6 +40,15 @@ class TaskPatch(BaseModel):
 class NoteIn(BaseModel):
     title: str = ""
     body: str
+
+
+class AIBody(BaseModel):
+    provider: str
+    api_key: str = ""
+    model: str = ""
+    base_url: str = ""
+    max_tokens: int = 0
+    temperature: float | None = None
 
 
 class Credentials(BaseModel):
@@ -136,6 +146,20 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             return True
         return urlparse(origin).netloc == host  # the UI served by this very server
 
+    def friendly_ai_error(e: Exception) -> str:
+        """Turn a provider failure into something the user can act on. Never includes the API key."""
+        if isinstance(e, providers.ProviderError):
+            return str(e)
+        code = getattr(e, "status_code", None)
+        if code:
+            return {401: "The API key was rejected. Check it in AI Provider settings.", 403: "That key has no access to this model.",
+                    404: "That model name wasn't found for this provider.", 429: "Rate limit reached or no credit left on that account."}.get(code, f"The AI provider returned an error (HTTP {code}).")
+        if isinstance(e, asyncio.TimeoutError):
+            return "The AI provider took too long to answer."
+        if e.__class__.__module__.startswith("httpx"):
+            return "Couldn't reach the AI provider. Check the base URL and your connection."
+        return "The AI service had a problem. Please try again."
+
     def get_client():
         if state["client"] is None and os.environ.get("ANTHROPIC_API_KEY"):
             import anthropic
@@ -178,6 +202,24 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     @app.get("/api/config")
     def config():
         return {"app_name": settings.APP_NAME, "web_search": settings.WEB_SEARCH}
+
+    @app.get("/api/providers")
+    def list_providers():
+        # catalog for the website's AI Provider dialog. Says which providers the server already has a key for, never the key.
+        return {"providers": providers.public_catalog(), "default_model": settings.MODEL, "max_tokens": settings.MAX_TOKENS, "local_urls": providers.allow_private_urls()}
+
+    @app.post("/api/ai/test")
+    async def test_ai(body: AIBody, request: Request, user=Depends(current_user)):
+        limiter.check((request.client.host if request.client else "?", "ai-test"))
+        try:
+            cfg = providers.parse_config(body.model_dump(), settings.MODEL, settings.MAX_TOKENS)
+            await providers.validate_base_url(cfg)
+            reply = await providers.ping(cfg)
+        except providers.ConfigError as e:
+            return {"ok": False, "error": str(e)}
+        except Exception as e:
+            return {"ok": False, "error": friendly_ai_error(e)}
+        return {"ok": True, "provider": cfg.provider.label, "model": cfg.model, "reply": reply}
 
     @app.post("/api/register")
     def register(c: Credentials, request: Request):
@@ -277,11 +319,11 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     agent_holder = {}
 
     def get_agent():
+        # the agent is shared; each chat session may bring its own client (the user's AI Provider settings)
         c = get_client()
-        if c is None:
-            return None
-        if "agent" not in agent_holder or agent_holder["agent"].client is not c:
+        if "agent" not in agent_holder:
             agent_holder["agent"] = Agent(c, db, hub)
+        agent_holder["agent"].client = c
         return agent_holder["agent"]
 
     @app.websocket("/ws")
@@ -350,9 +392,9 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     return
                 consumed = True
                 agent = get_agent()
-                if agent is None:
+                if sess.client is None and agent.client is None:
                     db.refund(uid)
-                    await send({"type": "error", "text": "The AI is not configured on this server (missing API key)."})
+                    await send({"type": "error", "text": "No AI is set up yet. Open Settings > AI Provider and add your API key."})
                     return
                 db.add_message(uid, "user", text)
                 reply = await agent.run(sess, text, send)
@@ -369,7 +411,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                 log.exception("agent failure")
                 if consumed:
                     db.refund(uid)
-                await send({"type": "error", "text": "The AI service had a problem. Please try again."})
+                await send({"type": "error", "text": friendly_ai_error(sys.exc_info()[1])})
             finally:
                 sess.busy = False
 
@@ -411,6 +453,20 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                         sess.task.cancel()
                 elif kind == "ping":
                     pass
+                elif kind == "set_ai" and not sess.busy:
+                    try:
+                        cfg = providers.parse_config(msg.get("config") or {}, settings.MODEL, settings.MAX_TOKENS)
+                        await providers.validate_base_url(cfg)
+                        sess.client, sess.cfg = providers.build_client(cfg), cfg
+                        await send({"type": "ai_set", "ok": True, "provider": cfg.provider.id, "label": cfg.provider.label, "model": cfg.model})
+                    except providers.ConfigError as e:
+                        await send({"type": "ai_set", "ok": False, "error": str(e)})
+                    except Exception:
+                        log.exception("set_ai failed")
+                        await send({"type": "ai_set", "ok": False, "error": "Couldn't apply those AI settings."})
+                elif kind == "clear_ai" and not sess.busy:
+                    sess.client = sess.cfg = None
+                    await send({"type": "ai_set", "ok": True, "provider": "server", "label": "Server default", "model": settings.MODEL})
                 elif kind == "confirm_response":
                     hub.resolve(msg.get("id"), bool(msg.get("ok")), uid)
                 elif kind == "reset" and not sess.busy:

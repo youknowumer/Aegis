@@ -8,6 +8,15 @@ brain: login, memory and the AI. The website talks to the server, so you need bo
 2. Add billing credit in the console (the API is pay-as-you-go, separate from a Claude chat subscription).
 3. **Never** paste this key into the website, `config.js` or GitHub. It only goes into the server (step 2).
 
+### Other AIs (OpenAI, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, local models)
+No server change needed: in the app open **Settings > AI provider**, pick the provider, paste *its* key, choose a model
+(any model name works, the list is just suggestions) and press **Test**, then **Save**. The key goes only to your own
+server for that chat session (memory only, never stored). Choose **Custom / Local** for any OpenAI-compatible URL
+(Ollama, LM Studio, vLLM...). Local URLs only work if Aegis runs on that same PC with `AEGIS_ALLOW_LOCAL_PROVIDERS=1`.
+Server owners can also set `OPENAI_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `MISTRAL_API_KEY`,
+`DEEPSEEK_API_KEY`, `XAI_API_KEY` so users can pick a provider without pasting a key. Note: live web search is a
+Claude-only feature; other providers still get all the Aegis tools (memory, tasks, reminders, PC control, ...).
+
 ## 2. Deploy the server on Render
 1. render.com -> **New -> Blueprint** -> pick your GitHub repo (`render.yaml` is already in it).
 2. When asked, paste the key as `ANTHROPIC_API_KEY`.

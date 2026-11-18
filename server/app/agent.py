@@ -65,6 +65,8 @@ class Session:
         self.busy = False
         self.task = None  # the running chat task, so the user can press Stop
         self.stopped = False
+        self.client = None  # the user's own AI client (set from the website's AI Provider settings); None = server default
+        self.cfg = None  # providers.AIConfig for that client
 
 
 def trim_history(history: List[dict], keep: int = 40, limit: int = 60):
@@ -85,7 +87,7 @@ class Agent:
         self.db = db
         self.hub = hub
 
-    def _system(self, uid: int, user_text: str, device: bool, tz: str = "") -> str:
+    def _system(self, uid: int, user_text: str, device: bool, tz: str = "", web: bool = False) -> str:
         rows = self.db.facts(uid)
         q = _tokens(user_text)
         relevant = sorted(rows, key=lambda r: -len(q & _tokens(r["text"])))
@@ -106,7 +108,7 @@ class Agent:
         )
         search_line = (
             "You can search the web for current information (news, prices, weather, facts). Use it whenever the answer may have changed recently."
-            if settings.WEB_SEARCH
+            if web
             else "You have no live web access, so say so if asked for current news or prices."
         )
         return SYSTEM.format(today=utilities.now_in(tz).strftime("%A, %d %B %Y, %H:%M") + (f" ({tz})" if tz else " UTC"), app=settings.APP_NAME, device_line=device_line, search_line=search_line, memory_block=block)
@@ -211,10 +213,13 @@ class Agent:
             return "\n\n".join(parts)
         return f"Error: unknown tool {name}"
 
-    async def _model_turn(self, system: str, tool_schemas: list, messages: list, emit: Emit):
+    async def _model_turn(self, sess: Session, system: str, tool_schemas: list, messages: list, emit: Emit):
         """One model call. With the real SDK the answer streams word by word to the UI."""
-        kw = dict(model=settings.MODEL, max_tokens=settings.MAX_TOKENS, system=system, tools=tool_schemas, messages=messages)
-        msgs = self.client.messages
+        cfg = sess.cfg
+        kw = dict(model=cfg.model if cfg else settings.MODEL, max_tokens=cfg.max_tokens if cfg else settings.MAX_TOKENS, system=system, tools=tool_schemas, messages=messages)
+        if cfg and cfg.provider.kind == "anthropic" and cfg.temperature is not None:
+            kw["temperature"] = cfg.temperature
+        msgs = (sess.client or self.client).messages
         if hasattr(msgs, "stream"):
             async with msgs.stream(**kw) as stream:
                 async for ev in stream:
@@ -230,9 +235,11 @@ class Agent:
         try:
             for _ in range(settings.MAX_AGENT_STEPS):
                 device = self.hub.device_connected(uid)
+                web = settings.WEB_SEARCH and (sess.cfg is None or sess.cfg.provider.kind == "anthropic")  # web search is an Anthropic server tool
                 resp = await self._model_turn(
-                    self._system(uid, text, device, sess.tz),
-                    tools.schemas(device, settings.WEB_SEARCH, settings.WEB_SEARCH_MAX_USES),
+                    sess,
+                    self._system(uid, text, device, sess.tz, web),
+                    tools.schemas(device, web, settings.WEB_SEARCH_MAX_USES),
                     sess.history,
                     emit,
                 )

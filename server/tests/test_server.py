@@ -675,3 +675,80 @@ def test_html_to_text_drops_scripts_and_nav():
 
     title, text = utilities.html_to_text("<html><title>Hi</title><nav>menu</nav><script>evil()</script><p>Hello <b>world</b></p></html>")
     assert title == "Hi" and text == "Hello world"
+
+
+# ---------- AI providers (per-user API settings from the website) ----------
+from app import providers  # noqa: E402
+
+
+def test_providers_catalog_hides_keys(env, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-secret-value")
+    j = env.client.get("/api/providers").json()
+    ids = [p["id"] for p in j["providers"]]
+    assert {"anthropic", "openai", "gemini", "custom"} <= set(ids)
+    assert next(p for p in j["providers"] if p["id"] == "openai")["server_key"] is True
+    assert "sk-secret-value" not in env.client.get("/api/providers").text
+
+
+def test_parse_config_validation():
+    ok = providers.parse_config({"provider": "openai", "api_key": "sk-x", "model": "gpt-4o"}, "m", 2048)
+    assert ok.model == "gpt-4o" and ok.base_url.startswith("https://api.openai.com")
+    for bad in ({"provider": "nope"}, {"provider": "openai"}, {"provider": "openai", "api_key": "a b"},
+                {"provider": "custom", "base_url": "ftp://x"}):
+        with pytest.raises(providers.ConfigError):
+            providers.parse_config(bad, "m", 2048)
+    local = providers.parse_config({"provider": "custom", "base_url": "http://localhost:11434/v1", "model": "llama3"}, "m", 2048)
+    assert local.api_key == ""  # local servers need no key
+
+
+def test_openai_message_translation():
+    sys_ = "sys"
+    hist = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": [text("let me check"), tool("c1", "calculate", expression="2+2")]},
+        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "c1", "content": "4"}]},
+    ]
+    out = providers.to_openai_messages(sys_, hist)
+    assert out[0] == {"role": "system", "content": "sys"}
+    assert out[2]["tool_calls"][0]["function"]["name"] == "calculate"
+    assert out[2]["tool_calls"][0]["function"]["arguments"] == '{"expression": "2+2"}'
+    assert out[3] == {"role": "tool", "tool_call_id": "c1", "content": "4"}
+    assert providers._tool_schema({"type": "web_search_20250305", "name": "web_search"}) is None
+
+
+def test_ws_set_ai_uses_users_own_client(env, monkeypatch):
+    c = env.client
+    mine = FakeClient([resp(text("from my own provider"))])
+    monkeypatch.setattr(providers, "build_client", lambda cfg: mine)
+    ws, s = connect(c, register(c))
+    try:
+        drain_until(s, "hello")
+        s.send_json({"type": "set_ai", "config": {"provider": "openai", "api_key": "sk-test", "model": "gpt-4o"}})
+        m = drain_until(s, "ai_set")
+        assert m["ok"] and m["model"] == "gpt-4o" and "sk-test" not in str(m)
+        s.send_json({"type": "chat", "text": "hello there"})
+        assert drain_until(s, "reply")["text"] == "from my own provider"
+        assert mine.calls[0]["model"] == "gpt-4o" and env.fake.calls == []
+    finally:
+        ws.__exit__(None, None, None)
+
+
+def test_ws_set_ai_rejects_bad_and_private_urls(env):
+    c = env.client
+    ws, s = connect(c, register(c))
+    try:
+        drain_until(s, "hello")
+        s.send_json({"type": "set_ai", "config": {"provider": "openai"}})
+        assert drain_until(s, "ai_set")["ok"] is False
+        s.send_json({"type": "set_ai", "config": {"provider": "custom", "base_url": "http://169.254.169.254/v1", "model": "x"}})
+        m = drain_until(s, "ai_set")
+        assert m["ok"] is False and "refused" in m["error"]
+    finally:
+        ws.__exit__(None, None, None)
+
+
+def test_ai_test_endpoint_needs_login_and_reports_errors(env):
+    c = env.client
+    assert c.post("/api/ai/test", json={"provider": "openai"}).status_code == 401
+    r = c.post("/api/ai/test", json={"provider": "openai"}, headers=auth(register(c))).json()
+    assert r["ok"] is False and "API key" in r["error"]

@@ -174,7 +174,7 @@
     b.title = tip || "";
     const bn = $("ai-banner");
     const txt = { local: ["Instant voice commands are live. Link your Aegis server to unlock AI chat.", "Connect AI"],
-      nokey: ["Your server is online but has no AI key yet. Add ANTHROPIC_API_KEY on the server.", "Server settings"],
+      nokey: ["No AI key yet. Add your own key (Claude, OpenAI, Gemini...) or set ANTHROPIC_API_KEY on the server.", "Add AI key"],
       down: ["Can't reach the server. Free hosts sleep: wait about 30 seconds, then retry.", "Retry"] }[kind];
     bn.classList.toggle("hidden", !txt);
     if (txt) { $("ai-banner-text").textContent = txt[0]; $("ai-banner-btn").textContent = txt[1]; }
@@ -191,8 +191,8 @@
       clearTimeout(t);
       const j = await r.json();
       if (!j.ok) throw 0;
-      if (j.ai === false) { setAi("nokey", "AI key missing", "The server is online but ANTHROPIC_API_KEY is not set on it."); return "nokey"; }
-      setAi("ok", "AI online", "Connected to " + (API || location.origin));
+      if (j.ai === false && !aiCfg) { setAi("nokey", "AI key missing", "No AI key yet. Click to add your own, or set ANTHROPIC_API_KEY on the server."); return "nokey"; }
+      setAi("ok", aiLabel ? "AI: " + aiLabel : "AI online", "Connected to " + (API || location.origin));
       return "ok";
     } catch {
       setAi("down", "Server offline", "Can't reach " + (API || location.origin) + ". Free hosts sleep; wait 30 s and retry.");
@@ -709,6 +709,7 @@
       case "hello":
         wsOpen = true;
         setLink("online");
+        pushAiCfg();
         checkAI();
         $("user-email").textContent = m.email;
         setUsage(m.used, m.limit, m.plan);
@@ -737,6 +738,7 @@
         break;
       case "error": endStream(); setBusy(false); addMsg("err", m.text); break;
       case "cleared": clearChat(); break;
+      case "ai_set": onAiSet(m); break;
     }
   }
 
@@ -862,7 +864,7 @@
     const cmd = window.AegisCommands && AegisCommands.match(text, { online: wsOpen });
     if (cmd) return runCommand(cmd, text);
     if (busy) return;
-    if (!ws || ws.readyState !== 1 || !wsOpen) { if (LOCAL) { addMsg("err", "That one needs the AI server, which isn't linked yet. Tap \"AI: not connected\" at the top to link it. Meanwhile I can still do instant things: say \"help\"."); $("connect-btn").classList.add("nudge"); setTimeout(() => $("connect-btn").classList.remove("nudge"), 2400); } else addMsg("err", aiState === "nokey" ? "The server is online but has no AI key. Add ANTHROPIC_API_KEY on the server." : "Not connected to the server yet. Reconnecting..."); return; }
+    if (!ws || ws.readyState !== 1 || !wsOpen) { if (LOCAL) { addMsg("err", "That one needs the AI server, which isn't linked yet. Tap \"AI: not connected\" at the top to link it. Meanwhile I can still do instant things: say \"help\"."); $("connect-btn").classList.add("nudge"); setTimeout(() => $("connect-btn").classList.remove("nudge"), 2400); } else addMsg("err", aiState === "nokey" ? "No AI key yet. Open Settings > AI provider and add your key." : "Not connected to the server yet. Reconnecting..."); return; }
     stopSpeaking();
     stopRec();
     setInterim("");
@@ -1027,6 +1029,7 @@
     else { nb.disabled = false; nb.textContent = "Allow notifications"; }
   }
   function openSettings() {
+    renderAiStatus();
     buildSwatches();
     refreshNotifBtn();
     if (!$("settings").open) $("settings").showModal();
@@ -1370,6 +1373,132 @@
     checkAI();
   }
 
+
+  // ------------------------------------------------------------------ AI provider (Claude, OpenAI, Gemini, ...)
+  // The browser keeps the user's provider choice + key and hands them to the server over the websocket for this session.
+  // The server holds them in memory only. Without a saved choice the server's own default key is used.
+  const AI_CFG_KEY = "aegis_ai_cfg", AI_SECRET_KEY = "aegis_ai_key";
+  const FALLBACK_PROVIDERS = [
+    { id: "anthropic", label: "Claude (Anthropic)", models: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"], key_hint: "sk-ant-...", key_url: "https://console.anthropic.com/settings/keys", needs_key: true },
+    { id: "openai", label: "OpenAI (ChatGPT)", models: ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini"], key_hint: "sk-...", key_url: "https://platform.openai.com/api-keys", needs_key: true },
+    { id: "gemini", label: "Google Gemini", models: ["gemini-2.5-pro", "gemini-2.5-flash"], key_hint: "AIza...", key_url: "https://aistudio.google.com/apikey", needs_key: true },
+    { id: "groq", label: "Groq (fast, free tier)", models: ["llama-3.3-70b-versatile"], key_hint: "gsk_...", key_url: "https://console.groq.com/keys", needs_key: true },
+    { id: "openrouter", label: "OpenRouter (many models)", models: ["openai/gpt-4o-mini"], key_hint: "sk-or-...", key_url: "https://openrouter.ai/keys", needs_key: true },
+    { id: "mistral", label: "Mistral", models: ["mistral-large-latest"], key_hint: "", key_url: "https://console.mistral.ai/api-keys", needs_key: true },
+    { id: "deepseek", label: "DeepSeek", models: ["deepseek-chat"], key_hint: "sk-...", key_url: "https://platform.deepseek.com/api_keys", needs_key: true },
+    { id: "xai", label: "xAI (Grok)", models: ["grok-3"], key_hint: "xai-...", key_url: "https://console.x.ai", needs_key: true },
+    { id: "custom", label: "Custom / Local (OpenAI-compatible)", models: [], key_hint: "optional for local servers", key_url: "", needs_key: false, custom_url: true },
+  ];
+  let providers = FALLBACK_PROVIDERS, aiCfg = null, aiLabel = "", providersLoaded = false;
+  function loadAiCfg() {
+    let c = null;
+    try { c = JSON.parse(safeGet(AI_CFG_KEY) || "null"); } catch {}
+    if (!c || typeof c.provider !== "string") return null;
+    let k = safeGet(AI_SECRET_KEY);
+    if (k == null) { try { k = sessionStorage.getItem(AI_SECRET_KEY); } catch {} }
+    c.api_key = k || "";
+    return c;
+  }
+  aiCfg = loadAiCfg();
+  const provById = (id) => providers.find((p) => p.id === id) || providers[0];
+  function aiShort(c) { const p = provById(c.provider); return (p.label.split(" (")[0]) + (c.model ? " · " + c.model : ""); }
+  function renderAiStatus() {
+    $("ai-status").textContent = aiCfg ? "Using: " + aiShort(aiCfg) + (aiCfg.api_key ? "" : " (server's key)") : "Using the server's default AI (Claude).";
+  }
+  function aiMsg(text, kind) { const m = $("ai-msg"); m.textContent = text || ""; m.className = kind === "ok" ? "ok-msg" : kind === "warn" ? "warn-msg" : "error"; }
+  function pushAiCfg() {
+    if (!wsOpen) return;
+    if (!aiCfg) { aiLabel = ""; return; } // server default; nothing to send on a fresh connection
+    send({ type: "set_ai", config: aiCfgPayload(aiCfg) });
+  }
+  function aiCfgPayload(c) { return { provider: c.provider, api_key: c.api_key || "", model: c.model || "", base_url: c.base_url || "", max_tokens: c.max_tokens || 0, temperature: c.temperature === "" || c.temperature == null ? null : Number(c.temperature) }; }
+  function onAiSet(m) {
+    if (m.ok) { aiLabel = m.provider === "server" ? "" : (m.label || "").split(" (")[0] + (m.model ? " · " + m.model : ""); if (aiState !== "local") checkAI(); }
+    else { aiLabel = ""; toast("AI settings: " + (m.error || "couldn't apply them."), 7000); if ($("aicfg").open) aiMsg(m.error || "Couldn't apply those settings."); }
+    if (m.ok && $("aicfg").open) aiMsg("Saved. Now chatting with " + (m.label || "the server default") + ".", "ok");
+  }
+  async function loadProviders() {
+    if (providersLoaded || LOCAL) return;
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 8000);
+      const r = await fetch(API + "/api/providers", { signal: ctl.signal }); clearTimeout(t);
+      const j = await r.json();
+      if (Array.isArray(j.providers) && j.providers.length) { providers = j.providers; providersLoaded = true; }
+    } catch {}
+  }
+  function fillProviderUi(keepModel) {
+    const p = provById($("ai-provider").value);
+    $("ai-key").placeholder = p.server_key ? "optional: the server already has a key" : (p.needs_key ? (p.key_hint || "paste your API key") : "optional for local servers");
+    const kl = $("ai-keylink");
+    kl.classList.toggle("hidden", !p.key_url); if (p.key_url) kl.href = p.key_url;
+    $("ai-models").textContent = "";
+    (p.models || []).forEach((m) => { const o = document.createElement("option"); o.value = m; $("ai-models").appendChild(o); });
+    if (!keepModel) $("ai-model").value = (p.models && p.models[0]) || "";
+    $("ai-model").placeholder = p.custom_url ? "e.g. llama3.1 or gpt-4o-mini" : "model name";
+    $("ai-base-row").classList.toggle("hidden", !p.custom_url);
+  }
+  async function openAiCfg() {
+    await loadProviders();
+    const sel = $("ai-provider"); sel.textContent = "";
+    providers.forEach((p) => { const o = document.createElement("option"); o.value = p.id; o.textContent = p.label + (p.server_key ? " ✓ server key" : ""); sel.appendChild(o); });
+    const c = aiCfg || { provider: "anthropic", model: "" };
+    sel.value = provById(c.provider).id;
+    fillProviderUi(false);
+    if (c.model) $("ai-model").value = c.model;
+    $("ai-key").value = c.api_key || ""; $("ai-key").type = "password"; $("ai-keyshow").textContent = "Show";
+    $("ai-base").value = c.base_url || ""; $("ai-maxtok").value = c.max_tokens || ""; $("ai-temp").value = c.temperature == null ? "" : c.temperature;
+    $("ai-remember").checked = safeGet(AI_SECRET_KEY) != null || !aiCfg;
+    aiMsg(LOCAL ? "Link your Aegis server first (top bar). You can already save these settings." : "", LOCAL ? "warn" : "");
+    if (!$("aicfg").open) $("aicfg").showModal();
+  }
+  function readAiForm() {
+    const num = (id) => { const v = $(id).value.trim(); return v === "" ? "" : Number(v); };
+    return { provider: $("ai-provider").value, api_key: $("ai-key").value.trim(), model: $("ai-model").value.trim(), base_url: $("ai-base").value.trim().replace(/\/+$/, ""), max_tokens: num("ai-maxtok") || 0, temperature: num("ai-temp") };
+  }
+  function checkAiForm(c) {
+    const p = provById(c.provider);
+    if (/\s/.test(c.api_key)) return "The key has spaces in it. Paste only the key.";
+    if (p.needs_key && !c.api_key && !p.server_key) return "Paste your " + p.label.split(" (")[0] + " API key (or choose another provider).";
+    if (!c.model) return "Enter a model name.";
+    if (p.custom_url && !/^https?:\/\/[^\s/]+/i.test(c.base_url)) return "Enter the full base URL, starting with https://";
+    return "";
+  }
+  $("aicfg-open").addEventListener("click", () => { $("settings").close(); openAiCfg(); });
+  $("ai-close").addEventListener("click", () => $("aicfg").close());
+  $("ai-provider").addEventListener("change", () => { fillProviderUi(false); aiMsg(""); });
+  $("ai-keyshow").addEventListener("click", () => { const k = $("ai-key"); const show = k.type === "password"; k.type = show ? "text" : "password"; $("ai-keyshow").textContent = show ? "Hide" : "Show"; });
+  $("ai-test").addEventListener("click", async () => {
+    const c = readAiForm(), bad = checkAiForm(c);
+    if (bad) return aiMsg(bad);
+    if (LOCAL) return aiMsg("Link your Aegis server first (top bar), then test.", "warn");
+    aiMsg("Testing with a tiny real request...", "warn");
+    try {
+      const r = await api("/api/ai/test", { method: "POST", body: JSON.stringify(aiCfgPayload(c)), timeout: 70000 });
+      aiMsg(r.ok ? "Works! " + r.provider + " · " + r.model + " answered" + (r.reply ? ": “" + r.reply + "”" : ".") : r.error, r.ok ? "ok" : "");
+    } catch (e) { aiMsg(e instanceof NetError ? "Can't reach the Aegis server. Check it is online (top bar)." : e.message); }
+  });
+  $("ai-save").addEventListener("click", () => {
+    const c = readAiForm(), bad = checkAiForm(c);
+    if (bad) return aiMsg(bad);
+    const remember = $("ai-remember").checked;
+    aiCfg = c;
+    safeSet(AI_CFG_KEY, JSON.stringify({ provider: c.provider, model: c.model, base_url: c.base_url, max_tokens: c.max_tokens, temperature: c.temperature }));
+    safeSet(AI_SECRET_KEY, remember && c.api_key ? c.api_key : null);
+    try { remember ? sessionStorage.removeItem(AI_SECRET_KEY) : (c.api_key ? sessionStorage.setItem(AI_SECRET_KEY, c.api_key) : sessionStorage.removeItem(AI_SECRET_KEY)); } catch {}
+    renderAiStatus();
+    if (wsOpen) { aiMsg("Applying...", "warn"); pushAiCfg(); }
+    else aiMsg(LOCAL ? "Saved on this device. It will be used once your server is linked." : "Saved. It will be applied when the connection is up.", "ok");
+  });
+  $("ai-clear").addEventListener("click", () => {
+    aiCfg = null; aiLabel = "";
+    safeSet(AI_CFG_KEY, null); safeSet(AI_SECRET_KEY, null);
+    try { sessionStorage.removeItem(AI_SECRET_KEY); } catch {}
+    renderAiStatus();
+    if (wsOpen) send({ type: "clear_ai" });
+    aiMsg("Back to the server's default AI.", "ok");
+  });
+  renderAiStatus();
+
   // ---- Connect AI dialog (no code editing needed)
   async function probe(u) {
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 30000);
@@ -1404,7 +1533,7 @@
     }
   }
   $("connect-btn").addEventListener("click", () => openConnect());
-  $("ai-banner-btn").addEventListener("click", () => { if (aiState === "down") { setAi("checking", "AI: checking...", ""); checkAI(); } else openConnect(); });
+  $("ai-banner-btn").addEventListener("click", () => { if (aiState === "down") { setAi("checking", "AI: checking...", ""); checkAI(); } else if (aiState === "nokey") openAiCfg(); else openConnect(); });
   $("voice-help").addEventListener("click", () => { gestured = true; submitText("help"); });
   $("connect-close").addEventListener("click", () => $("connect").close());
   $("connect-reset").addEventListener("click", () => { safeSet(API_KEY_OVERRIDE, null); location.reload(); });
