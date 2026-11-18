@@ -3,6 +3,12 @@
 Aegis has two parts. The **website** (Cloudflare Pages / GitHub Pages) is only the screen. The **server** (Render) is the
 brain: login, memory and the AI. The website talks to the server, so you need both.
 
+## Already live on GitHub Pages? It works without a server
+Open your Pages site, sign in (local account), **Settings > AI provider**, pick Claude (or another), paste your key,
+**Test**, **Save**. The chip shows "AI: Claude (direct)": plain chat goes from your browser straight to the provider.
+Limits of this mode: no memory/tasks/PC control/web search (those need the server below), and the key lives in this
+browser, so use it only on your own device. Some providers block browser calls; Claude, OpenAI, Groq and OpenRouter allow it.
+
 ## Fastest way: run it on your own PC
 Windows: double-click `start-local.bat` (needs Python from python.org). Mac/Linux: `./start-local.sh`.
 It opens `http://localhost:8000/app.html`, already linked to its own server. Create an account, then

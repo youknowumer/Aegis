@@ -43,6 +43,7 @@
   const confirmQueue = [];
   const acts = new Map(); // tool call id -> { chip, li }
   const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } })();
+  const directHist = []; // chat turns for direct (serverless) mode
   let streamEl = null, streamText = "", streamRaf = 0; // the Aegis message that is currently being typed out
 
   function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
@@ -180,7 +181,8 @@
     if (txt) { $("ai-banner-text").textContent = txt[0]; $("ai-banner-btn").textContent = txt[1]; }
   }
   function refreshConnectBtn() {
-    if (LOCAL) setAi("local", "AI: not connected", "Instant commands work. Click to connect the AI server.");
+    if (LOCAL && aiCfg && directReady()) setAi("ok", "AI: " + aiShort(aiCfg) + " (direct)", "Chatting straight from your browser with your own key. Click the gear > AI provider to change.");
+    else if (LOCAL) setAi("local", "AI: not connected", "Instant commands work. Add your AI key in Settings > AI provider, or link a server.");
     else setAi("checking", "AI: checking...", "");
   }
   async function checkAI() {
@@ -432,6 +434,7 @@
   }
 
   function clearChat() {
+    directHist.length = 0;
     streamEl = null;
     $("messages").querySelectorAll(".msg,.tool,.thinking").forEach((n) => n.remove());
     thinkingEl = null;
@@ -864,6 +867,7 @@
     const cmd = window.AegisCommands && AegisCommands.match(text, { online: wsOpen });
     if (cmd) return runCommand(cmd, text);
     if (busy) return;
+    if (LOCAL && directReady()) return directChat(text);
     if (!ws || ws.readyState !== 1 || !wsOpen) { if (LOCAL) { addMsg("err", "That one needs the AI server, which isn't linked yet. Tap \"AI: not connected\" at the top to link it. Meanwhile I can still do instant things: say \"help\"."); $("connect-btn").classList.add("nudge"); setTimeout(() => $("connect-btn").classList.remove("nudge"), 2400); } else addMsg("err", aiState === "nokey" ? "No AI key yet. Open Settings > AI provider and add your key." : "Not connected to the server yet. Reconnecting..."); return; }
     stopSpeaking();
     stopRec();
@@ -906,7 +910,7 @@
   $("activity-btn").addEventListener("click", () => openDrawer("right"));
   $("scrim").addEventListener("click", closeDrawers);
 
-  $("stop-btn").addEventListener("click", () => { send({ type: "stop" }); stopSpeaking(); });
+  $("stop-btn").addEventListener("click", () => { send({ type: "stop" }); if (directCtl) directCtl.abort(); stopSpeaking(); });
 
   // keyboard shortcuts
   document.addEventListener("keydown", (e) => {
@@ -916,7 +920,7 @@
     } else if (e.key === "/" && !typing && authed) {
       e.preventDefault(); $("input").focus();
     } else if (e.key === "Escape" && authed && !document.querySelector("dialog[open]")) {
-      if (busy) send({ type: "stop" });
+      if (busy) { send({ type: "stop" }); if (directCtl) directCtl.abort(); }
       stopSpeaking(); convo = false; manual = false; followUp = false; syncToggles(); syncVoice();
     }
   });
@@ -1375,6 +1379,7 @@
 
 
   // ------------------------------------------------------------------ AI provider (Claude, OpenAI, Gemini, ...)
+
   // The browser keeps the user's provider choice + key and hands them to the server over the websocket for this session.
   // The server holds them in memory only. Without a saved choice the server's own default key is used.
   const AI_CFG_KEY = "aegis_ai_cfg", AI_SECRET_KEY = "aegis_ai_key";
@@ -1448,7 +1453,7 @@
     $("ai-key").value = c.api_key || ""; $("ai-key").type = "password"; $("ai-keyshow").textContent = "Show";
     $("ai-base").value = c.base_url || ""; $("ai-maxtok").value = c.max_tokens || ""; $("ai-temp").value = c.temperature == null ? "" : c.temperature;
     $("ai-remember").checked = safeGet(AI_SECRET_KEY) != null || !aiCfg;
-    aiMsg(LOCAL ? "Link your Aegis server first (top bar). You can already save these settings." : "", LOCAL ? "warn" : "");
+    aiMsg(LOCAL ? "No server linked: chat will go straight from your browser to the provider (plain chat, no PC tools)." : "", LOCAL ? "warn" : "");
     if (!$("aicfg").open) $("aicfg").showModal();
   }
   function readAiForm() {
@@ -1470,8 +1475,8 @@
   $("ai-test").addEventListener("click", async () => {
     const c = readAiForm(), bad = checkAiForm(c);
     if (bad) return aiMsg(bad);
-    if (LOCAL) return aiMsg("Link your Aegis server first (top bar), then test.", "warn");
     aiMsg("Testing with a tiny real request...", "warn");
+    if (LOCAL) { try { const r = await directTest(c); aiMsg("Works! " + provById(c.provider).label.split(" (")[0] + " \u00b7 " + c.model + " answered" + (r ? ": \u201c" + r + "\u201d" : "."), "ok"); } catch (e) { aiMsg(e.message); } return; }
     try {
       const r = await api("/api/ai/test", { method: "POST", body: JSON.stringify(aiCfgPayload(c)), timeout: 70000 });
       aiMsg(r.ok ? "Works! " + r.provider + " · " + r.model + " answered" + (r.reply ? ": “" + r.reply + "”" : ".") : r.error, r.ok ? "ok" : "");
@@ -1487,17 +1492,89 @@
     try { remember ? sessionStorage.removeItem(AI_SECRET_KEY) : (c.api_key ? sessionStorage.setItem(AI_SECRET_KEY, c.api_key) : sessionStorage.removeItem(AI_SECRET_KEY)); } catch {}
     renderAiStatus();
     if (wsOpen) { aiMsg("Applying...", "warn"); pushAiCfg(); }
-    else aiMsg(LOCAL ? "Saved on this device. It will be used once your server is linked." : "Saved. It will be applied when the connection is up.", "ok");
+    else { aiMsg(LOCAL ? "Saved. Chat now works straight from this browser with your key." : "Saved. It will be applied when the connection is up.", "ok"); if (LOCAL) refreshConnectBtn(); }
   });
   $("ai-clear").addEventListener("click", () => {
     aiCfg = null; aiLabel = "";
     safeSet(AI_CFG_KEY, null); safeSet(AI_SECRET_KEY, null);
     try { sessionStorage.removeItem(AI_SECRET_KEY); } catch {}
     renderAiStatus();
+    if (LOCAL) refreshConnectBtn();
     if (wsOpen) send({ type: "clear_ai" });
     aiMsg("Back to the server's default AI.", "ok");
   });
   renderAiStatus();
+
+
+  // ------------------------------------------------------------------ direct mode (GitHub Pages / no server)
+  // When no Aegis server is linked, chat can still work: the browser talks to the AI provider directly with the key
+  // saved in AI provider settings. Plain chat only (no memory/PC tools: those need the server).
+  const DIRECT_BASE = { openai: "https://api.openai.com/v1", gemini: "https://generativelanguage.googleapis.com/v1beta/openai", groq: "https://api.groq.com/openai/v1", openrouter: "https://openrouter.ai/api/v1", mistral: "https://api.mistral.ai/v1", deepseek: "https://api.deepseek.com/v1", xai: "https://api.x.ai/v1" };
+  let directCtl = null;
+  const directReady = () => LOCAL && aiCfg && (aiCfg.api_key || (aiCfg.provider === "custom"));
+  function directSystem() {
+    return "You are Aegis, a calm, sharp, warm personal AI assistant (JARVIS-like). Answer any question directly. Match the user's language and script exactly (English, Urdu, Hindi, or Roman Urdu). Keep replies short and plain (1-3 sentences) unless asked to explain in depth; no markdown tables. It is now " + new Date().toLocaleString() + " (" + (TZ || "local time") + "). You have no tools in this mode, so say so if asked to control a PC, set reminders or browse live.";
+  }
+  async function* sse(res) {
+    const rd = res.body.getReader(), dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const { done, value } = await rd.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) { const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (line.startsWith("data:")) yield line.slice(5).trim(); }
+    }
+  }
+  async function directStream(c, messages, onText, signal, maxTokens) {
+    const anth = c.provider === "anthropic";
+    const base = c.provider === "custom" ? (c.base_url || "").replace(/\/+$/, "") : DIRECT_BASE[c.provider];
+    const url = anth ? "https://api.anthropic.com/v1/messages" : base + "/chat/completions";
+    const headers = { "Content-Type": "application/json" };
+    if (anth) { headers["x-api-key"] = c.api_key; headers["anthropic-version"] = "2023-06-01"; headers["anthropic-dangerous-direct-browser-access"] = "true"; }
+    else if (c.api_key) headers.Authorization = "Bearer " + c.api_key;
+    const mt = maxTokens || c.max_tokens || 1024;
+    const temp = c.temperature === "" || c.temperature == null ? undefined : Number(c.temperature);
+    const body = anth ? { model: c.model, max_tokens: mt, system: directSystem(), messages, stream: true, temperature: temp }
+      : { model: c.model, max_tokens: mt, messages: [{ role: "system", content: directSystem() }, ...messages], stream: true, temperature: temp };
+    let res;
+    try { res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal }); }
+    catch (e) { if (e.name === "AbortError") throw e; throw new Error("The browser couldn't reach " + (anth ? "Anthropic" : new URL(url).hostname) + ". Check your internet. Some providers block direct browser calls: if so, use a server (see SETUP.md)."); }
+    if (!res.ok) {
+      let msg = ""; try { const j = await res.json(); msg = (j.error && (j.error.message || j.error)) || j.message || ""; } catch {}
+      const hint = { 401: "The API key was rejected.", 403: "That key has no access to this model.", 404: "Model or URL not found.", 429: "Rate limit reached or no credit on that account." }[res.status] || "The provider returned HTTP " + res.status + ".";
+      throw new Error(hint + (msg ? " (" + String(msg).slice(0, 160) + ")" : ""));
+    }
+    let full = "";
+    for await (const d of sse(res)) {
+      if (d === "[DONE]") break;
+      let j; try { j = JSON.parse(d); } catch { continue; }
+      const t = anth ? (j.type === "content_block_delta" && j.delta && j.delta.text) : (j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content);
+      if (t) { full += t; onText(t); }
+    }
+    return full;
+  }
+  async function directChat(text) {
+    directHist.push({ role: "user", content: text });
+    while (directHist.length > 20) directHist.shift();
+    stopSpeaking(); stopRec(); setInterim(""); manual = false; followUp = false;
+    addMsg("user", text);
+    setBusy(true);
+    directCtl = new AbortController();
+    try {
+      const reply = await directStream(aiCfg, directHist.slice(), onDelta, directCtl.signal);
+      setBusy(false, true);
+      if (!endStream(reply)) addMsg("ai", reply || "Done.");
+      directHist.push({ role: "assistant", content: reply || "Done." });
+      speak(reply);
+    } catch (e) {
+      endStream(); setBusy(false); directHist.pop();
+      if (e.name === "AbortError") toast("Stopped."); else addMsg("err", e.message);
+    } finally { directCtl = null; }
+  }
+  async function directTest(c) {
+    const out = await directStream(c, [{ role: "user", content: "Reply with the single word OK." }], () => {}, undefined, 16);
+    return out.trim().slice(0, 60);
+  }
 
   // ---- Connect AI dialog (no code editing needed)
   async function probe(u) {

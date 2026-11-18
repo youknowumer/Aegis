@@ -445,7 +445,7 @@
 <dialog id="aicfg" class="modal connect aicfg" aria-label="AI provider">
   <p class="eyebrow">AI provider</p>
   <h3>Choose your AI and add the key</h3>
-  <p class="muted small">Your key is sent only to <i>your</i> Aegis server over HTTPS, used for your chats, and never saved there. Leave the key empty to use a key the server owner already set.</p>
+  <p class="muted small">With a linked Aegis server your key goes only to that server (memory only, never saved). With no server (for example GitHub Pages) chat goes straight from this browser to the provider, using the key saved on this device. Use only your own devices.</p>
   <label class="field">Provider<select id="ai-provider" aria-label="AI provider"></select></label>
   <label class="field"><span>API key <a id="ai-keylink" class="hidden" href="#" target="_blank" rel="noopener noreferrer">(get a key)</a></span>
     <span class="keyrow"><input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="paste your API key"><button id="ai-keyshow" class="btn ghost small-btn" type="button">Show</button></span>
