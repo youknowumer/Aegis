@@ -172,7 +172,8 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     # ---------- REST ----------
     @app.get("/healthz")
     def healthz():
-        return {"ok": True}
+        # "ai" = the server has an Anthropic key (or an injected client). Lets the website say exactly what is missing.
+        return {"ok": True, "ai": bool(state["client"] or os.environ.get("ANTHROPIC_API_KEY"))}
 
     @app.get("/api/config")
     def config():

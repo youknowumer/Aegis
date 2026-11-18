@@ -102,6 +102,19 @@ def test_login_throttle(env):
     assert 429 in codes
 
 
+def test_healthz_reports_ai_status(env, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    j = env.client.get("/healthz").json()
+    assert j["ok"] is True and isinstance(j["ai"], bool)
+    assert "sk-" not in str(j)  # never leaks the key
+
+
+def test_frontend_files_are_served():
+    from app import settings
+    for f in ("ui-plus.js", "features.js", "theme-boot.js"):
+        assert f in settings.WEB_FILES
+
+
 def test_security_headers(env):
     r = env.client.get("/healthz")
     assert r.headers["x-frame-options"] == "DENY"

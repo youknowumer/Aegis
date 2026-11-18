@@ -12,7 +12,7 @@
   <meta property="og:description" content="Ask in English, Urdu or Hindi. Aegis does the work and asks before anything risky.">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z' fill='%230a7a78'/%3E%3Cpath d='M11 16l4 4 7-8' fill='none' stroke='%23fff' stroke-width='2.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <script>document.documentElement.classList.add("js");try{var t=localStorage.getItem("aegis_site_theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+  <script src="theme-boot.js"></script>
   <link rel="stylesheet" href="landing.css">
 </head>
 <body>
@@ -55,7 +55,7 @@
 
     <div class="hero wrap">
       <div class="hero-copy" id="hero-copy">
-        <p class="hero-badge"><b>New</b> Redesigned interface, command palette and voice mode</p>
+        <p class="hero-badge"><b>Voice</b> Say it in English, Urdu or Hindi. Simple things run in milliseconds</p>
         <h1>Tell your PC what you need. Aegis does it, and asks before anything risky.</h1>
         <p class="lead">An AI assistant for the web and Windows. Ask in English, Urdu or Hindi. It opens apps, sorts your folders and remembers what you tell it. Deleting, typing and shell commands always wait for your yes.</p>
         <div class="hero-cta">
@@ -63,6 +63,12 @@
           <a class="btn glass big" href="#download">Get the Windows app</a>
         </div>
         <p class="fine">Free plan: 15 messages a day. No card needed.</p>
+        <div class="say-row" aria-label="Things you can say to Aegis">
+          <span class="say-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12z"/></svg>Say</span>
+          <span class="say-chip">&ldquo;Hey Aegis&rdquo;</span>
+          <span class="say-chip">&ldquo;youtube kholo&rdquo;</span>
+          <span class="say-chip">&ldquo;5 minute ka timer lagao&rdquo;</span>
+        </div>
         <ul class="hero-trust" aria-label="Safety highlights">
           <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Asks before risky actions</li>
           <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Three-folder file sandbox</li>

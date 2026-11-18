@@ -161,7 +161,7 @@ Plans/limits: edit `PLAN_LIMITS` in `server/app/settings.py`. Activate a paying 
 ## Tests
 
 ```
-cd server  && pip install pytest httpx && pytest      # 35 tests, fake AI, no API key needed
+cd server  && pip install pytest httpx && pytest      # 37 tests, fake AI, no API key needed
 cd desktop && npm test                                # 12 tests
 node --test tests/commands.test.js                                   # voice-command router
 ```
@@ -173,6 +173,7 @@ node --test tests/commands.test.js                                   # voice-com
 | `index.html`, `landing.*` | Landing page |
 | `app.html`, `style.css`, `app.js`, `orb.js` | The assistant UI (login, HUD, chat, voice) |
 | `commands.js` | Instant voice/text commands (open, search, time, math, timers, notes, UI control) |
+| `ui-plus.js`, `features.js`, `theme-boot.js` | Extra UI behaviour, quick prompts/timer/scratchpad, landing theme bootstrap |
 | `hud.js` | HUD widgets: date/time, live system gauges, weather (Open-Meteo), shortcuts |
 | `config.js` | **Server address**: the only thing to edit after deploying |
 | `server/app/agent.py` | AI tool-use loop and persona |

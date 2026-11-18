@@ -16,7 +16,7 @@ brain: login, memory and the AI. The website talks to the server, so you need bo
 4. Open `https://YOUR-SERVICE.onrender.com/healthz`. It must show `{"ok":true}`.
 
 ## 3. Connect the website to the server (no code editing)
-Open the website, press **Connect AI** (top right), paste the Render address, **Save & connect**. Create your account again
+If the website is served by the Render server itself it connects automatically. Otherwise press the **AI: not connected** chip (top right), paste the Render address, press **Test** (it tells you if the AI key is missing), then **Save & connect**. Create your account again
 (local-mode accounts live only in your browser). Done: chat, memory, web voice and weather now run through the server.
 
 Optional: to make it permanent for every visitor, put the same address in `config.js` (`API_BASE`) and push to git.

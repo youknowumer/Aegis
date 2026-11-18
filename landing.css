@@ -508,3 +508,10 @@ a { color: inherit; }
   .nav-cta .theme-toggle { width: 38px; height: 38px; }
 }
 @media (prefers-reduced-motion: reduce) { .cap .ci, .cmd, .theme-toggle, .to-top { transition: none; } }
+
+
+/* ---- v4: "Say it" strip under the hero buttons */
+.say-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 4px; }
+.say-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--teal); }
+.say-label svg { width: 15px; height: 15px; fill: currentColor; }
+.say-chip { font-size: 13.5px; font-weight: 600; color: var(--ink-2); padding: 6px 13px; border-radius: 999px; background: var(--glass); border: 1px solid var(--glass-edge); }

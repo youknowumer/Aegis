@@ -535,3 +535,48 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 #task-list { max-height: 110px; overflow-y: auto; }
 #remind-list { max-height: 84px; overflow-y: auto; }
 @media (max-height: 860px) { #task-list { max-height: 70px; } #remind-list { max-height: 54px; } }
+
+
+/* ================= v4: AI link chip, banner, live voice cues ================= */
+#connect-btn { display: inline-flex; align-items: center; gap: 8px; }
+#connect-btn::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+#connect-btn[data-k="ok"] { color: var(--good); border-color: rgba(52, 211, 153, .4); }
+#connect-btn[data-k="ok"]::before { background: var(--good); animation: pulse-dot 2.2s ease-out infinite; }
+#connect-btn[data-k="local"], #connect-btn[data-k="nokey"] { color: var(--warn); border-color: rgba(251, 191, 36, .45); }
+#connect-btn[data-k="local"]::before, #connect-btn[data-k="nokey"]::before { background: var(--warn); }
+#connect-btn[data-k="down"] { color: var(--bad); border-color: rgba(248, 113, 113, .45); }
+#connect-btn[data-k="down"]::before { background: var(--bad); }
+#connect-btn[data-k="checking"]::before { animation: v4-blink 1s ease-in-out infinite; }
+#connect-btn.nudge { animation: v4-nudge .6s ease 3; }
+@keyframes v4-blink { 50% { opacity: .25; } }
+@keyframes v4-nudge { 25% { transform: translateY(-3px); } 75% { transform: translateY(-2px); } }
+
+.ai-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px auto 0; max-width: 760px;
+  padding: 6px 8px 6px 14px; border-radius: 12px; font-size: 13px; text-align: left; color: #fde68a;
+  background: rgba(251, 191, 36, .07); border: 1px solid rgba(251, 191, 36, .28); }
+.ai-banner .btn { flex: none; white-space: nowrap; }
+/* the banner replaces the subtitle so the quick cards below keep fitting on one screen */
+.welcome:has(.ai-banner:not(.hidden)) > .welcome-sub { display: none; }
+@media (max-width: 900px) { .ai-banner { flex-wrap: wrap; justify-content: center; text-align: center; } }
+.ai-banner.hidden { display: none; }
+
+.ok-msg { color: var(--good); min-height: 20px; margin: 0 0 8px; font-size: 13.5px; }
+.warn-msg { color: var(--warn); min-height: 20px; margin: 0 0 8px; font-size: 13.5px; }
+
+.vchip { font: inherit; font-size: 12.5px; color: var(--muted); padding: 4px 13px; border-radius: 999px; cursor: pointer;
+  border: 1px dashed var(--line); background: transparent; transition: color .15s, border-color .15s, background .15s; }
+.vchip:hover, .vchip:focus-visible { color: var(--accent); border-color: rgba(var(--ac), .55); background: rgba(var(--ac), .08); outline: none; }
+
+/* live "listening" cue: equaliser bars in front of the transcript line, and a ring on the mic */
+.interim[data-live="1"] { color: var(--accent); font-style: normal; }
+.interim[data-live="1"]::before { content: ""; display: inline-block; width: 15px; height: 13px; margin-right: 9px; vertical-align: -1px;
+  background: linear-gradient(currentColor, currentColor) 0 100% / 3px 40% no-repeat,
+              linear-gradient(currentColor, currentColor) 6px 100% / 3px 100% no-repeat,
+              linear-gradient(currentColor, currentColor) 12px 100% / 3px 60% no-repeat;
+  animation: v4-eq .9s ease-in-out infinite; }
+@keyframes v4-eq { 0%, 100% { background-size: 3px 40%, 3px 100%, 3px 60%; } 50% { background-size: 3px 95%, 3px 35%, 3px 100%; } }
+#mic-btn.live { color: var(--accent); background: rgba(var(--ac), .16); animation: v4-ring 1.5s ease-out infinite; }
+@keyframes v4-ring { 0% { box-shadow: 0 0 0 0 rgba(var(--ac), .55); } 100% { box-shadow: 0 0 0 14px rgba(var(--ac), 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .interim[data-live="1"]::before, #mic-btn.live, #connect-btn.nudge, #connect-btn[data-k] ::before { animation: none; }
+}

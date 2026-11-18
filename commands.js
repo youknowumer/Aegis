@@ -198,13 +198,14 @@
     "- Device status: \"system status\", \"battery\"\n" +
     "- Control me: \"voice mode on\", \"be quiet\", \"switch to Urdu\", \"change theme to red\", \"focus mode\", \"full screen\", \"repeat that\"\n" +
     "- Fun: \"flip a coin\", \"roll a dice\", \"random number between 1 and 100\"\n" +
+    "- Roman Urdu works too: \"youtube kholo\", \"mausam batao\", \"5 minute ka timer lagao\", \"date batao\", \"note karo doodh lana hai\"\n" +
     "Everything else, ask me normally: questions, advice, writing, coding, translation, anything.";
 
   const C = [];
   const add = (name, test, run, opts) => C.push({ name, test, run, offlineOnly: !!(opts && opts.offlineOnly) });
 
   // ---- stop / quiet (must always work)
-  add("stop", (t) => /^(?:stop|stop talking|stop speaking|enough|that's enough|bas|bas karo|ruko|ruk ja(?:o)?|\u0628\u0633|\u0631\u06a9\u0648|\u0930\u0941\u0915\u094b)$/.test(t),
+  add("stop", (t) => /^(?:stop|stop talking|stop speaking|stop it|bolna band (?:karo|kar do)|enough|that's enough|bas|bas karo|ruko|ruk ja(?:o)?|\u0628\u0633|\u0631\u06a9\u0648|\u0930\u0941\u0915\u094b)$/.test(t),
     (m, c) => { c.stopSpeaking(); return null; });
   add("mute", (t) => /^(?:mute|mute yourself|be quiet|quiet|silence|shut up|chup|chup ho ja(?:o)?|chup kar(?:o)?|khamosh|\u0686\u067e|\u062e\u0627\u0645\u0648\u0634|\u091a\u0941\u092a)$/.test(t),
     (m, c) => { c.stopSpeaking(); c.setSpeak(false); return c.say("Muted. Say unmute to hear me again.", { silent: true }); });
@@ -244,8 +245,8 @@
     });
   add("theme", (t) => /\b(?:theme|colou?r|accent)\b/.test(t) && THEMES.some((x) => t.includes(x)) || /^(?:go |turn )?(?:cyan|blue|green|red|amber|purple|pink) (?:mode|theme)$/.test(t),
     (m, c) => { const k = THEMES.find((x) => m.t.includes(x)); c.setTheme(k); return c.say(cap(k) + " theme applied."); });
-  add("focus", (t) => /^(?:focus mode|(?:enter|exit|leave|toggle) focus(?: mode)?|hide panels|show panels|hide (?:the )?sidebars?|show (?:the )?sidebars?|minimal mode|clean mode)$/.test(t),
-    (m, c) => { const on = /^(?:focus mode|enter|hide|minimal|clean)/.test(m.t) ? true : /^(?:exit|leave|show)/.test(m.t) ? false : undefined; const v = c.toggleFocus(on); return c.say(v ? "Focus mode on." : "Panels are back."); });
+  add("focus", (t) => /^(?:focus mode (?:on|off|chalu karo|band karo)|focus (?:on|off)|focus mode|(?:enter|exit|leave|toggle) focus(?: mode)?|hide panels|show panels|hide (?:the )?sidebars?|show (?:the )?sidebars?|minimal mode|clean mode)$/.test(t),
+    (m, c) => { const on = /\b(?:off|band)\b/.test(m.t) || /^(?:exit|leave|show)/.test(m.t) ? false : /^(?:focus|enter|hide|minimal|clean)/.test(m.t) ? true : undefined; const v = c.toggleFocus(on); return c.say(v ? "Focus mode on." : "Panels are back."); });
   add("fullscreen", (t) => /^(?:full ?screen|go full ?screen|enter full ?screen|exit full ?screen|leave full ?screen|fullscreen off)$/.test(t),
     async (m, c) => {
       try {
@@ -253,13 +254,13 @@
         await document.documentElement.requestFullscreen(); return c.say("Full screen.");
       } catch { return c.say("Your browser blocked full screen."); }
     });
-  add("clear", (t) => /^(?:clear(?: the)? (?:chat|conversation|screen)|new (?:chat|conversation)|start over|reset(?: chat)?|chat clear karo|naya chat)$/.test(t),
+  add("clear", (t) => /^(?:clear(?: the)? (?:chat|conversation|screen)|new (?:chat|conversation)|start over|reset(?: chat)?|chat clear karo|chat (?:saaf|saf|clear|delete) (?:karo|kar do)|naya chat)$/.test(t),
     (m, c) => { c.clearChat(); return null; });
 
   // ---- time & date
-  add("date", (t) => /^(?:what(?:'s| is)? (?:the )?(?:date|day)(?: is it)?(?: today)?|(?:today'?s|todays) date|what day is it|which day is it|date|day|aaj (?:kya )?(?:tareekh|tarikh|date|din) (?:hai|he)|aaj kon sa din hai|aaj ki tareekh|آج کی تاریخ|آج کون سا دن)$/.test(t),
+  add("date", (t) => /^(?:(?:aaj (?:ki )?)?(?:date|tareekh|tarikh)(?: kya (?:hai|he))?(?: (?:batao|bata do))?|aaj (?:kya |kon ?sa |kaun sa )?din (?:hai|he)|what(?:'s| is)? (?:the )?(?:date|day)(?: is it)?(?: today)?|(?:today'?s|todays) date|what day is it|which day is it|date|day|aaj (?:kya )?(?:tareekh|tarikh|date|din) (?:hai|he)|aaj kon sa din hai|aaj ki tareekh|آج کی تاریخ|آج کون سا دن)$/.test(t),
     (m, c) => c.say("Today is " + new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" }) + "."));
-  add("time", (t) => /^(?:what(?:'s| is)? (?:the )?(?:current )?time(?: is it| now)?(?: right now)?|what time is it(?: now)?|(?:current )?time(?: now)?|tell me the time|time (?:kya|kitna) (?:hai|hua hai|hua)|abhi (?:kya )?(?:time|waqt) (?:hai|hua hai)|kitne baje hain?|ٹائم کیا ہوا ہے|ٹائم کیا ہے|ابھی کیا وقت ہوا ہے|कितने बजे हैं|समय क्या हुआ है)$/.test(t),
+  add("time", (t) => /^(?:what(?:'s| is)? (?:the )?(?:current )?time(?: is it| now)?(?: right now)?|what time is it(?: now)?|(?:current )?time(?: now)?|tell me the time|time (?:kya|kitna) (?:hai|hua hai|hua)|abhi (?:kya )?(?:time|waqt) (?:hai|hua hai)|(?:abhi )?(?:time|waqt) (?:batao|bata do)|(?:abhi )?(?:time|waqt) kya (?:hai|he|hua hai)|kitne baje hain?|ٹائم کیا ہوا ہے|ٹائم کیا ہے|ابھی کیا وقت ہوا ہے|कितने बजे हैं|समय क्या हुआ है)$/.test(t),
     (m, c) => c.say("It is " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + "."));
   add("zone-time", (t) => /^(?:what(?:'s| is)? (?:the )?)?(?:current )?time (?:in|at) ([a-z ]+?)(?: right now| now| today)?$/.test(t),
     (m, c) => {
@@ -294,11 +295,15 @@
     m = t.match(/^(?:youtube|yt) (?:search|for) (.+)$/);
     if (m) return { q: m[1], site: "youtube" };
     m = t.match(/^(?:play|watch) (.+?)(?: on (?:youtube|yt))?$/);
-    if (m && !/\b(?:spotify|netflix)\b/.test(t) && /(?: on (?:youtube|yt))$/.test(t)) return { q: m[1], site: "youtube" };
+    if (m && !/\b(?:spotify|netflix)\b/.test(t)) return { q: m[1], site: "youtube" };
+    m = t.match(/^(.+?) (?:chalao|chala do|laga do|lagao|bajao|baja do)$/);
+    if (m && !/\b(?:timer|alarm|voice|mode|stopwatch|focus)\b/.test(m[1])) return { q: m[1], site: "youtube" };
     m = t.match(/^(?:play|watch) (.+) (?:on youtube|youtube par|youtube pe)$/);
     if (m) return { q: m[1], site: "youtube" };
     m = t.match(/^(.+?) (?:google karo|google kar do|google search karo|search karo|search kar do|dhoondo|dhundo|سرچ کرو|گوگل کرو)$/);
     if (m) return { q: m[1], site: "google" };
+    m = t.match(/^(?:directions?|route|rasta|raasta)(?: from)? (.+?) (?:to|se) (.+)$/) || t.match(/^(.+?) (?:to|se) (.+?) (?:directions?|ka rasta|ka raasta|ka route|tak ka rasta)$/);
+    if (m) return { q: m[1] + " to " + m[2], site: "maps", dir: true };
     m = t.match(/^(?:directions? to|navigate to|route to|how (?:do i|to) get to|map of) (.+)$/);
     if (m) return { q: m[1], site: "maps", dir: /direction|navigate|route|get to/.test(t) };
     return null;
@@ -344,7 +349,7 @@
   // ---- notes
   add("note-add", (t) => { const m = t.match(/^(?:take|make|write|add|save|jot)(?: down)? (?:a )?note(?: that| to| of)?[: ]+(.+)$/) || t.match(/^note(?: karo| kar lo)?[: ]+(.+)$/) || t.match(/^(.+?) (?:note karo|note kar lo|note kar do|نوٹ کرو)$/); return m ? { text: m[1] } : null; },
     (m, c) => { const n = notes.get(); n.push({ t: Date.now(), text: m.text }); notes.set(n); return c.say("Noted: " + m.text); });
-  add("note-list", (t) => /^(?:show|read|list|what are|open)?\s*(?:me )?(?:my )?(?:all )?notes$/.test(t),
+  add("note-list", (t) => /^(?:show|read|list|what are|open)?\s*(?:me )?(?:my )?(?:all )?notes$/.test(t) || /^(?:mere |meri )?notes? (?:dikhao|dikha do|batao|sunao|parho)$/.test(t),
     (m, c) => {
       const n = notes.get();
       if (!n.length) return c.say("You have no notes yet.");
@@ -353,7 +358,7 @@
   add("note-clear", (t) => /^(?:clear|delete|erase|remove) (?:all )?(?:my )?notes$/.test(t), (m, c) => { notes.set([]); return c.say("All notes cleared."); });
 
   // ---- weather & device status
-  add("weather", (t) => /^(?:what(?:'s| is) the )?(?:weather|temperature|mausam|موسم|मौसम)(?: (?:like|today|now|right now|kaisa hai|kaisa|kya hai))?$/.test(t) ||
+  add("weather", (t) => /^(?:what(?:'s| is) the )?(?:weather|temperature|mausam|موسم|मौसम)(?: (?:like|today|now|right now|kaisa hai|kaisa|kya hai|batao|bata do|dikhao))?$/.test(t) ||
     /^(?:what(?:'s| is) the )?(?:weather|temperature) (?:in|at|for) .+$/.test(t) || /^(.+?) (?:ka|ki) (?:mausam|weather)(?: kaisa hai| kya hai)?$/.test(t),
     async (m, c) => {
       const city = (m.t.match(/(?:in|at|for) ([a-z ,]+?)(?: today| now)?$/) || m.t.match(/^(.+?) (?:ka|ki) (?:mausam|weather)/) || [])[1];
@@ -361,7 +366,7 @@
       if (city) return c.say(await c.hud.setCity(city.trim()));
       return c.say(c.hud.weatherSummary());
     }, { offlineOnly: false });
-  add("status", (t) => /^(?:system|device|pc|computer)? ?status|^(?:how(?:'s| is) (?:my )?(?:battery|network|internet|connection|system|device|computer|pc))|^(?:battery|network|internet speed|system health|battery level|check (?:my )?(?:battery|system|status))$/.test(t),
+  add("status", (t) => /^(?:system|device|pc|computer)? ?status|^(?:how(?:'s| is) (?:my )?(?:battery|network|internet|connection|system|device|computer|pc))|^battery (?:kitni|kitna|kya) (?:hai|he)|^(?:battery|network|internet speed|system health|battery level|check (?:my )?(?:battery|system|status))$/.test(t),
     (m, c) => c.say(c.hud ? c.hud.statusLine() : "No device data available."));
 
   // ---- fun
@@ -379,6 +384,7 @@
     (m, c) => c.say(convert(m.n, m.a, m.b)));
   add("math", (t) => {
     let e = t.replace(/^(?:calculate|calc|compute|solve|evaluate|what(?:'s| is)|whats|how much is|hisab|hisaab|حساب)\s+/, "").replace(/\s*(?:equals?|kitna hota hai|kitne hote hain|=)\s*\??$/, "");
+    e = e.replace(/^(\d+(?:\.\d+)?) ka (\d+(?:\.\d+)?) ?(?:percent|%)$/, "$2% of $1");
     e = wordsToDigits(e);
     if (!/[+\-*/%^x×÷]|\b(?:plus|minus|times|divided|percent|squared|cubed|sqrt|square root|multiplied|into|over|power|mod)\b/.test(e)) return null;
     if (/^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}$/.test(e)) return null; // looks like a date
@@ -391,6 +397,8 @@
     (m, c) => c.say(pick(["Hello! How can I help?", "Hi there. What do you need?", "At your service."])), { offlineOnly: true });
   add("thanks", (t) => /^(?:thanks|thank you|thank u|shukriya|shukria|شکریہ|धन्यवाद)$/.test(t),
     (m, c) => c.say(pick(["Anytime.", "My pleasure.", "Happy to help."])), { offlineOnly: true });
+  add("howru", (t) => /^(?:how are you(?: doing)?|how's it going|kaise ho|kese ho|kaisay ho|aap kaise hain|kya haal hai|kya hal hai|کیسے ہو|آپ کیسے ہیں|कैसे हो)$/.test(t),
+    (m, c) => c.say(pick(["Running smoothly, thanks for asking. What can I do for you?", "All systems fine. How can I help?"])), { offlineOnly: true });
   add("who", (t) => /^(?:who are you|what(?:'s| is) your name|tum kaun ho|aap kaun hain|آپ کون ہیں)$/.test(t),
     (m, c) => c.say("I'm Aegis, your personal AI assistant."), { offlineOnly: true });
 

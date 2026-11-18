@@ -26,3 +26,42 @@ test("calculator is exact and never evaluates code",()=>{
   assert.strictEqual(A.calc("15% of 2400"),"360");assert.strictEqual(A.calc("25*4+2"),"102");assert.strictEqual(A.calc("square root of 81"),"9");
   assert.strictEqual(A.calc("2^10"),"1024");assert.strictEqual(A.calc("alert(1)"),null);assert.strictEqual(A.calc("constructor"),null);
 });
+
+test("voice phrases that used to fall through to the AI now match (English + Roman Urdu)", () => {
+  const hit = (phrase, name) => {
+    const m = A.match(phrase, { online: false });
+    assert.ok(m, "no match for: " + phrase);
+    assert.equal(m.name, name, phrase + " -> " + m.name);
+  };
+  hit("play despacito", "search");
+  hit("despacito chalao", "search");
+  hit("date batao", "date");
+  hit("aaj ki date kya hai", "date");
+  hit("abhi time kya hai", "time");
+  hit("focus mode off", "focus");
+  hit("chat saaf karo", "clear");
+  hit("mere notes dikhao", "note-list");
+  hit("battery kitni hai", "status");
+  hit("mausam batao", "weather");
+  hit("lahore se islamabad directions", "search");
+  hit("bolna band karo", "stop");
+  // must NOT be hijacked by the new "X chalao" -> YouTube rule
+  assert.equal(A.match("voice mode chalao", { online: false })?.name === "search", false);
+  assert.equal(A.match("timer chalao", { online: false })?.name === "search", false);
+});
+
+test("Roman Urdu percent maths is exact", async () => {
+  const m = A.match("2400 ka 15 percent", { online: false });
+  assert.equal(m.name, "math");
+  let said = "";
+  await m.run({ say: (t) => { said = t; } });
+  assert.match(said, /360/);
+});
+
+test("focus mode on/off resolves to the right state", async () => {
+  for (const [phrase, want] of [["focus mode off", false], ["focus mode on", true], ["focus mode band karo", false]]) {
+    let got;
+    await A.match(phrase, { online: false }).run({ toggleFocus: (v) => (got = v), say: () => {} });
+    assert.equal(got, want, phrase);
+  }
+});

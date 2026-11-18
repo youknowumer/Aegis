@@ -9,15 +9,21 @@
   const API_KEY_OVERRIDE = "aegis_api_base"; // set from the "Connect AI" dialog, wins over config.js
   let apiOverride = "";
   try { apiOverride = localStorage.getItem(API_KEY_OVERRIDE) || ""; } catch {}
-  const API = String(apiOverride || CFG.API_BASE || "").replace(/\/+$/, "");
-  const API_MISSING = /YOUR-AEGIS-SERVER/i.test(API);
   // Local login mode: no server needed. Accounts live in THIS browser on THIS computer only
-  // (localStorage, passwords PBKDF2-hashed). Used automatically while config.js has no real server yet,
-  // or force it with LOCAL_LOGIN: true. Chat/AI still needs the real server.
-  const LOCAL = !apiOverride && (API_MISSING || CFG.LOCAL_LOGIN === true);
+  // (localStorage, passwords PBKDF2-hashed). Used while no real server is known, or force it with LOCAL_LOGIN: true.
+  // Chat/AI still needs the real server. If this page is itself served BY the Aegis server (Render / Docker / localhost)
+  // detectServer() notices that and links up automatically, so config.js needs no edit in that case.
+  let sameOrigin = false;
+  let API = "", API_MISSING = false, LOCAL = false, WS_URL = "";
+  function applyApi() {
+    API = sameOrigin ? "" : String(apiOverride || CFG.API_BASE || "").replace(/\/+$/, "");
+    API_MISSING = !sameOrigin && /YOUR-AEGIS-SERVER/i.test(API);
+    LOCAL = !apiOverride && !sameOrigin && (API_MISSING || CFG.LOCAL_LOGIN === true);
+    WS_URL = (API && !API_MISSING ? API.replace(/^http/i, "ws") : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/ws";
+  }
+  applyApi();
   const LOCAL_USERS_KEY = "aegis_local_users";
-  const WS_URL =
-    (API ? API.replace(/^http/i, "ws") : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/ws";
+  window.AEGIS_RUNTIME = { get api() { return API; }, get local() { return LOCAL; } }; // hud.js reads this
   const TOKEN_KEY = "aegis_token";
   const desktop = window.aegisDesktop || null; // injected by the Electron preload script
   const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -147,6 +153,53 @@
     return data;
   }
 
+  async function detectServer() {
+    if (apiOverride || !API_MISSING || CFG.LOCAL_LOGIN === true || location.protocol === "file:") return;
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
+      const r = await fetch("/healthz", { cache: "no-store", signal: ctl.signal });
+      clearTimeout(t);
+      const j = r.ok ? await r.json() : null;
+      if (j && j.ok === true) { sameOrigin = true; applyApi(); }
+    } catch {}
+  }
+
+  // ---- AI link chip (top bar): says in one glance whether the AI is reachable and what is missing
+  let aiState = "local";
+  function setAi(kind, text, tip) {
+    aiState = kind;
+    const b = $("connect-btn");
+    b.dataset.k = kind;
+    b.textContent = text;
+    b.title = tip || "";
+    const bn = $("ai-banner");
+    const txt = { local: ["Instant voice commands are live. Link your Aegis server to unlock AI chat.", "Connect AI"],
+      nokey: ["Your server is online but has no AI key yet. Add ANTHROPIC_API_KEY on the server.", "Server settings"],
+      down: ["Can't reach the server. Free hosts sleep: wait about 30 seconds, then retry.", "Retry"] }[kind];
+    bn.classList.toggle("hidden", !txt);
+    if (txt) { $("ai-banner-text").textContent = txt[0]; $("ai-banner-btn").textContent = txt[1]; }
+  }
+  function refreshConnectBtn() {
+    if (LOCAL) setAi("local", "AI: not connected", "Instant commands work. Click to connect the AI server.");
+    else setAi("checking", "AI: checking...", "");
+  }
+  async function checkAI() {
+    if (LOCAL) return refreshConnectBtn();
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 20000);
+      const r = await fetch(API + "/healthz", { cache: "no-store", signal: ctl.signal });
+      clearTimeout(t);
+      const j = await r.json();
+      if (!j.ok) throw 0;
+      if (j.ai === false) { setAi("nokey", "AI key missing", "The server is online but ANTHROPIC_API_KEY is not set on it."); return "nokey"; }
+      setAi("ok", "AI online", "Connected to " + (API || location.origin));
+      return "ok";
+    } catch {
+      setAi("down", "Server offline", "Can't reach " + (API || location.origin) + ". Free hosts sleep; wait 30 s and retry.");
+      return "down";
+    }
+  }
+
   // Free hosts put idle servers to sleep. Poke it as soon as the page opens so login is fast.
   async function warmServer() {
     const pill = $("server-state");
@@ -154,7 +207,7 @@
       setPill(pill, "Local login (this computer)", "warn");
       const w = $("config-warning");
       w.classList.remove("hidden");
-      w.textContent = "Local mode: your account is saved only in this browser on this computer. Chat/AI needs the Aegis server (set API_BASE in config.js).";
+      w.textContent = "Local mode: your account stays in this browser. Instant voice commands work; for AI chat press \"AI: not connected\" (top right) and link your Aegis server.";
       return;
     }
     setPill(pill, "Connecting...", "off");
@@ -165,7 +218,12 @@
         const t = setTimeout(() => ctl.abort(), 20000);
         const r = await fetch(API + "/healthz", { cache: "no-store", signal: ctl.signal });
         clearTimeout(t);
-        if (r.ok) { clearTimeout(wake); setPill(pill, "Server online", "on"); return; }
+        if (r.ok) {
+          clearTimeout(wake);
+          let ai = true; try { ai = (await r.json()).ai !== false; } catch {}
+          setPill(pill, ai ? "Server online" : "Server online, AI key missing", ai ? "on" : "warn");
+          return;
+        }
       } catch {}
       await sleep(2500);
     }
@@ -651,6 +709,7 @@
       case "hello":
         wsOpen = true;
         setLink("online");
+        checkAI();
         $("user-email").textContent = m.email;
         setUsage(m.used, m.limit, m.plan);
         setDevice(m.device);
@@ -769,11 +828,12 @@
     },
     alert: alertUser,
     open(url) {
-      const w = window.open(url, "_blank", "noopener");
-      if (!w) {
-        const el = addMsg("ai", "Your browser blocked the pop-up. Open it here: " + url);
-        el.querySelector("a") && el.querySelector("a").setAttribute("target", "_blank");
-      }
+      let w = null;
+      try { w = window.open(url, "_blank"); } catch {}
+      if (w) { try { w.opener = null; } catch {} return; }
+      // Voice commands have no click behind them, so browsers often block the new tab: give a one-tap link instead.
+      addMsg("ai", "Your browser blocked the new tab. Tap to open: " + url);
+      toast("Allow pop-ups for this site and voice can open pages by itself.", 7000);
     },
     setLang(code) { $("lang").value = code; $("lang").dispatchEvent(new Event("change")); },
     setVoiceMode(on) { $("voice-mode").checked = on; $("voice-mode").dispatchEvent(new Event("change")); },
@@ -793,7 +853,7 @@
     manual = false;
     followUp = false;
     if (!SILENT_CMDS[cmd.name]) { stopSpeaking(); addMsg("user", text); }
-    cmd.run(cmdCtx).catch(() => addMsg("err", "That command failed. Try again."));
+    cmd.run(cmdCtx).catch(() => addMsg("err", "That command failed. Try again.")).finally(() => setTimeout(syncVoice, 300)); // keeps Voice mode alive after silent commands
   }
 
   function submitText(text) {
@@ -802,7 +862,7 @@
     const cmd = window.AegisCommands && AegisCommands.match(text, { online: wsOpen });
     if (cmd) return runCommand(cmd, text);
     if (busy) return;
-    if (!ws || ws.readyState !== 1 || !wsOpen) return addMsg("err", LOCAL ? "That one needs the AI server, which isn't connected yet (set API_BASE in config.js). Say \"help\" to see what I can do instantly without it." : "Not connected. Reconnecting...");
+    if (!ws || ws.readyState !== 1 || !wsOpen) { if (LOCAL) { addMsg("err", "That one needs the AI server, which isn't linked yet. Tap \"AI: not connected\" at the top to link it. Meanwhile I can still do instant things: say \"help\"."); $("connect-btn").classList.add("nudge"); setTimeout(() => $("connect-btn").classList.remove("nudge"), 2400); } else addMsg("err", aiState === "nokey" ? "The server is online but has no AI key. Add ANTHROPIC_API_KEY on the server." : "Not connected to the server yet. Reconnecting..."); return; }
     stopSpeaking();
     stopRec();
     setInterim("");
@@ -1016,6 +1076,9 @@
 
   function setListening(on) {
     listeningNow = on;
+    const live = on && recKind === "once";
+    $("interim").dataset.live = live ? "1" : "0";
+    if (live && !$("interim").textContent) setInterim("Listening...");
     $("mic-btn").classList.toggle("live", on && recKind === "once");
     refreshState();
   }
@@ -1055,10 +1118,16 @@
       if (rec !== r) return;
       recErr = e.error || "";
       if (recErr === "not-allowed" || recErr === "service-not-allowed") {
-        wake = false; convo = false; manual = false; followUp = false;
-        safeSet("aegis_wake", "0");
-        syncToggles();
-        toast("Microphone access is blocked. Allow it in your browser's address bar to use voice.", 7000);
+        const hint = !window.isSecureContext ? " This page is not secure: voice needs https:// or http://localhost." :
+          location.protocol === "file:" ? " Voice does not work on a file: page. Open http://localhost:8000 instead." : "";
+        voiceFail("Microphone access is blocked. Allow it in your browser's address bar." + hint);
+      } else if (recErr === "audio-capture") {
+        voiceFail("No microphone found. Plug one in, or choose it in your browser's site settings.");
+      } else if (recErr === "network") {
+        voiceFail("The browser's speech service can't be reached. Chrome sends your voice to Google to transcribe it, so voice needs internet.");
+      } else if (recErr === "language-not-supported") {
+        $("lang").value = "en-US"; safeSet("aegis_lang", "en-US");
+        voiceFail("This browser can't recognise that language, so I switched to English. Turn voice back on to retry.");
       }
     };
     r.onend = () => {
@@ -1076,6 +1145,16 @@
     try { r.start(); } catch { rec = null; recKind = null; }
   }
 
+  // Turn every listening mode off and tell the person why (so it never silently loops).
+  function voiceFail(msg) {
+    wake = false; convo = false; manual = false; followUp = false;
+    safeSet("aegis_wake", "0");
+    stopRec();
+    syncToggles();
+    toast(msg, 9000);
+    addMsg("err", msg);
+  }
+
   function stopRec() {
     if (!rec) return;
     const r = rec;
@@ -1088,7 +1167,7 @@
 
   // One place decides what the microphone should be doing right now.
   function syncVoice() {
-    if (!SR || !authed || !(wsOpen || LOCAL) || busy || speaking || $("confirm").open) return stopRec();
+    if (!SR || !authed || busy || speaking || $("confirm").open) return stopRec(); // instant commands need no server, so voice works before the AI link is up
     const want = manual || followUp || convo ? "once" : wake && gestured ? "wake" : null;
     if (!want) return stopRec();
     if (rec && recKind === want) return;
@@ -1262,6 +1341,9 @@
   // ------------------------------------------------------------------ start
   async function start() {
     syncToggles();
+    await detectServer();
+    refreshConnectBtn();
+    window.dispatchEvent(new Event("aegis:server"));
     if (!token) { show("auth"); warmServer(); return; }
     try {
       await api("/api/me");
@@ -1285,31 +1367,58 @@
     checkDownload();
     refreshState();
     connect();
+    checkAI();
   }
 
   // ---- Connect AI dialog (no code editing needed)
-  $("connect-btn").textContent = LOCAL ? "Connect AI" : "Server";
-  $("connect-btn").addEventListener("click", () => {
+  async function probe(u) {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 30000);
+    try {
+      const r = await fetch(u + "/healthz", { cache: "no-store", signal: ctl.signal });
+      const j = r.ok ? await r.json() : null;
+      if (!j || !j.ok) throw 0;
+      return j;
+    } finally { clearTimeout(t); }
+  }
+  function connectMsg(text, kind) { const m = $("connect-msg"); m.textContent = text; m.className = kind === "ok" ? "ok-msg" : kind === "warn" ? "warn-msg" : "error"; }
+  function openConnect(prefill) {
     $("connect-origin").textContent = location.origin.startsWith("http") ? location.origin : "(your website address)";
-    $("connect-url").value = apiOverride || (API_MISSING ? "" : API);
-    $("connect-msg").textContent = "";
-    $("connect").showModal();
-  });
+    $("connect-url").value = prefill || apiOverride || (sameOrigin ? location.origin : (API_MISSING ? "" : API));
+    connectMsg("");
+    if (!$("connect").open) $("connect").showModal();
+  }
+  const cleanUrl = () => $("connect-url").value.trim().replace(/\/+$/, "");
+  const validUrl = (u) => /^https?:\/\/[^\s/]+/i.test(u);
+  async function testConnect() {
+    const u = cleanUrl();
+    if (!validUrl(u)) { connectMsg("Enter the full address, starting with https://"); return null; }
+    connectMsg("Checking...", "warn");
+    try {
+      const j = await probe(u);
+      if (j.ai === false) connectMsg("Server reachable, but it has no AI key yet. Add ANTHROPIC_API_KEY on the server, then test again.", "warn");
+      else connectMsg("Server reachable and the AI key is set. You're good to connect.", "ok");
+      return j;
+    } catch {
+      connectMsg("Can't reach that server. If it is on free hosting wait 30 seconds and try again. If it keeps failing, check that AEGIS_ALLOWED_ORIGINS on the server contains " + location.origin + ".");
+      return null;
+    }
+  }
+  $("connect-btn").addEventListener("click", () => openConnect());
+  $("ai-banner-btn").addEventListener("click", () => { if (aiState === "down") { setAi("checking", "AI: checking...", ""); checkAI(); } else openConnect(); });
+  $("voice-help").addEventListener("click", () => { gestured = true; submitText("help"); });
   $("connect-close").addEventListener("click", () => $("connect").close());
   $("connect-reset").addEventListener("click", () => { safeSet(API_KEY_OVERRIDE, null); location.reload(); });
+  $("connect-test").addEventListener("click", testConnect);
   $("connect-save").addEventListener("click", async () => {
-    let u = $("connect-url").value.trim().replace(/\/+$/, "");
-    if (!/^https?:\/\/[^\s/]+/i.test(u)) return ($("connect-msg").textContent = "Enter the full address, starting with https://");
-    $("connect-msg").textContent = "Checking...";
-    try {
-      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 30000);
-      const r = await fetch(u + "/healthz", { cache: "no-store", signal: ctl.signal });
-      if (!r.ok) throw 0;
-    } catch { return ($("connect-msg").textContent = "Can't reach that server. If it is on free hosting, wait 30 seconds and try again."); }
-    safeSet(API_KEY_OVERRIDE, u);
+    if (!(await testConnect())) return;
+    safeSet(API_KEY_OVERRIDE, cleanUrl());
     safeSet(TOKEN_KEY, null);
     location.reload();
   });
+  // A link like app.html?server=https://my-aegis.onrender.com opens this dialog pre-filled. It is never applied silently:
+  // a stranger's link must not be able to redirect where your password is sent.
+  const qServer = new URLSearchParams(location.search).get("server");
+  if (qServer && validUrl(qServer)) setTimeout(() => openConnect(qServer.replace(/\/+$/, "")), 700);
 
   applyTheme(safeGet("aegis_theme") || "cyan");
   tick();

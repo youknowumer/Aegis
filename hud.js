@@ -74,8 +74,9 @@
   }
 
   async function latency() {
-    const base = String((window.AEGIS_CONFIG || {}).API_BASE || "").replace(/\/+$/, "");
-    if (/YOUR-AEGIS-SERVER/i.test(base)) { txt("v-lat", "no server"); bar("g-lat", 0); return; }
+    const rt = window.AEGIS_RUNTIME;
+    const base = rt ? rt.api : String((window.AEGIS_CONFIG || {}).API_BASE || "").replace(/\/+$/, "");
+    if (rt ? rt.local : /YOUR-AEGIS-SERVER/i.test(base)) { txt("v-lat", "no server"); bar("g-lat", 0); return; }
     const t = performance.now();
     try {
       const r = await fetch(base + "/healthz", { cache: "no-store" });
@@ -196,6 +197,7 @@
   window.addEventListener("online", network); window.addEventListener("offline", network);
   const c = navigator.connection; if (c && c.addEventListener) c.addEventListener("change", network);
   setInterval(memory, 3000); setInterval(latency, 30000);
+  window.addEventListener("aegis:server", latency); // app.js fires this once it knows which server to use
   requestAnimationFrame(fpsLoop);
   initWeather();
 })();
