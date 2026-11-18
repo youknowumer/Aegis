@@ -1391,7 +1391,7 @@
     { id: "openrouter", label: "OpenRouter (many models)", models: ["openai/gpt-4o-mini"], key_hint: "sk-or-...", key_url: "https://openrouter.ai/keys", needs_key: true },
     { id: "mistral", label: "Mistral", models: ["mistral-large-latest"], key_hint: "", key_url: "https://console.mistral.ai/api-keys", needs_key: true },
     { id: "deepseek", label: "DeepSeek", models: ["deepseek-chat"], key_hint: "sk-...", key_url: "https://platform.deepseek.com/api_keys", needs_key: true },
-    { id: "xai", label: "xAI (Grok)", models: ["grok-3"], key_hint: "xai-...", key_url: "https://console.x.ai", needs_key: true },
+    { id: "xai", label: "Grok (xAI)", models: ["grok-4", "grok-3", "grok-3-mini"], key_hint: "xai-...", key_url: "https://console.x.ai", needs_key: true },
     { id: "custom", label: "Custom / Local (OpenAI-compatible)", models: [], key_hint: "optional for local servers", key_url: "", needs_key: false, custom_url: true },
   ];
   let providers = FALLBACK_PROVIDERS, aiCfg = null, aiLabel = "", providersLoaded = false;

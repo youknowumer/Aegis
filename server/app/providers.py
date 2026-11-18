@@ -50,8 +50,8 @@ PROVIDERS = [
              ["mistral-large-latest", "mistral-small-latest"], "", "https://console.mistral.ai/api-keys"),
     Provider("deepseek", "DeepSeek", "openai", "https://api.deepseek.com/v1", "DEEPSEEK_API_KEY",
              ["deepseek-chat", "deepseek-reasoner"], "sk-...", "https://platform.deepseek.com/api_keys"),
-    Provider("xai", "xAI (Grok)", "openai", "https://api.x.ai/v1", "XAI_API_KEY",
-             ["grok-3", "grok-3-mini"], "xai-...", "https://console.x.ai"),
+    Provider("xai", "Grok (xAI)", "openai", "https://api.x.ai/v1", "XAI_API_KEY",
+             ["grok-4", "grok-3", "grok-3-mini"], "xai-...", "https://console.x.ai"),
     Provider("custom", "Custom / Local (OpenAI-compatible)", "openai", "", "CUSTOM_AI_API_KEY",
              [], "optional for local servers", "", needs_key=False, custom_url=True),
 ]
