@@ -73,6 +73,8 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 - **Orb** reacts to real speech, with parallax stars, comet trails, neural arcs while thinking and inward particles while listening.
 - **New instant commands**: stopwatch, password generator, days-until, say, copy that.
 
+- **v6.1: tabbed side rails** (Plan / Focus / Memory and Activity / Status / World / Voice), Alt+1..7, plus a rotating state ring on the message box.
+
 ## Voice and instant commands
 
 Typed or spoken (English, Roman Urdu, Urdu, Hindi), answered in the browser in milliseconds, free, no AI quota, and they

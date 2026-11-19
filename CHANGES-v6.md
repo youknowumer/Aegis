@@ -32,3 +32,20 @@
   on Android Google voices. To add more, install voices in the system's speech settings. True studio-quality voices would need a
   cloud TTS service (ElevenLabs, Azure, OpenAI) behind your server: a good next step.
 - Tested here in headless Chromium with simulated voices; try the Preview buttons once on your own device.
+
+# v6.1: tabbed side rails + stronger animation
+
+## Tabs (`tabs.js`, new)
+- **Left rail:** Plan (tasks + reminders) | Focus (timer + scratchpad) | Memory.
+  **Right rail:** Activity | Status (PC link, usage, device) | World (weather + shortcuts) | **Voice** (new quick voice studio).
+- Panels are moved, not copied, so every existing handler keeps working. Nothing is hidden on short screens any more; each tab scrolls instead.
+- Sliding glow indicator, live count badges (hidden at zero), badge "ping" when something lands in a hidden tab, ripple on click,
+  direction-aware 3D slide + staggered entrance, light sweep down the rail, remembered tab per side.
+- Keyboard: arrow keys / Home / End on tabs, **Alt+1..7** jumps to a tab. Voice: "show memory tab", "open the activity panel", "show voice tab".
+- Voice tab: live equaliser that follows Aegis's state, persona chips, Speed / Pitch / Volume, Test voice.
+
+## Stronger animation
+- Rotating light ring around the message box (green listening, violet thinking, accent speaking).
+- Rails glow in the state colour; orb label glitches in on every state change; orb floats; the orb pulses as you type and bursts on send.
+
+Tests: `node --test tests/commands.test.js` = 7 (includes the tab commands).

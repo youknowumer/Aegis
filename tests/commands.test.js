@@ -19,7 +19,7 @@ const cases=[
 ["next voice","voice-next"],["change voice","voice-next"],["speak faster","voice-tune"],["slower","voice-tune"],["louder","voice-tune"],["deeper voice","voice-tune"],["reset voice","voice-tune"],
 ["what voices do you have","voice-list"],["say hello world","say"],
 ["start stopwatch","stopwatch"],["lap","stopwatch"],["stop stopwatch","stopwatch"],["reset stopwatch","stopwatch"],
-["generate a password","password"],["password 20","password"],["days until christmas","days-until"],["how many days until 25 december","days-until"],["copy that","copy"],
+["generate a password","password"],["password 20","password"],["days until christmas","days-until"],["how many days until 25 december","days-until"],["copy that","copy"],["show memory tab","show-tab"],["open the activity panel","show-tab"],["show voice tab","show-tab"],
 // should go to AI (null)
 ["what is the capital of france",null],["explain quantum physics",null],["tell me a joke",null],["write an email to my boss",null],["who won the world cup in 2022",null],["open my downloads folder",null],["what is 2022",null],["translate hello to urdu",null],["how do I make biryani",null],
 ];

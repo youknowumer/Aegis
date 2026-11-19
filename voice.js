@@ -240,10 +240,58 @@
     render();
   }
 
+  // compact controller for the right-hand "Voice" tab (tabs.js creates #vp-quick; safe to call twice)
+  let quick = null;
+  function mountQuick() {
+    const box = $("vp-quick");
+    if (!box || quick) return;
+    quick = { box };
+    box.textContent = "";
+    const head = document.createElement("div"); head.className = "row blk-head static";
+    head.innerHTML = '<h3><svg class="h-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Voice studio</h3>';
+    const eq = document.createElement("div"); eq.className = "vq-eq"; eq.setAttribute("aria-hidden", "true");
+    for (let i = 0; i < 24; i++) { const b = document.createElement("i"); b.style.setProperty("--i", i); eq.appendChild(b); }
+    quick.now = document.createElement("p"); quick.now.className = "vq-now";
+    quick.chips = document.createElement("div"); quick.chips.className = "vq-chips"; quick.chips.setAttribute("role", "radiogroup"); quick.chips.setAttribute("aria-label", "Voice personality");
+    const mk = (label, min, max, step, get, set) => {
+      const l = document.createElement("label"); l.className = "vq-row";
+      const sp = document.createElement("span"); sp.textContent = label;
+      const inp = document.createElement("input"); inp.type = "range"; inp.min = min; inp.max = max; inp.step = step; inp.setAttribute("aria-label", label);
+      const out = document.createElement("output");
+      inp.addEventListener("input", () => { set(parseFloat(inp.value)); out.textContent = parseFloat(inp.value).toFixed(2); });
+      inp.addEventListener("change", () => preview());
+      l.append(sp, inp, out);
+      return { l, inp, out, get };
+    };
+    quick.rows = [
+      mk("Speed", "0.8", "1.4", "0.05", rateInput, (v) => tune({ rate: v })),
+      mk("Pitch", "0.6", "1.6", "0.05", () => state.pitch, (v) => tune({ pitch: v })),
+      mk("Volume", "0.1", "1", "0.05", () => state.volume, (v) => tune({ volume: v })),
+    ];
+    const test = document.createElement("button"); test.type = "button"; test.className = "btn ghost small-btn vq-test"; test.textContent = "Test voice";
+    test.addEventListener("click", () => preview());
+    box.append(head, eq, quick.now, quick.chips, ...quick.rows.map((r) => r.l), test);
+    renderQuick();
+  }
+  function renderQuick() {
+    if (!quick) return;
+    quick.now.textContent = hasTTS ? describe() : "Speech is not supported in this browser";
+    quick.chips.textContent = "";
+    allPersonas().filter((p) => p.id !== "system").forEach((p) => {
+      const c = document.createElement("button");
+      c.type = "button"; c.className = "vq-chip" + (p.id === state.persona ? " on" : ""); c.textContent = p.name.replace("-style", ""); c.title = p.desc;
+      c.setAttribute("role", "radio"); c.setAttribute("aria-checked", p.id === state.persona ? "true" : "false");
+      c.addEventListener("click", () => { set(p.id); preview(p.id); });
+      quick.chips.appendChild(c);
+    });
+    quick.rows.forEach((r) => { const v = r.get(); r.inp.value = String(v); r.out.textContent = Number(v).toFixed(2); });
+  }
+  listeners.add(renderQuick);
+
   if (hasTTS) {
     speechSynthesis.addEventListener("voiceschanged", () => emit());
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountUI); else mountUI();
   }
 
-  window.AegisVoice = { resolve, tuning, find, set, cycle, tune, reset, list, describe, preview, get persona() { return state.persona; }, onChange(f) { listeners.add(f); } };
+  window.AegisVoice = { mountQuick, resolve, tuning, find, set, cycle, tune, reset, list, describe, preview, get persona() { return state.persona; }, onChange(f) { listeners.add(f); } };
 })();

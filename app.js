@@ -83,7 +83,9 @@
     const stage = $("stage");
     if (stage.dataset.state !== st) {
       stage.dataset.state = st;
-      $("orb-label").textContent = STATE_TEXT[st];
+      const lab = $("orb-label");
+      lab.textContent = STATE_TEXT[st];
+      lab.style.animation = "none"; void lab.offsetWidth; lab.style.animation = ""; // replay the entrance on every state change
       if (orbs.main) orbs.main.setState(st);
     }
   }
@@ -871,6 +873,7 @@
     setSpeak(on) { $("speak").checked = on; safeSet("aegis_speak", on ? "1" : "0"); if (!on) stopSpeaking(); },
     stopSpeaking,
     get voice() { return window.AegisVoice || null; },
+    get tabs() { return window.AegisTabs || null; },
     copy(text) { try { return navigator.clipboard.writeText(text).then(() => true, () => false); } catch { return Promise.resolve(false); } },
     clearChat() { if (ws && wsOpen) send({ type: "reset" }); clearChat(); },
     lastReply() { return lastAi; },

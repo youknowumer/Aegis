@@ -199,6 +199,7 @@
     "- Control me: \"voice mode on\", \"be quiet\", \"switch to Urdu\", \"change theme to red\", \"focus mode\", \"full screen\", \"repeat that\"\n" +
     "- Fun: \"flip a coin\", \"roll a dice\", \"random number between 1 and 100\"\n" +
     "- Voice: \"change voice to British male\", \"use Siri voice\", \"next voice\", \"speak faster\", \"deeper voice\", \"louder\", \"what voices do you have\", \"say hello world\"\n" +
+    "- Tabs: \"show memory tab\", \"open the activity panel\", \"show voice tab\" (or Alt+1 to Alt+7)\n" +
     "- Tools: \"start stopwatch\" / \"lap\" / \"stop stopwatch\", \"generate a password\", \"days until Christmas\", \"copy that\"\n" +
     "- Roman Urdu works too: \"youtube kholo\", \"mausam batao\", \"5 minute ka timer lagao\", \"date batao\", \"note karo doodh lana hai\"\n" +
     "Everything else, ask me normally: questions, advice, writing, coding, translation, anything.";
@@ -228,6 +229,11 @@
       try { await navigator.clipboard.writeText(r); return c.say("Copied to your clipboard."); } catch { return c.say("Your browser blocked copying."); }
     });
 
+
+  // ---- sidebar tabs ("show memory tab", "open the activity panel")
+  const TAB_WORDS = { plan: "plan", tasks: "plan", task: "plan", reminders: "plan", focus: "focus", timer: "focus", scratchpad: "focus", memory: "memory", memories: "memory", activity: "activity", status: "status", usage: "status", device: "status", weather: "world", world: "world", shortcuts: "world", voice: "voice", voices: "voice" };
+  add("show-tab", (t) => { const m = t.match(/^(?:show|open|go to|switch to|view)(?: me)?(?: the| my)? (plan|tasks?|reminders|focus|timer|scratchpad|memory|memories|activity|status|usage|device|weather|world|shortcuts|voices?) (?:tab|panel|section)$/); return m ? { id: TAB_WORDS[m[1]] } : null; },
+    (m, c) => (c.tabs && c.tabs.show(m.id, { focus: false }) ? c.say("Showing the " + m.id + " tab.", { speak: "Done." }) : c.say("I can't switch tabs on this screen.")));
 
   // ---- voice personality (Siri-style personas live in voice.js)
   const VOICE_WORD = "(?:voice|awaaz|awaz|آواز)";
