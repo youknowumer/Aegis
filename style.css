@@ -766,3 +766,46 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .tab-btn { overflow: hidden; }
 .tab-rip { clip-path: none; }
 .left .tab-btn { padding-inline: 3px; gap: 4px; font-size: 11.5px; letter-spacing: 0; }
+
+/* ======================= v6.2: live docks, defined blocks, real empty states ======================= */
+.dock { flex: none; position: relative; margin: 6px 10px 10px; padding: 9px 10px 10px; display: flex; flex-direction: column; gap: 8px; overflow: hidden;
+  background: linear-gradient(180deg, rgba(var(--dc, var(--ac)), .07), rgba(255, 255, 255, .015)); border: 1px solid rgba(var(--dc, var(--ac)), .28); border-radius: 14px;
+  box-shadow: inset 0 1px 0 var(--hi), 0 10px 30px -18px rgba(var(--dc, var(--ac)), .6); transition: border-color .6s, background .6s, box-shadow .6s; animation: dockIn .7s cubic-bezier(.2, .9, .25, 1) .3s both; }
+.dock::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, .018) 3px 4px); }
+.dock-head { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--text-2); }
+.dock-head b { font-weight: 700; }
+.dock-head small { margin-left: auto; font-size: 10.5px; letter-spacing: .06em; color: rgb(var(--dc, var(--ac))); font-weight: 650; }
+.dock-dot { width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--dc, var(--ac))); box-shadow: 0 0 10px rgb(var(--dc, var(--ac))); animation: blink 1.4s ease-in-out infinite; }
+.dock canvas { display: block; width: 100%; height: clamp(104px, 19vh, 176px); }
+#left .dock canvas { height: clamp(112px, 20vh, 170px); }
+.dock-legend { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; }
+.dl-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.dl-chip i { width: 7px; height: 7px; border-radius: 50%; flex: none; box-shadow: 0 0 6px currentColor; }
+.dl-chip b { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 650; }
+@keyframes dockIn { from { opacity: 0; transform: translateY(18px) scale(.97); } }
+@media (max-height: 640px) { .dock { display: none; } }
+
+.blk-sub { margin: -4px 0 2px !important; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.tabpane .blk-head h3 { color: var(--text); }
+
+/* empty states: icon, title, one sentence, one action */
+.tabpane .empty { display: flex !important; flex-direction: column; align-items: center; gap: 4px; white-space: normal !important; text-align: center; padding: 56px 12px 6px !important; position: relative; border: 1px dashed var(--line-2) !important; border-bottom: 0 !important; border-radius: 14px 14px 0 0; background: rgba(var(--ac), .03); font-size: 12.5px; line-height: 1.45; overflow: visible !important; }
+.tabpane .empty.hidden { display: none !important; }
+.tabpane .empty::before { content: attr(data-title); display: block; font-size: 13.5px; font-weight: 650; color: var(--text); }
+.tabpane .empty::after { content: ""; position: absolute; top: 12px; left: 50%; width: 34px; height: 34px; margin-left: -17px; border-radius: 50%; background: rgba(var(--ac), .12) center / 18px no-repeat; border: 1px solid rgba(var(--ac), .35); animation: emptyFloat 3.2s ease-in-out infinite; }
+.tabpane .empty[data-ic="tasks"]::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232fe3ff' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2'/%3E%3C/svg%3E"); }
+.tabpane .empty[data-ic="bell"]::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232fe3ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9a6 6 0 1 1 12 0c0 6 2 7 2 7H4s2-1 2-7zM10 20a2 2 0 0 0 4 0'/%3E%3C/svg%3E"); }
+.tabpane .empty[data-ic="brain"]::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232fe3ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3a6 6 0 0 0-3 11.2V17h6v-2.8A6 6 0 0 0 12 3zM10 20h4'/%3E%3C/svg%3E"); }
+.tabpane .empty[data-ic="pulse"]::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232fe3ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l3-8 4 16 3-8h4'/%3E%3C/svg%3E"); }
+@keyframes emptyFloat { 50% { transform: translateY(-4px); box-shadow: 0 0 18px -2px rgba(var(--ac), .5); } }
+.empty-act { align-self: stretch; margin: -11px 0 0; padding: 9px 12px; font: 600 12.5px var(--font); color: var(--accent); background: rgba(var(--ac), .07); border: 1px dashed var(--line-2); border-top: 0; border-radius: 0 0 14px 14px; cursor: pointer; transition: background .15s, color .15s; }
+.empty-act:hover { background: rgba(var(--ac), .16); }
+.empty-act::before { content: "+ "; }
+.empty-act[hidden] { display: none; }
+.tabpane .list:empty { display: none; }
+/* fit tuning: the right dock absorbs spare height, the left one stays compact so the tab above it keeps room */
+#right .dock canvas { height: clamp(150px, 31vh, 280px); }
+#left .dock canvas { height: clamp(92px, 15vh, 136px); }
+@media (max-height: 880px) { .tabpane .blk-sub { display: none; } .tabpane .empty { padding-top: 50px !important; } }
+@media (max-height: 820px) { .tabpane .empty { padding-top: 46px !important; font-size: 12px; } .tabpane .empty::after { width: 28px; height: 28px; margin-left: -14px; top: 10px; } .tabpane .empty::before { font-size: 13px; } }

@@ -49,3 +49,13 @@
 - Rails glow in the state colour; orb label glitches in on every state change; orb floats; the orb pulses as you type and bursts on send.
 
 Tests: `node --test tests/commands.test.js` = 7 (includes the tab commands).
+
+# v6.2: live docks, defined blocks, real empty states
+
+- **Live docks (`dock.js`, new):** a fixed live view pinned to the bottom of each rail, so no rail is ever blank.
+  - Left, *Live scan*: radar whose blips are your real tasks, reminders and memories (read from the panel counts). Sweep speed and colour follow Aegis's state; the core pulses with the voice level.
+  - Right, *Live telemetry*: scrolling traces of measured values only: voice level (from the orb), frame rate, and JS heap (Chrome) or network downlink. Nothing is simulated.
+  - Pause when the tab is hidden or a drawer is closed; one still frame for "reduce motion"; hidden on very short screens (<640 px).
+- **Every block is defined:** each panel now has a one-line description of what it is for.
+- **Professional empty states:** icon, title, one sentence and one action button ("Add a task", "Set a reminder", "Remember something", "Try a command") that focuses or pre-fills the right input.
+- Right dock grows into spare height; left dock stays compact so the active tab keeps room.

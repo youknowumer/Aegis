@@ -298,6 +298,7 @@
         levelT = Math.max(levelT, 0.35 + 0.65 * v);
         if (waves.length < 6 && v > 0.45) waves.push({ t0: t, s: 0.35 + 0.65 * v });
       },
+      getLevel() { return level; },
       setLevel(v) { levelT = Math.max(0, Math.min(1, v)); },
       refresh() { if (reduce) draw(0, true); },
       destroy() {

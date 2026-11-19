@@ -139,6 +139,46 @@
   ]);
   if (window.AegisVoice && AegisVoice.mountQuick) AegisVoice.mountQuick();
 
+  // ----------------------------------------------------------------- every block says what it is, and every empty state says what to do
+  const DEFS = {
+    tasksbox: "Things you still need to do. Add one here or say \"add a task...\".",
+    remindbox: "Alerts that pop up and are spoken at the right time.",
+    focusbox: "Pomodoro timer. Finished sessions are counted for today.",
+    padbox: "Private notes saved only on this device.",
+    membox: "Facts Aegis remembers about you across conversations.",
+    actbox: "A live log of every tool Aegis runs for you.",
+    statusbox: "Desktop link, today's message quota and your plan.",
+    sysbox: "Live readings from this browser and device.",
+    wxbox: "Current weather. Location is only used when you press the button.",
+    linksbox: "One-tap shortcuts to everyday sites.",
+  };
+  const EMPTY = {
+    "task-empty":     { ic: "tasks", title: "No open tasks", act: "Add a task", run: () => { const i = $("task-input"); if (i) i.focus(); } },
+    "remind-empty":   { ic: "bell", title: "No reminders set", act: "Set a reminder", run: () => prefill("remind me in 20 minutes to ") },
+    "memory-empty":   { ic: "brain", title: "Nothing remembered yet", act: "Remember something", run: () => prefill("remember that ") },
+    "activity-empty": { ic: "pulse", title: "No activity yet", act: "Try a command", run: () => prefill("what time is it") },
+  };
+  function prefill(text) {
+    const i = $("input"); if (!i) return;
+    i.value = text; i.focus(); i.dispatchEvent(new Event("input", { bubbles: true }));
+    i.setSelectionRange(text.length, text.length);
+  }
+  document.querySelectorAll(".tabpane .blk").forEach((b) => {
+    const key = Object.keys(DEFS).find((k) => b.classList.contains(k));
+    const head = b.querySelector(".blk-head");
+    if (key && head && !b.querySelector(".blk-sub")) { const p = el("p", "blk-sub"); p.textContent = DEFS[key]; head.after(p); }
+  });
+  Object.keys(EMPTY).forEach((id) => {
+    const p = $(id), d = EMPTY[id];
+    if (!p) return;
+    p.dataset.title = d.title; p.dataset.ic = d.ic;
+    const b = el("button", "empty-act", "");
+    b.type = "button"; b.textContent = d.act; b.addEventListener("click", d.run);
+    p.after(b);
+    const sync = () => { b.hidden = p.classList.contains("hidden"); };
+    sync(); new MutationObserver(sync).observe(p, { attributes: true, attributeFilter: ["class"] });
+  });
+
   // Alt+1..7 jumps straight to a tab (does not fire while typing a plain character)
   document.addEventListener("keydown", (e) => {
     if (!e.altKey || e.ctrlKey || e.metaKey) return;

@@ -75,6 +75,8 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 
 - **v6.1: tabbed side rails** (Plan / Focus / Memory and Activity / Status / World / Voice), Alt+1..7, plus a rotating state ring on the message box.
 
+- **v6.2: live docks** (radar of your real items, live telemetry), a description on every panel, and action-led empty states.
+
 ## Voice and instant commands
 
 Typed or spoken (English, Roman Urdu, Urdu, Hindi), answered in the browser in milliseconds, free, no AI quota, and they
