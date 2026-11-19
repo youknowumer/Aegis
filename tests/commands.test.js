@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert'),vm=require('vm'),fs=require('fs'),path=require('path');
-const ctx={window:{},document:{},navigator:{},localStorage:{getItem(){return null},setItem(){}},console};
+const ctx={window:{crypto:require('node:crypto').webcrypto},crypto:require('node:crypto').webcrypto,document:{},navigator:{},localStorage:{getItem(){return null},setItem(){}},console};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(__dirname,'..','commands.js'),'utf8'),ctx);
 const A=ctx.window.AegisCommands;
 const cases=[
@@ -15,6 +15,11 @@ const cases=[
 ["focus mode","focus"],["full screen","fullscreen"],["clear chat","clear"],["stop","stop"],["mute","mute"],["be quiet","mute"],["repeat that","repeat"],["help","help"],
 ["flip a coin","coin"],["roll a dice","dice"],["random number between 5 and 10","random"],
 ["hello","hello"],["thanks","thanks"],
+["change voice to british male","voice-set"],["use siri voice","voice-set"],["use a deep voice","voice-set"],["speak in an australian accent","voice-set"],["switch to aria voice","voice-set"],
+["next voice","voice-next"],["change voice","voice-next"],["speak faster","voice-tune"],["slower","voice-tune"],["louder","voice-tune"],["deeper voice","voice-tune"],["reset voice","voice-tune"],
+["what voices do you have","voice-list"],["say hello world","say"],
+["start stopwatch","stopwatch"],["lap","stopwatch"],["stop stopwatch","stopwatch"],["reset stopwatch","stopwatch"],
+["generate a password","password"],["password 20","password"],["days until christmas","days-until"],["how many days until 25 december","days-until"],["copy that","copy"],
 // should go to AI (null)
 ["what is the capital of france",null],["explain quantum physics",null],["tell me a joke",null],["write an email to my boss",null],["who won the world cup in 2022",null],["open my downloads folder",null],["what is 2022",null],["translate hello to urdu",null],["how do I make biryani",null],
 ];
@@ -64,4 +69,25 @@ test("focus mode on/off resolves to the right state", async () => {
     await A.match(phrase, { online: false }).run({ toggleFocus: (v) => (got = v), say: () => {} });
     assert.equal(got, want, phrase);
   }
+});
+
+test("voice commands drive AegisVoice and utilities behave", async () => {
+  const said = [], calls = [];
+  const V = { tune(o) { calls.push(["tune", o]); return { rate: 1.02, pitch: 1, volume: 1 }; }, reset() { calls.push(["reset"]); }, find(q) { calls.push(["find", q]); return /british/.test(q) ? { id: "oliver", name: "Oliver" } : null; },
+    set(id) { calls.push(["set", id]); }, preview(id) { calls.push(["preview", id]); }, cycle() { calls.push(["cycle"]); return { id: "x" }; }, list() { return [{ name: "Aria" }, { name: "Oliver" }]; }, describe() { return "Aria"; } };
+  const c = { voice: V, say: (t) => { said.push(t); return Promise.resolve(); }, copy: () => Promise.resolve(true), lastReply: () => "hi" };
+  const run = (t) => A.match(t, { online: false }).run(c);
+  await run("change voice to british male");
+  assert.deepStrictEqual(calls.filter((x) => x[0] === "set" || x[0] === "preview").map((x) => x.join(":")), ["set:oliver", "preview:oliver"]);
+  await run("speak faster"); assert.ok(calls.some((x) => x[0] === "tune" && x[1].rate > 1.02));
+  await run("deeper voice"); assert.ok(calls.some((x) => x[0] === "tune" && x[1].pitch < 1));
+  await run("what voices do you have"); assert.match(said.pop(), /Aria, Oliver/);
+  await run("start stopwatch"); assert.match(said.pop(), /started/i);
+  await run("lap"); assert.match(said.pop(), /Lap 1/);
+  await run("stop stopwatch"); assert.match(said.pop(), /Stopped at/);
+  await run("password 20"); assert.match(said.pop(), /20-character password: \S{20}\n/);
+  await run("days until christmas"); assert.match(said.pop(), /day.*until .*December/);
+  await run("say hello world"); assert.strictEqual(said.pop(), "Hello world.");
+  // a voice request the personas can't match is answered, never silently dropped
+  await run("use a robotic voice"); 
 });

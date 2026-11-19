@@ -198,6 +198,8 @@
     "- Device status: \"system status\", \"battery\"\n" +
     "- Control me: \"voice mode on\", \"be quiet\", \"switch to Urdu\", \"change theme to red\", \"focus mode\", \"full screen\", \"repeat that\"\n" +
     "- Fun: \"flip a coin\", \"roll a dice\", \"random number between 1 and 100\"\n" +
+    "- Voice: \"change voice to British male\", \"use Siri voice\", \"next voice\", \"speak faster\", \"deeper voice\", \"louder\", \"what voices do you have\", \"say hello world\"\n" +
+    "- Tools: \"start stopwatch\" / \"lap\" / \"stop stopwatch\", \"generate a password\", \"days until Christmas\", \"copy that\"\n" +
     "- Roman Urdu works too: \"youtube kholo\", \"mausam batao\", \"5 minute ka timer lagao\", \"date batao\", \"note karo doodh lana hai\"\n" +
     "Everything else, ask me normally: questions, advice, writing, coding, translation, anything.";
 
@@ -224,6 +226,127 @@
       const r = c.lastReply();
       if (!r) return c.say("There is nothing to copy yet.");
       try { await navigator.clipboard.writeText(r); return c.say("Copied to your clipboard."); } catch { return c.say("Your browser blocked copying."); }
+    });
+
+
+  // ---- voice personality (Siri-style personas live in voice.js)
+  const VOICE_WORD = "(?:voice|awaaz|awaz|آواز)";
+  add("voice-tune", (t) => {
+    if (/^(?:speak|talk|bolo|bol|baat karo)\s+(?:a (?:bit|little) )?(faster|quicker|slower|slowly|tez|dheere|dhire|aahista)(?: please)?$/.test(t)) return { k: "rate", d: /fast|quick|tez/.test(t) ? 1 : -1 };
+    if (/^(?:faster|slower|speed up|slow down|tez bolo|dheere bolo)$/.test(t)) return { k: "rate", d: /faster|speed up|tez/.test(t) ? 1 : -1 };
+    if (/^(?:louder|volume up|speak louder|awaaz (?:tez|zyada|barhao)|quieter|softer|volume down|speak softer|awaaz (?:kam|halki))$/.test(t)) return { k: "volume", d: /louder|up|tez|zyada|barhao/.test(t) ? 1 : -1 };
+    if (/^(?:(?:a )?(deeper|lower|higher)|(?:make )?(?:your )?(?:voice )?(deeper|lower|higher)|(?:pitch) (up|down)|(?:speak|talk) (?:in a )?(deeper|higher)|(?:deeper|lower|higher) (?:voice|pitch))(?: voice| pitch)?$/.test(t)) return { k: "pitch", d: /higher|up/.test(t) ? 1 : -1 };
+    if (/^(?:reset|default|normal) (?:the )?(?:voice|voice settings|speech)(?: settings)?$/.test(t)) return { k: "reset", d: 0 };
+    return null;
+  }, (m, c) => {
+    const V = c.voice;
+    if (!V) return c.say("Voice tuning isn't available in this browser.");
+    if (m.k === "reset") { V.reset(); return c.say("Voice settings are back to normal."); }
+    const cur = V.tune({});
+    if (m.k === "rate") { const r = V.tune({ rate: cur.rate + m.d * 0.15 }).rate; return c.say(m.d > 0 ? (r >= 1.4 ? "That's my fastest." : "Speaking faster.") : (r <= 0.8 ? "That's my slowest." : "Speaking slower.")); }
+    if (m.k === "volume") { const v = V.tune({ volume: cur.volume + m.d * 0.25 }).volume; return c.say(m.d > 0 ? (v >= 1 ? "That's full volume." : "Louder.") : "Softer."); }
+    V.tune({ pitch: cur.pitch + m.d * 0.12 });
+    return c.say(m.d > 0 ? "A higher voice." : "A deeper voice.");
+  });
+  add("voice-list", (t) => /^(?:(?:what|which|list|show)(?: me)?(?: all)?(?: the)? voices?(?: do you have| are there| can you (?:use|do))?|list (?:all )?(?:the )?voices|how many voices(?: do you have)?|voices|(?:kaun si|konsi) (?:awaaz|voices?) (?:hain|hai))$/.test(t),
+    (m, c) => {
+      const V = c.voice;
+      if (!V) return c.say("Voice personalities aren't available in this browser.");
+      const names = V.list().map((p) => p.name.replace("-style", ""));
+      return c.say("I have " + names.length + " voice personalities: " + names.join(", ") + ". Say \"change voice to\" and a name, an accent, or male or female. Right now I'm " + V.describe() + ".");
+    });
+  add("voice-set", (t) => {
+    if (/^(?:change|switch|next|another|different|new)(?: to)? (?:the |your )?(?:voice|persona|personality)$/.test(t)) return null; // handled by voice-next
+    let m = t.match(new RegExp("^(?:change|switch|set|use|try|give me|talk (?:to me )?(?:in|with|like)|speak (?:in|with|like)|sound like|bolo|ab)\\s+(?:to |your |the |a |an |my |me )*(.*?)\\s*(?:" + VOICE_WORD + "|accent|style|voice|tone)?(?: please)?$"));
+    if (m && /\b(?:voice|accent|awaaz|siri|male|female|man|woman|british|american|australian|indian|robot|deep)\b/.test(t) && !/\b(?:mode|language|theme|urdu|hindi|english)\b/.test(t)) return { q: t };
+    if (/^(?:use|enable|switch to|change to) (?:the )?(?:siri|apple)(?: voice| style)?$/.test(t)) return { q: "siri" };
+    if (/^(?:(?:a )?(?:british|american|australian|indian|male|female|deep|robotic?) (?:male |female )?(?:voice|accent))$/.test(t)) return { q: t };
+    return null;
+  }, (m, c) => {
+    const V = c.voice;
+    if (!V) return c.say("Voice personalities aren't available in this browser.");
+    const p = V.find(m.q);
+    if (!p) return c.say("I couldn't match that voice. Try \"British male\", \"Australian female\", \"deep voice\", or a name like Aria or Oliver.");
+    V.set(p.id);
+    V.preview(p.id);
+    return null; // the preview line is the confirmation, spoken in the new voice
+  });
+  add("voice-next", (t) => /^(?:(?:change|switch|next|another|different|new) (?:your )?(?:voice|persona|personality)|(?:change|switch) (?:the )?voice|awaaz badlo|voice badlo|آواز بدلو)$/.test(t),
+    (m, c) => {
+      const V = c.voice;
+      if (!V) return c.say("Voice personalities aren't available in this browser.");
+      const p = V.cycle(1);
+      V.preview(p.id);
+      return null;
+    });
+  add("say", (t) => { const m = t.match(/^(?:say|speak|repeat after me|bolo|kaho)\s+["']?(.{1,140}?)["']?$/); return m && !/^(?:it|that|again|louder|softer|faster|slower)\b/.test(m[1]) ? { text: m[1] } : null; },
+    (m, c) => c.say(cap(m.text) + (/[.!?]$/.test(m.text) ? "" : ".")));
+
+  // ---- stopwatch (counts in the browser; survives chat clears, not page reloads)
+  const SW = { start: 0, laps: [], run: false, acc: 0 };
+  const swNow = () => SW.acc + (SW.run ? Date.now() - SW.start : 0);
+  const fmt = (ms) => { const s = ms / 1000, m = Math.floor(s / 60); return (m ? m + " minute" + (m === 1 ? "" : "s") + " " : "") + (s - m * 60).toFixed(1) + " seconds"; };
+  add("stopwatch", (t) => {
+    if (/^(?:start|begin|run) (?:the |a )?stop ?watch$|^stop ?watch(?: start)?$/.test(t)) return { a: "start" };
+    if (/^(?:stop|pause|end) (?:the )?stop ?watch$|^stop ?watch (?:stop|pause)$/.test(t)) return { a: "stop" };
+    if (/^(?:reset|clear) (?:the )?stop ?watch$/.test(t)) return { a: "reset" };
+    if (/^(?:lap|split|mark a lap)$|^stop ?watch lap$/.test(t)) return { a: "lap" };
+    if (/^(?:stop ?watch )?(?:time|status|check)(?: stop ?watch)?$/.test(t) && /stop ?watch/.test(t)) return { a: "check" };
+    return null;
+  }, (m, c) => {
+    if (m.a === "start") { if (SW.run) return c.say("The stopwatch is already running: " + fmt(swNow()) + "."); SW.start = Date.now(); SW.run = true; return c.say(SW.acc ? "Resumed." : "Stopwatch started."); }
+    if (m.a === "stop") { if (!SW.run) return c.say(SW.acc ? "It's paused at " + fmt(SW.acc) + "." : "The stopwatch isn't running."); SW.acc = swNow(); SW.run = false; return c.say("Stopped at " + fmt(SW.acc) + (SW.laps.length ? ", with " + SW.laps.length + " lap" + (SW.laps.length === 1 ? "" : "s") + "." : ".")); }
+    if (m.a === "reset") { SW.acc = 0; SW.run = false; SW.laps = []; return c.say("Stopwatch reset."); }
+    if (m.a === "lap") { if (!SW.run) return c.say("Start the stopwatch first."); const now = swNow(), prev = SW.laps.length ? SW.laps[SW.laps.length - 1] : 0; SW.laps.push(now); return c.say("Lap " + SW.laps.length + ": " + fmt(now - prev) + ". Total " + fmt(now) + "."); }
+    return c.say(SW.run || SW.acc ? "Stopwatch: " + fmt(swNow()) + (SW.run ? " and running." : ", paused.") : "The stopwatch isn't running.");
+  });
+
+  // ---- password generator (crypto-random, never leaves the device)
+  function makePassword(n) {
+    const sets = ["abcdefghijkmnopqrstuvwxyz", "ABCDEFGHJKLMNPQRSTUVWXYZ", "23456789", "!@#$%^&*-_=+?"];
+    const all = sets.join(""), rnd = (k) => { const a = new Uint32Array(1); const lim = Math.floor(4294967296 / k) * k; let v; do { crypto.getRandomValues(a); v = a[0]; } while (v >= lim); return v % k; };
+    const out = sets.map((x) => x[rnd(x.length)]);
+    while (out.length < n) out.push(all[rnd(all.length)]);
+    for (let i = out.length - 1; i > 0; i--) { const j = rnd(i + 1); [out[i], out[j]] = [out[j], out[i]]; }
+    return out.join("");
+  }
+  add("password", (t) => { const m = t.match(/^(?:generate|make|create|give me|suggest)?\s*(?:a |an )?(?:strong |secure |random )?(?:new )?password(?: (?:of|with|for) (\d{1,2})(?: characters| chars| letters)?)?$|^password (\d{1,2})$/); return m ? { n: Math.max(8, Math.min(64, +(m[1] || m[2] || 16))) } : null; },
+    (m, c) => {
+      if (!(window.crypto && crypto.getRandomValues)) return c.say("This browser can't generate secure random numbers.");
+      const pw = makePassword(m.n);
+      c.copy && c.copy(pw);
+      return c.say("Here is a " + m.n + "-character password: " + pw + "\nIt's copied to your clipboard and never leaves this device.", { speak: "I made a " + m.n + " character password and copied it. I won't read it out loud." });
+    });
+
+  // ---- days until / since a date
+  const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+  function parseDate(s) {
+    s = s.trim().replace(/(\d)(?:st|nd|rd|th)\b/g, "$1");
+    const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const fixed = { christmas: [11, 25], "new year": [0, 1], "new years": [0, 1], "new year's": [0, 1], "independence day": [7, 14], "pakistan day": [2, 23], valentines: [1, 14], "valentine's day": [1, 14], halloween: [9, 31] };
+    let m, d = null, y = null;
+    if (fixed[s]) { d = new Date(today.getFullYear(), fixed[s][0], fixed[s][1]); if (d < today) d.setFullYear(d.getFullYear() + 1); return d; }
+    if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) return new Date(+m[1], +m[2] - 1, +m[3]);
+    if ((m = s.match(/^(\d{1,2})\s+([a-z]+)(?:\s+(\d{4}))?$/)) && MONTHS.findIndex((x) => x.startsWith(m[2].slice(0, 3))) >= 0) { d = new Date(m[3] ? +m[3] : today.getFullYear(), MONTHS.findIndex((x) => x.startsWith(m[2].slice(0, 3))), +m[1]); y = m[3]; }
+    else if ((m = s.match(/^([a-z]+)\s+(\d{1,2})(?:,?\s+(\d{4}))?$/)) && MONTHS.findIndex((x) => x.startsWith(m[1].slice(0, 3))) >= 0) { d = new Date(m[3] ? +m[3] : today.getFullYear(), MONTHS.findIndex((x) => x.startsWith(m[1].slice(0, 3))), +m[2]); y = m[3]; }
+    if (d && !y && d < today) d.setFullYear(d.getFullYear() + 1);
+    return d && !isNaN(d) ? d : null;
+  }
+  add("days-until", (t) => { const m = t.match(/^(?:how many days (?:are there |is it |left )?(?:until|till|to|before)|days (?:until|till|to|before|left (?:until|till|to|for)))\s+(.+)$/); return m && parseDate(m[1]) ? { when: m[1] } : null; },
+    (m, c) => {
+      const d = parseDate(m.when), now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const n = Math.round((d - today) / 86400000);
+      const label = d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      if (n === 0) return c.say("That's today.");
+      return c.say(n > 0 ? n + " day" + (n === 1 ? "" : "s") + " to go until " + label + "." : Math.abs(n) + " day" + (n === -1 ? "" : "s") + " ago: " + label + ".");
+    });
+
+  // ---- copy the last answer
+  add("copy", (t) => /^(?:copy (?:that|this|it|the (?:last )?(?:answer|reply|response))|copy last (?:answer|reply|response))$/.test(t),
+    (m, c) => {
+      const text = c.lastReply();
+      if (!text) return c.say("There's nothing to copy yet.");
+      return Promise.resolve(c.copy ? c.copy(text) : false).then((ok) => c.say(ok ? "Copied to your clipboard." : "Your browser blocked copying. Use the copy button on the message.", { speak: ok ? "Copied." : undefined }));
     });
 
   // ---- voice mode / language / theme / UI

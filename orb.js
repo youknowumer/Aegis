@@ -1,7 +1,7 @@
 // Aegis 3D core: a real perspective-projected hologram on a 2D canvas (no libraries, no WebGL needed).
 // A glowing wireframe globe with a breathing particle shell, three tilting gyroscope rings, orbiting satellites and
 // a pulsing core. It follows your pointer in 3D and reacts to the assistant's state.
-// AegisOrb.mount(canvas) -> { setState(name), destroy() };  AegisOrb.setTheme([r,g,b]) recolours every orb.
+// AegisOrb.mount(canvas) -> { setState(name), pulse(strength 0..1), setLevel(0..1), destroy() };  AegisOrb.setTheme([r,g,b]) recolours every orb.
 // States: offline | idle | listening | thinking | speaking
 (() => {
   "use strict";
@@ -9,11 +9,11 @@
   const TAU = Math.PI * 2;
   const BASE = [47, 227, 255];
   const STATES = {
-    offline:   { rgb: [100, 116, 139], k: 0, spin: 0.06, pulse: 0.0, amp: 0.02, glow: 0.35, dim: 0.45 },
-    idle:      { k: 0, spin: 0.22, pulse: 0.5, amp: 0.10, glow: 0.80, dim: 1 },
-    listening: { rgb: [52, 230, 150], spin: 0.5, pulse: 1.4, amp: 0.55, glow: 1.0, dim: 1 },
-    thinking:  { rgb: [140, 130, 255], spin: 2.2, pulse: 1.0, amp: 0.20, glow: 1.05, dim: 1 },
-    speaking:  { k: 1, spin: 0.8, pulse: 2.2, amp: 0.95, glow: 1.2, dim: 1 },
+    offline:   { rgb: [100, 116, 139], k: 0, spin: 0.06, pulse: 0.0, amp: 0.02, glow: 0.35, dim: 0.45, arcs: 0, inflow: 0 },
+    idle:      { k: 0, spin: 0.22, pulse: 0.5, amp: 0.10, glow: 0.80, dim: 1, arcs: 0, inflow: 0 },
+    listening: { rgb: [52, 230, 150], spin: 0.5, pulse: 1.4, amp: 0.55, glow: 1.0, dim: 1, arcs: 0, inflow: 1 },
+    thinking:  { rgb: [140, 130, 255], spin: 2.2, pulse: 1.0, amp: 0.20, glow: 1.05, dim: 1, arcs: 1, inflow: 0 },
+    speaking:  { k: 1, spin: 0.8, pulse: 2.2, amp: 0.95, glow: 1.2, dim: 1, arcs: 0, inflow: 0 },
   };
   const theme = { rgb: BASE.slice(), lite: [180, 245, 255] };
   const instances = new Set();
@@ -42,7 +42,12 @@
     const small = canvas.getBoundingClientRect().width < 260;
     let w = 1, h = 1, state = "idle", raf = 0, last = 0, t = 0, yaw = 0, destroyed = false;
     let px = 0, py = 0; // smoothed pointer
-    const cur = { rgb: theme.rgb.slice(), spin: 0.22, pulse: 0.5, amp: 0.1, glow: 0.8, dim: 1 };
+    const cur = { rgb: theme.rgb.slice(), spin: 0.22, pulse: 0.5, amp: 0.1, glow: 0.8, dim: 1, arcs: 0, inflow: 0 };
+    let level = 0, levelT = 0;               // live voice level (0..1): real speech events feed this
+    const waves = [];                        // expanding shockwave discs
+    const stars = Array.from({ length: small ? 40 : 110 }, () => ({ x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, z: 0.15 + Math.random() * 0.85, ph: Math.random() * TAU }));
+    const inflow = Array.from({ length: small ? 14 : 30 }, () => ({ a: Math.random() * TAU, b: Math.acos(2 * Math.random() - 1), p: Math.random(), s: 0.35 + Math.random() * 0.5 }));
+    const bolts = Array.from({ length: small ? 3 : 6 }, () => ({ i: 0, j: 0, born: -9, life: 0.5 }));
 
     const pts = fib(small ? 160 : 340);
     const shell = Array.from({ length: small ? 28 : 70 }, () => ({
@@ -70,7 +75,7 @@
       const target = to.rgb || (to.k === 1 ? theme.lite : theme.rgb);
       const k = snap ? 1 : 1 - Math.pow(0.004, dt);
       for (let i = 0; i < 3; i++) cur.rgb[i] += (target[i] - cur.rgb[i]) * k;
-      for (const key of ["spin", "pulse", "amp", "glow", "dim"]) cur[key] += (to[key] - cur[key]) * k;
+      for (const key of ["spin", "pulse", "amp", "glow", "dim", "arcs", "inflow"]) cur[key] += (to[key] - cur[key]) * k;
     }
 
     // rotate a point by yaw (Y axis), then pitch (X axis), then roll (Z axis)
@@ -85,6 +90,9 @@
     function draw(dt, snap) {
       ease(dt, snap);
       t += dt;
+      levelT *= Math.pow(0.02, dt);                       // level decays quickly between speech events
+      level += (levelT - level) * Math.min(1, dt * 14);
+      const amp = Math.min(1.2, cur.amp * (0.62 + 0.9 * level) + level * 0.18);
       yaw += dt * cur.spin;
       px += (pointer.x - px) * Math.min(1, dt * 3.5 || 1);
       py += (pointer.y - py) * Math.min(1, dt * 3.5 || 1);
@@ -95,6 +103,14 @@
       const tiltY = yaw + px * 0.55, tiltX = 0.32 + py * 0.4;
       const beat = 0.5 + 0.5 * Math.sin(t * cur.pulse * TAU * 0.5);
       const proj = (p) => { const s = D / (D - p[2]); return [cx + p[0] * R * s, cy + p[1] * R * s, s, p[2]]; };
+
+      // --- deep field: parallax stars on three depth layers (near ones drift more with the pointer)
+      for (const st of stars) {
+        const sx = cx + (st.x * 1.15 * w / 2) - px * st.z * 22, sy = cy + (st.y * 1.15 * h / 2) - py * st.z * 16;
+        const tw = 0.55 + 0.45 * Math.sin(t * (0.6 + st.z) + st.ph);
+        ctx.fillStyle = rgba(0.10 + 0.45 * st.z * tw * cur.dim);
+        ctx.beginPath(); ctx.arc(sx, sy, 0.5 + st.z * 1.1, 0, TAU); ctx.fill();
+      }
 
       // atmosphere glow
       const g = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 2.3);
@@ -118,7 +134,7 @@
         }
       };
       ctx.lineWidth = 1;
-      const lat = small ? 4 : 6, mer = small ? 6 : 10, rad = 1.0 + cur.amp * 0.05 * beat;
+      const lat = small ? 4 : 6, mer = small ? 6 : 10, rad = 1.0 + amp * 0.05 * beat;
       for (let i = 1; i <= lat; i++) {
         const phi = (i / (lat + 1)) * Math.PI - Math.PI / 2, y = Math.sin(phi) * rad, rr = Math.cos(phi) * rad;
         wire((u) => [Math.cos(u * TAU) * rr, y, Math.sin(u * TAU) * rr], 48, 0.42);
@@ -133,7 +149,7 @@
       for (let i = 0; i < pts.length; i++) {
         const p = pts[i];
         const wob = Math.sin(t * 5.5 + i * 0.9) * Math.sin(t * 2.3 + i * 0.37);
-        const rr = 1.02 + cur.amp * 0.26 * (0.5 + 0.5 * wob) + 0.02 * beat;
+        const rr = 1.02 + amp * 0.26 * (0.5 + 0.5 * wob) + 0.02 * beat;
         const q = proj(rot([p[0] * rr, p[1] * rr, p[2] * rr], tiltY, tiltX, 0));
         sorted.push(q);
       }
@@ -161,9 +177,12 @@
         }
         for (let b = 0; b < rg.beads; b++) {
           const a = off * 2.4 + (b / rg.beads) * TAU;
-          const q = proj(rot(rot([Math.cos(a) * rg.r, 0, Math.sin(a) * rg.r], ax, ay, 0), tiltY * 0.35, tiltX * 0.5, 0));
-          ctx.fillStyle = rgba(0.95 * cur.dim, theme.lite);
-          ctx.beginPath(); ctx.arc(q[0], q[1], Math.max(1.4, R * 0.04 * q[2]), 0, TAU); ctx.fill();
+          for (let k = 7; k >= 0; k--) {                       // comet tail: older positions are smaller and fainter
+            const q = proj(rot(rot([Math.cos(a - k * 0.09) * rg.r, 0, Math.sin(a - k * 0.09) * rg.r], ax, ay, 0), tiltY * 0.35, tiltX * 0.5, 0));
+            const head = k === 0;
+            ctx.fillStyle = rgba((head ? 0.95 : 0.34 * (1 - k / 8)) * cur.dim, theme.lite);
+            ctx.beginPath(); ctx.arc(q[0], q[1], Math.max(head ? 1.4 : 0.7, R * (head ? 0.04 : 0.03 * (1 - k / 9)) * q[2]), 0, TAU); ctx.fill();
+          }
         }
       });
 
@@ -183,7 +202,7 @@
       for (let i = 0; i < N; i++) {
         const a = (i / N) * TAU + yaw * 0.2;
         const wob = 0.5 + 0.5 * Math.sin(t * 6 + i * 0.7) * Math.sin(t * 3.1 + i * 0.31);
-        const len = R * (0.02 + cur.amp * 0.3 * wob);
+        const len = R * (0.02 + amp * 0.3 * wob);
         const r1 = R * 1.12;
         ctx.strokeStyle = rgba(0.75 * cur.dim);
         ctx.beginPath();
@@ -192,8 +211,54 @@
         ctx.stroke();
       }
 
+      // --- shockwaves: tilted 3D discs that expand from the core on every spoken word / state change
+      for (let i = waves.length - 1; i >= 0; i--) {
+        const wv = waves[i], age = t - wv.t0, life = 1.1;
+        if (age > life) { waves.splice(i, 1); continue; }
+        const u = age / life, rr = 1.05 + u * 1.25, fade = (1 - u) * (1 - u) * wv.s;
+        ctx.lineWidth = Math.max(1, R * 0.03 * (1 - u));
+        let prev = null;
+        for (let k = 0; k <= 56; k++) {
+          const a = (k / 56) * TAU;
+          const q = proj(rot([Math.cos(a) * rr, 0, Math.sin(a) * rr], tiltY * 0.4, tiltX + 0.25, 0));
+          if (prev) { ctx.strokeStyle = rgba(fade * (0.25 + 0.75 * (q[3] + rr) / (2 * rr)) * cur.dim, theme.lite); ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); }
+          prev = q;
+        }
+      }
+
+      // --- listening: particles stream inward toward the core (it "hears" you)
+      if (cur.inflow > 0.02) {
+        for (const f of inflow) {
+          f.p = (f.p + dt * f.s * (0.6 + level)) % 1;
+          const rr = 2.3 - f.p * 1.35, a = f.a + f.p * 1.4;
+          const q = proj(rot([Math.sin(f.b) * Math.cos(a) * rr, Math.cos(f.b) * rr, Math.sin(f.b) * Math.sin(a) * rr], tiltY, tiltX, 0));
+          ctx.fillStyle = rgba(Math.sin(f.p * Math.PI) * 0.85 * cur.inflow * cur.dim, theme.lite);
+          ctx.beginPath(); ctx.arc(q[0], q[1], Math.max(0.8, R * 0.03 * q[2] * (1 - f.p * 0.5)), 0, TAU); ctx.fill();
+        }
+      }
+
+      // --- thinking: neural arcs flash between points on the shell, lifted off the surface
+      if (cur.arcs > 0.02) {
+        ctx.lineWidth = 1.3;
+        for (const bt of bolts) {
+          if (t - bt.born > bt.life) { bt.born = t + Math.random() * 0.25; bt.life = 0.35 + Math.random() * 0.45; bt.i = (Math.random() * pts.length) | 0; bt.j = (Math.random() * pts.length) | 0; }
+          const age = (t - bt.born) / bt.life;
+          if (age < 0 || age > 1) continue;
+          const A = pts[bt.i], B = pts[bt.j], mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2, (A[2] + B[2]) / 2], ml = Math.hypot(mid[0], mid[1], mid[2]) || 1;
+          const lift = 1.0 + 0.9 * (1 - ml) + 0.35;
+          const qa = proj(rot(A, tiltY, tiltX, 0)), qb = proj(rot(B, tiltY, tiltX, 0)), qm = proj(rot([mid[0] / ml * lift, mid[1] / ml * lift, mid[2] / ml * lift], tiltY, tiltX, 0));
+          ctx.strokeStyle = rgba(Math.sin(age * Math.PI) * 0.9 * cur.arcs * cur.dim, theme.lite);
+          ctx.beginPath(); ctx.moveTo(qa[0], qa[1]); ctx.quadraticCurveTo(qm[0], qm[1], qb[0], qb[1]); ctx.stroke();
+        }
+      }
+
+      // --- specular highlight: makes the globe read as a lit sphere, not a flat disc
+      const sp = ctx.createRadialGradient(cx - R * 0.38 - px * R * 0.1, cy - R * 0.42 - py * R * 0.1, 0, cx - R * 0.38, cy - R * 0.42, R * 0.9);
+      sp.addColorStop(0, rgba(0.16 * cur.dim, theme.lite)); sp.addColorStop(1, rgba(0));
+      ctx.fillStyle = sp; ctx.beginPath(); ctx.arc(cx, cy, R * 1.05, 0, TAU); ctx.fill();
+
       // --- core
-      const coreR = R * (0.34 + 0.05 * beat * (0.4 + cur.amp));
+      const coreR = R * (0.34 + 0.05 * beat * (0.4 + amp));
       const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 1.6);
       core.addColorStop(0, "rgba(255,255,255,0.95)"); core.addColorStop(0.25, rgba(0.9)); core.addColorStop(0.6, rgba(0.28)); core.addColorStop(1, rgba(0));
       ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, coreR * 1.6, 0, TAU); ctx.fill();
@@ -224,8 +289,16 @@
       setState(name) {
         if (!STATES[name] || name === state) return;
         state = name;
+        levelT = Math.max(levelT, 0.5); waves.push({ t0: t, s: 0.9 });   // state change: one clear shockwave
         if (reduce) draw(0, true);
       },
+      // a short burst of energy: call on each spoken word (strength 0..1)
+      pulse(strength) {
+        const v = Math.max(0, Math.min(1, strength == null ? 0.6 : strength));
+        levelT = Math.max(levelT, 0.35 + 0.65 * v);
+        if (waves.length < 6 && v > 0.45) waves.push({ t0: t, s: 0.35 + 0.65 * v });
+      },
+      setLevel(v) { levelT = Math.max(0, Math.min(1, v)); },
       refresh() { if (reduce) draw(0, true); },
       destroy() {
         destroyed = true; cancelAnimationFrame(raf);

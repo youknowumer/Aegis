@@ -67,6 +67,12 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 - **Routines and recurring reminders**: "start my morning routine"; "remind me every weekday at 9".
 - **Smarter agent**: parallel lookups, recovers from tool errors, treats web/email text as untrusted.
 
+## What's new in v6 (voices like Siri, deeper orb animation). Details in `CHANGES-v6.md`
+
+- **Voice personalities** in Settings > Voice (Aria, Ethan, Olivia, Oliver, Ruby, Noah, Priya, Arjun, Nova, Atlas, plus Siri-style on Apple devices), with preview, pitch and volume. Change by voice: "change voice to British male".
+- **Orb** reacts to real speech, with parallax stars, comet trails, neural arcs while thinking and inward particles while listening.
+- **New instant commands**: stopwatch, password generator, days-until, say, copy that.
+
 ## Voice and instant commands
 
 Typed or spoken (English, Roman Urdu, Urdu, Hindi), answered in the browser in milliseconds, free, no AI quota, and they

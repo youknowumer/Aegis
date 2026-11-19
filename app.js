@@ -68,7 +68,7 @@
   const orbs = {};
   function mountOrbs() {
     if (!window.AegisOrb) return;
-    if ($("orb")) orbs.main = AegisOrb.mount($("orb"));
+    if ($("orb")) { orbs.main = AegisOrb.mount($("orb")); window.__aegisOrb = orbs.main; }
     if ($("auth-orb")) orbs.auth = AegisOrb.mount($("auth-orb"));
   }
 
@@ -870,6 +870,8 @@
     setVoiceMode(on) { $("voice-mode").checked = on; $("voice-mode").dispatchEvent(new Event("change")); },
     setSpeak(on) { $("speak").checked = on; safeSet("aegis_speak", on ? "1" : "0"); if (!on) stopSpeaking(); },
     stopSpeaking,
+    get voice() { return window.AegisVoice || null; },
+    copy(text) { try { return navigator.clipboard.writeText(text).then(() => true, () => false); } catch { return Promise.resolve(false); } },
     clearChat() { if (ws && wsOpen) send({ type: "reset" }); clearChat(); },
     lastReply() { return lastAi; },
     repeatLast() { speak(lastAi, true); },
@@ -1272,16 +1274,29 @@
     refreshState();
     syncVoice(); // makes sure the mic is off while Aegis talks
     const lang = langFor(text);
-    const voice = pickVoice(lang);
-    const rate = parseFloat($("rate").value) || 1.02;
+    const vp = window.AegisVoice ? AegisVoice.resolve(lang) : null;   // Siri-style persona, or null = auto / manual voice
+    const tune = window.AegisVoice ? AegisVoice.tuning() : { pitch: 1, volume: 1 };
+    const voice = vp ? vp.voice : pickVoice(lang);
+    const rate = vp ? vp.rate : parseFloat($("rate").value) || 1.02;
+    let lastBoundary = 0;
+    const pulse = (s) => { if (orbs.main) orbs.main.pulse(s); };
+    // Some voices never report word boundaries, so keep the orb alive with a soft heartbeat while speech is playing.
+    const beat = setInterval(() => {
+      if (gen !== speakGen || !speaking) return clearInterval(beat);
+      if (Date.now() - lastBoundary > 380) pulse(0.3 + Math.random() * 0.35);
+    }, 240);
     parts.forEach((p) => {
       const u = new SpeechSynthesisUtterance(p);
-      u.lang = lang;
+      u.lang = vp && vp.voice ? vp.lang : lang;
       if (voice) u.voice = voice;
       u.rate = rate;
+      u.pitch = vp ? vp.pitch : tune.pitch;
+      u.volume = vp ? vp.volume : tune.volume;
+      u.onstart = () => pulse(0.8);
+      u.onboundary = (e) => { if (!e.name || e.name === "word") { lastBoundary = Date.now(); pulse(0.45 + Math.min(0.5, (e.charLength || 4) / 12)); } };
       const fin = () => {
         if (gen !== speakGen) return;
-        if (--left === 0) { speaking = false; refreshState(); syncVoice(); }
+        if (--left === 0) { clearInterval(beat); speaking = false; refreshState(); syncVoice(); }
       };
       u.onend = fin; u.onerror = fin;
       speechSynthesis.speak(u);
