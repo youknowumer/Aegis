@@ -53,6 +53,30 @@ CREATE TABLE IF NOT EXISTS notes (
   created REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
+CREATE TABLE IF NOT EXISTS contacts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts(user_id);
+CREATE TABLE IF NOT EXISTS routines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  steps TEXT NOT NULL,
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_routines_user ON routines(user_id);
+CREATE TABLE IF NOT EXISTS email_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_email_log_user ON email_log(user_id, day);
 CREATE TABLE IF NOT EXISTS usage (
   user_id INTEGER NOT NULL,
   day TEXT NOT NULL,
@@ -69,7 +93,16 @@ class DB:
         self.lock = threading.Lock()
         with self.lock:
             self.conn.executescript(SCHEMA)
+            self._migrate()
             self.conn.commit()
+
+    def _migrate(self):
+        """Add columns that older databases do not have yet (safe to run on every start)."""
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(reminders)")}
+        if "repeat" not in cols:
+            self.conn.execute("ALTER TABLE reminders ADD COLUMN repeat TEXT NOT NULL DEFAULT ''")
+        if "tz" not in cols:
+            self.conn.execute("ALTER TABLE reminders ADD COLUMN tz TEXT NOT NULL DEFAULT ''")
 
     def execute(self, sql, params=()):
         with self.lock:
@@ -198,26 +231,35 @@ class DB:
         return self.execute("DELETE FROM tasks WHERE id = ? AND user_id = ?", (task_id, uid)).rowcount
 
     # ---- reminders ----
-    def add_reminder(self, uid, text, due_ts):
+    def add_reminder(self, uid, text, due_ts, repeat="", tz=""):
         return self.execute(
-            "INSERT INTO reminders (user_id, text, due, created) VALUES (?, ?, ?, ?)",
-            (uid, text.strip()[:300], float(due_ts), time.time()),
+            "INSERT INTO reminders (user_id, text, due, created, repeat, tz) VALUES (?, ?, ?, ?, ?, ?)",
+            (uid, text.strip()[:300], float(due_ts), time.time(), repeat, str(tz)[:64]),
         ).lastrowid
 
     def reminders(self, uid):
         return [dict(r) for r in self.all(
-            "SELECT id, text, due FROM reminders WHERE user_id = ? AND fired = 0 ORDER BY due LIMIT 100", (uid,))]
+            "SELECT id, text, due, repeat FROM reminders WHERE user_id = ? AND fired = 0 ORDER BY due LIMIT 100", (uid,))]
 
     def due_reminders(self, now=None):
         return [dict(r) for r in self.all(
-            "SELECT id, user_id, text, due FROM reminders WHERE fired = 0 AND due <= ? ORDER BY due LIMIT 100",
+            "SELECT id, user_id, text, due, repeat, tz FROM reminders WHERE fired = 0 AND due <= ? ORDER BY due LIMIT 100",
             (now if now is not None else time.time(),))]
 
     def due_reminders_for(self, uid, now=None):
         return [r for r in self.due_reminders(now) if r["user_id"] == uid]
 
     def mark_reminder_fired(self, rid):
-        return self.execute("UPDATE reminders SET fired = 1 WHERE id = ?", (rid,)).rowcount
+        """Mark a reminder as delivered. A repeating one immediately schedules its next occurrence."""
+        row = self.one("SELECT user_id, text, due, repeat, tz FROM reminders WHERE id = ?", (rid,))
+        n = self.execute("UPDATE reminders SET fired = 1 WHERE id = ?", (rid,)).rowcount
+        if row and row["repeat"]:
+            from . import utilities
+
+            nxt = utilities.next_occurrence(row["due"], row["repeat"], row["tz"])
+            if nxt:
+                self.add_reminder(row["user_id"], row["text"], nxt, row["repeat"], row["tz"])
+        return n
 
     def delete_reminder(self, uid, rid):
         return self.execute("DELETE FROM reminders WHERE id = ? AND user_id = ?", (rid, uid)).rowcount
@@ -246,3 +288,64 @@ class DB:
 
     def delete_note(self, uid, nid):
         return self.execute("DELETE FROM notes WHERE id = ? AND user_id = ?", (nid, uid)).rowcount
+
+    # ---- contacts ----
+    def save_contact(self, uid, name, email="", phone=""):
+        """Add a contact, or update the one with the same name (case-insensitive)."""
+        name = name.strip()[:80]
+        row = self.one("SELECT id, email, phone FROM contacts WHERE user_id = ? AND lower(name) = lower(?)", (uid, name))
+        if row:
+            self.execute(
+                "UPDATE contacts SET email = ?, phone = ? WHERE id = ?",
+                ((email or row["email"]).strip()[:200], (phone or row["phone"]).strip()[:40], row["id"]),
+            )
+            return row["id"]
+        return self.execute(
+            "INSERT INTO contacts (user_id, name, email, phone, created) VALUES (?, ?, ?, ?, ?)",
+            (uid, name, email.strip()[:200], phone.strip()[:40], time.time()),
+        ).lastrowid
+
+    def contacts(self, uid, query=""):
+        if query:
+            like = f"%{query}%"
+            rows = self.all(
+                "SELECT id, name, email, phone FROM contacts WHERE user_id = ? AND (name LIKE ? OR email LIKE ?) ORDER BY name LIMIT 20",
+                (uid, like, like))
+        else:
+            rows = self.all("SELECT id, name, email, phone FROM contacts WHERE user_id = ? ORDER BY name LIMIT 100", (uid,))
+        return [dict(r) for r in rows]
+
+    def delete_contact(self, uid, cid):
+        return self.execute("DELETE FROM contacts WHERE id = ? AND user_id = ?", (cid, uid)).rowcount
+
+    # ---- routines (named multi-step workflows the AI runs on request) ----
+    def save_routine(self, uid, name, steps):
+        name = name.strip()[:60]
+        row = self.one("SELECT id FROM routines WHERE user_id = ? AND lower(name) = lower(?)", (uid, name))
+        if row:
+            self.execute("UPDATE routines SET steps = ? WHERE id = ?", (steps.strip()[:2000], row["id"]))
+            return row["id"]
+        return self.execute(
+            "INSERT INTO routines (user_id, name, steps, created) VALUES (?, ?, ?, ?)",
+            (uid, name, steps.strip()[:2000], time.time()),
+        ).lastrowid
+
+    def routines(self, uid):
+        return [dict(r) for r in self.all("SELECT id, name, steps FROM routines WHERE user_id = ? ORDER BY name LIMIT 50", (uid,))]
+
+    def routine(self, uid, name):
+        row = self.one("SELECT id, name, steps FROM routines WHERE user_id = ? AND lower(name) = lower(?)", (uid, name.strip()))
+        if not row:
+            row = self.one("SELECT id, name, steps FROM routines WHERE user_id = ? AND lower(name) LIKE lower(?) ORDER BY id DESC LIMIT 1", (uid, f"%{name.strip()}%"))
+        return dict(row) if row else None
+
+    def delete_routine(self, uid, name):
+        return self.execute("DELETE FROM routines WHERE user_id = ? AND lower(name) = lower(?)", (uid, name.strip())).rowcount
+
+    # ---- outgoing email quota ----
+    def emails_sent_today(self, uid) -> int:
+        row = self.one("SELECT COUNT(*) AS n FROM email_log WHERE user_id = ? AND day = ?", (uid, date.today().isoformat()))
+        return row["n"] if row else 0
+
+    def log_email(self, uid):
+        self.execute("INSERT INTO email_log (user_id, day, created) VALUES (?, ?, ?)", (uid, date.today().isoformat(), time.time()))

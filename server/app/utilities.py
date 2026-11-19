@@ -308,3 +308,40 @@ def resolve_due(args: dict, tz_name: str = "", now: datetime = None):
         if due - now > timedelta(days=366):
             raise ValueError("choose a time within the next year")
     return due.timestamp(), due.strftime("%A %d %B, %H:%M")
+
+
+# ---------------------------------------------------------------------------------------------
+# Repeating reminders
+# ---------------------------------------------------------------------------------------------
+REPEATS = ("daily", "weekdays", "weekly", "monthly")
+
+
+def next_occurrence(due_ts: float, repeat: str, tz_name: str = ""):
+    """Next fire time (epoch seconds) after a repeating reminder that was due at due_ts.
+    Keeps the same wall-clock time in the user's zone (so 9:00 stays 9:00 across daylight saving).
+    Always lands in the future, even if the server was asleep for days. Returns None for unknown repeat values."""
+    if repeat not in REPEATS:
+        return None
+    zone = get_zone(tz_name)
+    cur = datetime.fromtimestamp(due_ts, zone)
+    now = datetime.now(zone)
+    for _ in range(800):  # bounded: never loops forever
+        if repeat in ("daily", "weekdays"):
+            cur = cur + timedelta(days=1)
+            if repeat == "weekdays":
+                while cur.weekday() >= 5:
+                    cur = cur + timedelta(days=1)
+        elif repeat == "weekly":
+            cur = cur + timedelta(days=7)
+        else:  # monthly: same day number, clamped to the month length
+            y, m = (cur.year + 1, 1) if cur.month == 12 else (cur.year, cur.month + 1)
+            day = cur.day
+            while True:
+                try:
+                    cur = cur.replace(year=y, month=m, day=day)
+                    break
+                except ValueError:
+                    day -= 1
+        if cur > now:
+            return cur.timestamp()
+    return None

@@ -58,6 +58,15 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 - **Drop a text file** onto the chat to add its content to your message.
 - **Offline alert** banner; instant commands keep working.
 
+## What's new in v5 (does real work: email, documents, routines). Details in `CHANGES-v5.md`
+
+- **Email**: `send_email` (you approve each one), `check_inbox` (read-only), `compose_email` (opens a ready draft in your mail
+  app), contacts by name. Set `AEGIS_SMTP_*` / `AEGIS_IMAP_HOST` (see `.env.example`); without them Aegis drafts instead.
+- **Documents**: read Word / Excel / PowerPoint / PDF, search inside files, copy / append / make folders, download files
+  (safe: public https only, no programs), OneDrive folders supported, friendly app names (Word, VS Code, Power BI...).
+- **Routines and recurring reminders**: "start my morning routine"; "remind me every weekday at 9".
+- **Smarter agent**: parallel lookups, recovers from tool errors, treats web/email text as untrusted.
+
 ## Voice and instant commands
 
 Typed or spoken (English, Roman Urdu, Urdu, Hindi), answered in the browser in milliseconds, free, no AI quota, and they
@@ -161,8 +170,8 @@ Plans/limits: edit `PLAN_LIMITS` in `server/app/settings.py`. Activate a paying 
 ## Tests
 
 ```
-cd server  && pip install pytest httpx && pytest      # 37 tests, fake AI, no API key needed
-cd desktop && npm test                                # 12 tests
+cd server  && pip install pytest httpx && pytest      # 58 tests, fake AI, no API key needed
+cd desktop && npm test                                # 31 tests
 node --test tests/commands.test.js                                   # voice-command router
 ```
 
@@ -178,6 +187,7 @@ node --test tests/commands.test.js                                   # voice-com
 | `config.js` | **Server address**: the only thing to edit after deploying |
 | `server/app/agent.py` | AI tool-use loop and persona |
 | `server/app/tools.py` | Tool list (add new tools here) |
+| `server/app/mail.py` | Email sending (SMTP) and inbox reading (IMAP, read-only) with the safety checks |
 | `server/app/utilities.py` | Safe helpers: calculator, weather, web page reader, Wikipedia, currency, reminder times |
 | `server/app/main.py` | Accounts, memory API, websocket, CORS, static hosting |
 | `desktop/` | Electron app + the PC tools |

@@ -511,6 +511,23 @@
     type_text: () => "Typing text",
     press_keys: (a) => "Pressing " + (a.keys || "keys"),
     run_shell: () => "Running a command",
+    compose_email: (a) => "Drafting email to " + (a.to || "someone"),
+    open_folder: (a) => "Opening folder " + (a.path || ""),
+    make_folder: (a) => "Creating folder " + (a.path || ""),
+    copy_file: () => "Copying a file",
+    append_file: (a) => "Adding to " + (a.path || "a file"),
+    file_info: (a) => "Checking " + (a.path || "a file"),
+    search_in_files: (a) => "Searching inside files: " + (a.query || ""),
+    read_document: (a) => "Reading " + (a.path || "a document"),
+    download_file: (a) => "Downloading " + host(a.url),
+    send_email: (a) => "Sending email to " + (a.to || "someone"),
+    check_inbox: () => "Checking your inbox",
+    save_contact: (a) => "Saving contact " + (a.name || ""),
+    find_contact: (a) => "Looking up contact " + (a.query || ""),
+    save_routine: (a) => "Saving routine " + (a.name || ""),
+    run_routine: (a) => "Running routine " + (a.name || ""),
+    list_routines: () => "Listing routines",
+    delete_routine: (a) => "Deleting routine " + (a.name || ""),
   };
   const labelFor = (name, args) => (LABELS[name] ? LABELS[name](args || {}) : name);
 
@@ -755,6 +772,12 @@
     press_keys: ["Press keyboard keys", "Aegis will press these keys in the focused window."],
     run_shell: ["Run a command on your PC", "Only allow this if you understand the command below."],
     forget: ["Forget memories", "Removes the saved memories that match."],
+    send_email: ["Send this email", "Aegis will send this email from your mail account. Check the recipient, subject and text below."],
+    make_folder: ["Create a folder", "Creates a new folder inside Documents, Desktop or Downloads."],
+    copy_file: ["Copy a file", "Copies a file inside your allowed folders. Existing files are never overwritten."],
+    append_file: ["Add text to a file", "Adds the text below to the end of that file."],
+    download_file: ["Download a file", "Downloads this file into your Downloads folder. Programs and scripts are always refused."],
+    delete_routine: ["Delete a routine", "Removes this saved routine."],
   };
   const CONFIRM_SECONDS = 60;
 
@@ -766,7 +789,10 @@
     $("confirm-title").textContent = title;
     $("confirm-why").textContent = why;
     $("confirm-tool").textContent = m.tool;
-    $("confirm-args").textContent = JSON.stringify(m.args, null, 2);
+    const a = m.args || {};
+    $("confirm-args").textContent = m.tool === "send_email"
+      ? "To: " + (a.to || "") + (a.cc ? "\nCc: " + a.cc : "") + "\nSubject: " + (a.subject || "") + "\n\n" + (a.body || "") // read it like an email, not like JSON
+      : JSON.stringify(m.args, null, 2);
     const bar = $("confirm-timer");
     bar.style.transition = "none";
     bar.style.transform = "scaleX(1)";

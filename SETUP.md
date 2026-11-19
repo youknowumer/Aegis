@@ -44,6 +44,12 @@ Optional: to make it permanent for every visitor, put the same address in `confi
 ## 4. Windows PC control (optional)
 `cd desktop && npm install && npm run dist`, install `Aegis-Setup.exe`, sign in once. See README.
 
+## 5. Email (optional)
+Without this, "email Ali ..." opens a ready draft in your mail app (desktop app needed) and you press Send.
+To let Aegis send by itself (you still approve every email in a dialog), set these on the server (see `.env.example`):
+`AEGIS_SMTP_HOST`, `AEGIS_SMTP_USER`, `AEGIS_SMTP_PASSWORD`; add `AEGIS_IMAP_HOST` to let it read your inbox.
+For Gmail/Outlook, create an **app password** (needs 2-step verification) and use that, never your real password.
+
 ## Troubleshooting
 | Problem | Fix |
 |---|---|

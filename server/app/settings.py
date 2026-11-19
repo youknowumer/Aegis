@@ -7,7 +7,7 @@ from pathlib import Path
 APP_NAME = os.environ.get("AEGIS_APP_NAME", "Aegis")
 MODEL = os.environ.get("AEGIS_MODEL", "claude-sonnet-5-5")
 MAX_TOKENS = int(os.environ.get("AEGIS_MAX_TOKENS", "2048"))
-MAX_AGENT_STEPS = 12
+MAX_AGENT_STEPS = 16
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DB_PATH = os.environ.get("AEGIS_DB", str(BASE_DIR / "aegis.db"))

@@ -154,7 +154,8 @@ def test_chat_remember_and_memory_api(env):
     first = fake.calls[0]
     assert "NOT connected" in first["system"]
     from app import tools as tool_catalogue
-    assert {t["name"] for t in first["tools"]} == {t.name for t in tool_catalogue.TOOLS if t.where == "server"}
+    # email tools only appear once the server owner has configured SMTP / IMAP, so they are absent here
+    assert {t["name"] for t in first["tools"]} == {t.name for t in tool_catalogue.TOOLS if t.where == "server" and not t.needs}
     assert c.delete(f"/api/memory/{facts[0]['id']}", headers=auth(token)).status_code == 200
     assert c.get("/api/memory", headers=auth(token)).json() == []
 

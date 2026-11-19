@@ -14,6 +14,16 @@ const DEFAULT_SERVER = "http://localhost:8000";
 function userFile(name) { return path.join(app.getPath("userData"), name); }
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return {}; } }
 
+// Extra folders Aegis may use besides Documents / Desktop / Downloads (and their OneDrive twins):
+// put {"safeRoots": ["D:\\Work", "E:\\Odoo exports"]} in <userData>/config.json. Read once at start-up.
+{
+  const extra = readJson(userFile("config.json")).safeRoots;
+  if (Array.isArray(extra)) {
+    const clean = extra.filter((r) => typeof r === "string" && path.isAbsolute(r) && r.length > 3); // never "C:\\" or "/" itself
+    if (clean.length) process.env.AEGIS_EXTRA_ROOTS = clean.join(path.delimiter);
+  }
+}
+
 const SERVER_URL = (process.env.AEGIS_SERVER || readJson(userFile("config.json")).serverUrl || DEFAULT_SERVER).replace(/\/+$/, "");
 const SERVER_ORIGIN = new URL(SERVER_URL).origin;
 const APP_URL = SERVER_URL + "/app.html"; // the desktop app opens the app screen, not the marketing page
