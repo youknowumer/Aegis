@@ -14,6 +14,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z' fill='%230a7a78'/%3E%3Cpath d='M11 16l4 4 7-8' fill='none' stroke='%23fff' stroke-width='2.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <script src="theme-boot.js"></script>
   <link rel="stylesheet" href="landing.css">
+  <link rel="stylesheet" href="landing-pro.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -29,9 +30,10 @@
       <span>Aegis</span>
     </a>
     <nav class="links" aria-label="Main" id="links">
+      <a href="#voice">Voice</a>
+      <a href="#meetings">Meetings</a>
       <a href="#what">What it does</a>
       <a href="#control">Your control</a>
-      <a href="#how">How it works</a>
       <a href="#plans">Plans</a>
       <a href="#faq">Questions</a>
     </nav>
@@ -58,7 +60,7 @@
 
     <div class="hero wrap">
       <div class="hero-copy" id="hero-copy">
-        <p class="hero-badge"><b>Voice</b> Say it or type it. Simple things run in milliseconds</p>
+        <p class="hero-badge"><b>New</b> Jarvis-style voice, Groq Whisper and a meeting note-taker</p>
         <h1>Tell your PC what you need. Aegis does it, and asks before anything risky.</h1>
         <p class="lead">An AI assistant for the web and Windows. Ask in plain English. It opens apps, sorts your folders and remembers what you tell it. Deleting, typing and shell commands always wait for your yes.</p>
         <div class="hero-cta">
@@ -69,13 +71,13 @@
         <div class="say-row" aria-label="Things you can say to Aegis">
           <span class="say-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12z"/></svg>Say</span>
           <span class="say-chip">&ldquo;Hey Aegis&rdquo;</span>
-          <span class="say-chip">&ldquo;open YouTube&rdquo;</span>
-          <span class="say-chip">&ldquo;set a timer for 5 minutes&rdquo;</span>
+          <span class="say-chip">&ldquo;what is on my plate today?&rdquo;</span>
+          <span class="say-chip">&ldquo;start meeting notes&rdquo;</span>
         </div>
         <ul class="hero-trust" aria-label="Safety highlights">
           <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Asks before risky actions</li>
           <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Three-folder file sandbox</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Works in the browser</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Bring your own AI key</li>
         </ul>
       </div>
 
@@ -114,11 +116,17 @@
 
     <div class="wrap">
       <dl class="stats" data-stagger>
-        <div><dt>Tools it can use</dt><dd><span data-count="42">42</span></dd></div>
-        <div><dt>Tools that wait for you</dt><dd><span data-count="11">11</span></dd></div>
+        <div><dt>Tools it can use</dt><dd><span data-count="65">65</span></dd></div>
+        <div><dt>Tools that wait for you</dt><dd><span data-count="18">18</span></dd></div>
         <div><dt>Free messages a day</dt><dd><span data-count="15">15</span></dd></div>
         <div><dt>Folders it can reach</dt><dd><span data-count="3">3</span></dd></div>
       </dl>
+      <div class="prov" data-reveal aria-label="Works with these AI providers">
+        <span class="prov-l">Works with</span>
+        <ul>
+          <li>Claude</li><li>ChatGPT</li><li>Gemini</li><li>Groq</li><li>Mistral</li><li>DeepSeek</li><li>Grok</li><li>OpenRouter</li><li>Local models</li>
+        </ul>
+      </div>
     </div>
   </section>
 
@@ -165,10 +173,63 @@
     </div>
     <ul class="ui-points" data-stagger>
       <li><b>Command palette</b><span>Press Ctrl K to run any command or ask anything.</span></li>
-      <li><b>Voice mode</b><span>Hands-free, with a &ldquo;Hey Aegis&rdquo; wake word.</span></li>
+      <li><b>Voice mode</b><span>Hands-free, with a wake word you choose.</span></li>
       <li><b>Focus mode</b><span>Hide the panels and keep just the conversation.</span></li>
       <li><b>Your accent colour</b><span>Seven themes, plus compact layout and text size.</span></li>
     </ul>
+  </section>
+
+  <!-- ============ VOICE ============ -->
+  <section id="voice" class="split wrap">
+    <div class="split-copy" data-reveal>
+      <p class="eyebrow">Voice assistant</p>
+      <h2>Call it by name. It answers like a person.</h2>
+      <p class="lede">Say your wake word and Aegis wakes up, listens, thinks and replies out loud in short, natural sentences. Keep talking for follow-ups. Say &ldquo;thanks, that is all&rdquo; and it goes quiet.</p>
+      <ul class="ticks" data-stagger>
+        <li><b>Wake word you choose</b><span>&ldquo;Hey Aegis&rdquo; or any name, with a spoken greeting when it wakes.</span></li>
+        <li><b>Groq Whisper transcription</b><span>Fast, accurate speech to text in English, Urdu, Hindi and mixed speech.</span></li>
+        <li><b>Conversation, not commands</b><span>Spoken replies are kept short, with no lists read aloud.</span></li>
+        <li><b>Voice that stays in your control</b><span>Risky actions still wait for a tap on Allow.</span></li>
+      </ul>
+    </div>
+    <figure class="vmock" id="vmock" data-reveal aria-label="Illustration of a spoken conversation with Aegis">
+      <div class="vm-top"><span class="vm-state" id="vm-state">Sleeping</span><span class="vm-eng">Whisper large-v3</span></div>
+      <div class="vm-orb" aria-hidden="true"><i></i><i></i><i></i><span class="vm-bars"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></span></div>
+      <div class="vm-log" id="vm-log" aria-live="off">
+        <p class="m u" data-step="1">&ldquo;Hey Aegis&rdquo;</p>
+        <p class="m a" data-step="2">Yes, I am listening.</p>
+        <p class="m u" data-step="3">&ldquo;What is on my plate today?&rdquo;</p>
+        <p class="m a" data-step="4">Two tasks: send the invoice at 5 and book the dentist. Want me to set a reminder?</p>
+      </div>
+    </figure>
+  </section>
+
+  <!-- ============ MEETINGS ============ -->
+  <section id="meetings" class="split rev wrap">
+    <figure class="mtmock" id="mtmock" data-reveal aria-label="Illustration of live meeting notes">
+      <div class="mt-top"><span class="mt-rec"><i></i>Recording</span><span class="mt-time" id="mt-time">00:00</span><span class="mt-eng">Groq Whisper</span></div>
+      <div class="mt-live">
+        <p style="--n:0">&ldquo;Let us ship the beta on the 28th.&rdquo;</p>
+        <p style="--n:1">&ldquo;Priya, you own the pricing page.&rdquo;</p>
+        <p style="--n:2">&ldquo;We need a safer way to share notes.&rdquo;</p>
+      </div>
+      <div class="mt-notes">
+        <div class="mt-col" style="--n:0"><h4>Important points</h4><ul><li>Beta ships on the 28th</li><li>Pricing page is the blocker</li></ul></div>
+        <div class="mt-col" style="--n:1"><h4>Action items</h4><ul><li>Priya: pricing page <em>Fri</em></li><li>Sam: QA pass <em>Mon</em></li></ul></div>
+        <div class="mt-col" style="--n:2"><h4>Enhancements</h4><ul><li>Add share links for notes</li><li>Auto-send recap email</li></ul></div>
+      </div>
+    </figure>
+    <div class="split-copy" data-reveal>
+      <p class="eyebrow">Meeting assistant</p>
+      <h2>Leave the note-taking to Aegis</h2>
+      <p class="lede">Record a call or upload the audio. Aegis transcribes it as you go, then hands you a clean summary you can act on, kept in your history.</p>
+      <ul class="ticks" data-stagger>
+        <li><b>Important points, ranked</b><span>The decisions and facts that matter, marked high, medium or low.</span></li>
+        <li><b>Action items with owners</b><span>Turn them into tasks with one click, or by voice.</span></li>
+        <li><b>Enhancement ideas</b><span>Improvements and risks that came up, with the reason and impact.</span></li>
+        <li><b>Long meetings are fine</b><span>Recorded in segments, so an hour-long call still works.</span></li>
+      </ul>
+    </div>
   </section>
 
   <!-- ============ WHAT IT DOES ============ -->
@@ -294,7 +355,7 @@
       </li>
     </ol>
 
-    <h3 class="sub" data-reveal>What happens behind the scenes</h3>
+    <h3 class="lede" data-reveal>What happens behind the scenes</h3>
     <div class="arch" data-reveal>
       <div class="arch-col">
         <div class="node">
@@ -322,6 +383,23 @@
         <b>Claude</b>
         <span>Reads your request and decides which tool to use next.</span>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ PLATFORM ============ -->
+  <section id="platform" class="wrap">
+    <div class="block-head" data-reveal>
+      <p class="eyebrow">Under the hood</p>
+      <h2>Built for depth, not just demos</h2>
+      <p>Aegis keeps simple things instant and brings in an AI model only when a request needs one.</p>
+    </div>
+    <div class="pgrid" data-stagger>
+      <article class="pc"><span class="pn">01</span><h3>Instant commands</h3><p>Timers, notes, tasks, quick maths and app launches run locally in milliseconds, with no model call.</p></article>
+      <article class="pc"><span class="pn">02</span><h3>Any AI provider</h3><p>Claude, ChatGPT, Gemini, Groq, Mistral, DeepSeek, Grok, OpenRouter or a local model. Use your own key.</p></article>
+      <article class="pc"><span class="pn">03</span><h3>Live web and news</h3><p>Search the web and read headlines, then get a short answer with sources.</p></article>
+      <article class="pc"><span class="pn">04</span><h3>Memory you can edit</h3><p>Saved facts are listed in a panel and removable with one click. Nothing is kept silently.</p></article>
+      <article class="pc"><span class="pn">05</span><h3>Plan, act, report</h3><p>It picks tools, runs them in order and shows each step as it happens, with a live activity log.</p></article>
+      <article class="pc"><span class="pn">06</span><h3>Approval by design</h3><p>18 of its 65 tools stop for your Allow or Deny before they run. Declined means not retried.</p></article>
     </div>
   </section>
 
@@ -396,6 +474,10 @@
         <summary>Can I talk to it instead of typing?</summary>
         <div class="ans"><p>Yes. Turn on voice mode, say &ldquo;Hey Aegis&rdquo; and speak your request. Aegis reads the answer back to you, and you can switch it off at any time.</p></div>
       </details>
+      <details>
+        <summary>What do I need for voice and meeting notes?</summary>
+        <div class="ans"><p>A free Groq key for fast Whisper transcription, added in Settings. Without it, voice falls back to your browser&rsquo;s own speech recognition. Meeting notes need the key, and your audio is sent only to the service you choose.</p></div>
+      </details>
     </div>
   </section>
 </main>
@@ -412,6 +494,8 @@
     <nav class="foot-col" aria-label="Product">
       <h3>Product</h3>
       <a href="#interface">Interface</a>
+      <a href="#voice">Voice assistant</a>
+      <a href="#meetings">Meeting notes</a>
       <a href="#what">What it does</a>
       <a href="#commands">Instant commands</a>
       <a href="#plans">Plans</a>
@@ -447,5 +531,6 @@
 
 <script src="landing.js"></script>
 <script src="landing-fx.js"></script>
+<script src="landing-pro.js"></script>
 </body>
 </html>
