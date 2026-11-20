@@ -1,0 +1,111 @@
+/* Aegis app v7: depth and motion layer. Same layout, more dimension.
+   Every rule is switched off by "Calm" mode (body.calm) and by prefers-reduced-motion. */
+
+/* ---------- state colour shared by ripples, floor and shadow ---------- */
+.stage { --sc: var(--ac); }
+.stage[data-state="offline"] { --sc: 100, 116, 139; }
+.stage[data-state="listening"] { --sc: 52, 230, 150; }
+.stage[data-state="thinking"] { --sc: 140, 130, 255; }
+
+/* ---------- depth: elevated panels, ambient occlusion, vignette ---------- */
+body:not(.calm)::before { content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse 90% 80% at 50% 45%, transparent 55%, rgba(2, 5, 10, .55) 100%); }
+body:not(.calm) .topbar { box-shadow: 0 22px 44px -22px rgba(0, 0, 0, .8), 0 6px 14px -8px rgba(0, 0, 0, .5), inset 0 1px 0 var(--hi), inset 0 -1px 0 rgba(0, 0, 0, .25); background-image: linear-gradient(180deg, rgba(255, 255, 255, .035), transparent 60%); }
+body:not(.calm) .rail { box-shadow: 0 34px 60px -32px rgba(0, 0, 0, .85), 0 12px 26px -14px rgba(0, 0, 0, .55), inset 0 1px 0 var(--hi), inset 0 0 50px rgba(var(--ac), .025); }
+body:not(.calm) .composer { box-shadow: 0 26px 50px -22px rgba(0, 0, 0, .85), 0 8px 18px -10px rgba(0, 0, 0, .5), inset 0 1px 0 var(--hi); }
+body:not(.calm) .composer:focus-within { box-shadow: 0 30px 56px -22px rgba(0, 0, 0, .85), 0 0 0 4px rgba(var(--ac), .12), 0 0 46px -8px rgba(var(--ac), .4); }
+body:not(.calm) .qcard { box-shadow: 0 14px 26px -16px rgba(0, 0, 0, .8), inset 0 1px 0 var(--hi); }
+body:not(.calm) .msg.user { box-shadow: 0 14px 28px -16px rgba(var(--ac), .55), 0 4px 10px -6px rgba(0, 0, 0, .5); }
+body:not(.calm) .msg pre { box-shadow: 0 16px 30px -18px rgba(0, 0, 0, .9), inset 0 1px 0 var(--hi); }
+
+/* dust canvas sits between the backdrop and the app */
+#fx-dust { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+body.calm #fx-dust { display: none; }
+
+/* floating blocks get a pointer-lit surface */
+body:not(.calm) .blk, body:not(.calm) .qcard { isolation: isolate; }
+body:not(.calm) .blk { position: relative; }
+body:not(.calm) .blk::after, body:not(.calm) .qcard::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; opacity: 0; transition: opacity .35s; background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(var(--ac), .12), transparent 62%); }
+body:not(.calm) .blk:hover::after, body:not(.calm) .qcard:hover::after { opacity: 1; }
+body:not(.calm) .qcard:hover::after { background: radial-gradient(200px circle at var(--mx, 50%) var(--my, 50%), rgba(var(--ac), .22), transparent 65%); }
+
+/* ---------- orb stage: floor, ground shadow, ripples ---------- */
+.orb-zone::after { content: ""; position: absolute; left: 50%; bottom: -2%; width: 130%; height: 46%; z-index: 0; pointer-events: none; opacity: 0; transform: translateX(-50%) perspective(420px) rotateX(64deg); transform-origin: 50% 100%;
+  background: repeating-linear-gradient(90deg, rgba(var(--sc), .5) 0 1px, transparent 1px 38px), repeating-linear-gradient(0deg, rgba(var(--sc), .5) 0 1px, transparent 1px 38px);
+  -webkit-mask-image: radial-gradient(ellipse 50% 70% at 50% 100%, #000 10%, transparent 72%); mask-image: radial-gradient(ellipse 50% 70% at 50% 100%, #000 10%, transparent 72%); transition: opacity .6s; }
+.stage[data-chat="0"] .orb-zone::after { opacity: .3; }
+.stage[data-chat="0"][data-state="thinking"] .orb-zone::after, .stage[data-chat="0"][data-state="listening"] .orb-zone::after, .stage[data-chat="0"][data-state="speaking"] .orb-zone::after { opacity: .5; }
+.orb-ripples { position: absolute; inset: 0; z-index: 0; display: grid; place-items: center; pointer-events: none; overflow: visible; }
+.orb-ripples i { grid-area: 1 / 1; height: 62%; aspect-ratio: 1; border-radius: 50%; border: 1.5px solid rgba(var(--sc), .55); box-shadow: 0 0 24px rgba(var(--sc), .25), inset 0 0 24px rgba(var(--sc), .12); opacity: 0; }
+.stage[data-state="offline"] .orb-ripples { display: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  body:not(.calm) .orb-zone::after { animation: floorRun 2.4s linear infinite; }
+  .stage[data-state="thinking"] .orb-zone::after { animation-duration: .9s; }
+  .stage[data-state="listening"] .orb-zone::after, .stage[data-state="speaking"] .orb-zone::after { animation-duration: 1.5s; }
+  @keyframes floorRun { to { background-position: 0 38px, 38px 0; } }
+  body:not(.calm) .orb-ripples i { animation: ripple 6s cubic-bezier(.2, .6, .3, 1) infinite; }
+  body:not(.calm) .orb-ripples i:nth-child(2) { animation-delay: 2s; }
+  body:not(.calm) .orb-ripples i:nth-child(3) { animation-delay: 4s; }
+  .stage[data-state="listening"] .orb-ripples i { animation-duration: 2.4s; }
+  .stage[data-state="listening"] .orb-ripples i:nth-child(2) { animation-delay: .8s; } .stage[data-state="listening"] .orb-ripples i:nth-child(3) { animation-delay: 1.6s; }
+  .stage[data-state="thinking"] .orb-ripples i { animation-duration: 1.7s; }
+  .stage[data-state="thinking"] .orb-ripples i:nth-child(2) { animation-delay: .57s; } .stage[data-state="thinking"] .orb-ripples i:nth-child(3) { animation-delay: 1.14s; }
+  .stage[data-state="speaking"] .orb-ripples i { animation-duration: 3s; }
+  .stage[data-state="speaking"] .orb-ripples i:nth-child(2) { animation-delay: 1s; } .stage[data-state="speaking"] .orb-ripples i:nth-child(3) { animation-delay: 2s; }
+  @keyframes ripple { 0% { transform: scale(.55); opacity: 0; } 12% { opacity: .75; } 100% { transform: scale(1.55); opacity: 0; } }
+
+  /* ---------- entrance choreography (plays each time the app is shown after sign-in) ---------- */
+  body:not(.calm) .topbar { animation: fxTop .8s var(--ease) backwards; }
+  body:not(.calm) .rail.left { animation: fxLeft .95s var(--ease) .08s backwards; }
+  body:not(.calm) .rail.right { animation: fxRight .95s var(--ease) .16s backwards; }
+  body:not(.calm) .orb-zone canvas { animation: fxOrb 1.5s var(--ease) .2s backwards; }
+  body:not(.calm) .orb-zone::after { opacity: 0; }
+  body:not(.calm) .orb-label { animation: fxFade 1s ease .9s backwards; }
+  body:not(.calm) .welcome > * { animation: fxUp .8s var(--ease) backwards; }
+  body:not(.calm) .welcome > :nth-child(1) { animation-delay: .6s; } body:not(.calm) .welcome > :nth-child(2) { animation-delay: .68s; } body:not(.calm) .welcome > :nth-child(3) { animation-delay: .76s; }
+  body:not(.calm) .qcard { animation: fxCard .8s cubic-bezier(.34, 1.4, .64, 1) backwards; }
+  body:not(.calm) .qcard:nth-child(1) { animation-delay: .85s; } body:not(.calm) .qcard:nth-child(2) { animation-delay: .92s; } body:not(.calm) .qcard:nth-child(3) { animation-delay: .99s; } body:not(.calm) .qcard:nth-child(4) { animation-delay: 1.06s; }
+  body:not(.calm) .qcard:nth-child(5) { animation-delay: 1.13s; } body:not(.calm) .qcard:nth-child(6) { animation-delay: 1.2s; } body:not(.calm) .qcard:nth-child(7) { animation-delay: 1.27s; } body:not(.calm) .qcard:nth-child(8) { animation-delay: 1.34s; }
+  body:not(.calm) .composer { animation: fxRise 1s var(--ease) 1.05s backwards; }
+  body:not(.calm) .toggles { animation: fxFade 1s ease 1.4s backwards; }
+  @keyframes fxTop { from { opacity: 0; transform: translateY(-26px); filter: blur(8px); } }
+  @keyframes fxLeft { from { opacity: 0; transform: translateX(-46px) scale(.97); filter: blur(10px); } }
+  @keyframes fxRight { from { opacity: 0; transform: translateX(46px) scale(.97); filter: blur(10px); } }
+  @keyframes fxOrb { from { opacity: 0; transform: scale(.55); filter: blur(14px); } }
+  @keyframes fxUp { from { opacity: 0; transform: translateY(18px); filter: blur(6px); } }
+  @keyframes fxCard { from { opacity: 0; transform: translateY(26px) scale(.9); } }
+  @keyframes fxRise { from { opacity: 0; transform: translateY(40px) scale(.96); filter: blur(6px); } }
+  @keyframes fxFade { from { opacity: 0; } }
+
+  /* headline shimmer */
+  body:not(.calm) .welcome h2 { background-image: linear-gradient(100deg, #b9c6dd 0%, #fff 38%, #8aeeff 50%, #fff 62%, #b9c6dd 100%); background-size: 260% 100%; animation: fxUp .8s var(--ease) .68s backwards, shimmer 7s ease-in-out 2s infinite; }
+  @keyframes shimmer { 0%, 55% { background-position: 100% 0; } 100% { background-position: -60% 0; } }
+
+  /* messages arrive with weight */
+  body:not(.calm) .msg.user { animation: fxUserIn .55s cubic-bezier(.2, .9, .25, 1.12) both; }
+  @keyframes fxUserIn { from { opacity: 0; transform: translate(34px, 12px) scale(.92); filter: blur(5px); } }
+  body:not(.calm) .msg.ai::before { animation: ignite 1.1s cubic-bezier(.2, .9, .3, 1) both; }
+  @keyframes ignite { 0% { transform: scale(2.6); opacity: 0; box-shadow: 0 0 40px rgba(var(--ac), 1); } 100% { transform: none; opacity: 1; } }
+
+  /* tactile feedback */
+  .count.bump { animation: bump .55s var(--ease); }
+  @keyframes bump { 40% { transform: scale(1.4); box-shadow: 0 0 0 5px rgba(var(--ac), .22); color: var(--accent); } }
+  .fx-rip { position: absolute; border-radius: 50%; pointer-events: none; width: 20px; height: 20px; margin: -10px 0 0 -10px; background: rgba(var(--ac), .4); transform: scale(0); animation: clickRip .65s ease-out forwards; }
+  .btn.primary .fx-rip { background: rgba(255, 255, 255, .5); }
+  @keyframes clickRip { to { transform: scale(16); opacity: 0; } }
+  .send { position: relative; overflow: hidden; flex: none; white-space: nowrap; }
+  .btn.primary { position: relative; overflow: hidden; }
+  .send.launch svg { animation: launch .7s cubic-bezier(.5, 0, .3, 1); }
+  @keyframes launch { 0% { transform: none; opacity: 1; } 40% { transform: translate(30px, -10px) scale(.6); opacity: 0; } 41% { transform: translate(-26px, 9px) scale(.6); opacity: 0; } 100% { transform: none; opacity: 1; } }
+
+  /* hover depth: cards tip toward the pointer */
+  body:not(.calm) .qcard { transform-style: preserve-3d; will-change: transform; }
+  body:not(.calm) .qcard:hover { transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-3px) scale(1.018); }
+  body:not(.calm) .qcard:hover .qi { transform: translateZ(14px) scale(1.1); }
+  body:not(.calm) .blk { transition: background-color .3s; }
+}
+@media (max-width: 1100px) {
+  body:not(.calm) .rail.left, body:not(.calm) .rail.right { animation: none; }
+  .orb-zone::after { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .orb-ripples, #fx-dust { display: none; } }
