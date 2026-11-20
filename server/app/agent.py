@@ -41,6 +41,9 @@ Doing things:
   pop up and are spoken at the right time (`set_reminder`), save longer notes (`save_note`, `search_notes`), convert
   currencies live, look things up on Wikipedia, and read any web page the user links (`fetch_url`). For "good morning" or
   "what is my day like" call `daily_briefing` (pass their city if you know it from memory) and summarise it warmly.
+- Meetings: the user can record or upload meetings in the app; Aegis writes notes with important points, decisions, action items and
+  enhancement ideas. When they ask what happened, what was decided or what they must do after a meeting, use `get_meeting`
+  (`list_meetings` to see them) and answer from those notes; `meeting_actions_to_tasks` puts the action items on their to-do list.
 - For reminders, work out the exact time from the local time above. "in 20 minutes" -> in_minutes 20; "tomorrow at 9" ->
   at "YYYY-MM-DD 09:00". Confirm back in plain words what time you set.
 - Use `remember` when the user shares something worth keeping (names, dates, preferences, projects), and `recall`
@@ -127,7 +130,7 @@ class Agent:
         search_line = (
             "You can search the web for current information (news, prices, weather, facts). Use it whenever the answer may have changed recently."
             if web
-            else "You have no live web access, so say so if asked for current news or prices."
+            else "Use `search_web` for anything that may have changed recently (prices, results, current events, facts you are unsure about) and `news_headlines` for the news; read a promising result with `fetch_url`. Say which source you used."
         )
         if mail.smtp_configured():
             mail_line = "Use `send_email` to send it" + (" and `check_inbox` to read mail." if mail.imap_configured() else ".")
@@ -138,7 +141,7 @@ class Agent:
     async def _run_server_tool(self, uid: int, name: str, args: dict, tz: str = "") -> str:
         import asyncio
 
-        if name in ("fetch_url", "wikipedia", "convert_currency", "daily_briefing", "send_email", "check_inbox"):
+        if name in ("fetch_url", "wikipedia", "convert_currency", "daily_briefing", "send_email", "check_inbox", "search_web", "news_headlines"):
             return await asyncio.to_thread(self._blocking_tool, uid, name, args, tz)
         if name == "remember":
             fact = str(args.get("fact", "")).strip()[:500]
@@ -242,12 +245,41 @@ class Agent:
             return "\n".join(f"- {r['name']}: {r['steps'][:160]}" for r in rows) or "No routines saved yet."
         if name == "delete_routine":
             return "Routine deleted." if self.db.delete_routine(uid, str(args.get("name", ""))) else "No routine with that name."
+        if name == "delete_task":
+            text = str(args.get("contains", "")).strip()
+            if len(text) < 2:
+                return "Error: say which task."
+            hit = self.db.delete_task_matching(uid, text)
+            return f"Deleted task: {hit}" if hit else "No task matches that."
+        if name in ("list_meetings", "get_meeting", "meeting_actions_to_tasks"):
+            return self._meeting_tool(uid, name, args)
         if name == "calculate":
             return utilities.safe_calc(str(args.get("expression", "")))
         if name == "get_weather":
             import asyncio
             return await asyncio.to_thread(utilities.weather_for, str(args.get("city", "")))
         return f"Error: unknown tool {name}"
+
+    def _meeting_tool(self, uid: int, name: str, args: dict) -> str:
+        import json
+
+        from . import meeting
+
+        if name == "list_meetings":
+            rows = self.db.meetings(uid, 15)
+            return "\n".join(f"- #{r['id']} {r['title']} ({datetime.fromtimestamp(r['created']).strftime('%d %b %Y')}, {int(r['duration'] // 60)} min)" for r in rows) or "No meetings saved yet. The user can record one with the Meetings button."
+        row = self.db.latest_meeting(uid, str(args.get("query", "")).strip())
+        if not row:
+            return "No saved meeting matches that."
+        notes = json.loads(row["notes"])
+        if name == "meeting_actions_to_tasks":
+            n = 0
+            for a in notes.get("action_items", []):
+                self.db.add_task(uid, a["task"] + (f" ({a['owner']})" if a["owner"] else ""), a["due"])
+                n += 1
+            return f"Added {n} action item(s) from '{row['title']}' to the to-do list." if n else "That meeting has no action items."
+        md = meeting.to_markdown(notes, row["transcript"][:3500] if args.get("include_transcript") else "", datetime.fromtimestamp(row["created"]).strftime("%d %B %Y"))
+        return UNTRUSTED + md[:6000]
 
     def _blocking_tool(self, uid: int, name: str, args: dict, tz: str) -> str:
         """Tools that do network work; run in a worker thread so the event loop stays responsive."""
@@ -269,6 +301,12 @@ class Agent:
             except (mail.MailError, ValueError, TypeError) as e:
                 return f"Error: {e}"
             return out if out.startswith("No ") else UNTRUSTED + out
+        if name == "search_web":
+            out = utilities.web_search(str(args.get("query", "")))
+            return out if out.startswith(("Error", "No web")) else UNTRUSTED + out
+        if name == "news_headlines":
+            out = utilities.news_headlines(str(args.get("topic", "")), str(args.get("country", "") or "PK"))
+            return out if out.startswith(("Error", "No ")) else UNTRUSTED + out
         if name == "wikipedia":
             return utilities.wikipedia_summary(str(args.get("topic", "")), str(args.get("lang", "en") or "en"))
         if name == "convert_currency":

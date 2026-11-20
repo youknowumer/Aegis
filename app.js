@@ -912,6 +912,7 @@
     repeatLast() { speak(lastAi, true); },
     setTheme: applyTheme,
     toggleFocus: setFocus,
+    get meetings() { return window.AegisMeetings || null; },
   };
   const SILENT_CMDS = { stop: 1, mute: 1, unmute: 0 };
 
@@ -1099,10 +1100,12 @@
     renderAiStatus();
     buildSwatches();
     refreshNotifBtn();
+    document.dispatchEvent(new Event("aegis:open-settings"));
     if (!$("settings").open) $("settings").showModal();
   }
   $("settings-btn").addEventListener("click", openSettings);
   $("settings-close").addEventListener("click", () => $("settings").close());
+  $("meet-open-settings").addEventListener("click", () => { $("settings").close(); if (window.AegisMeetings) AegisMeetings.open(); });
   $("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });
   $("notif-btn").addEventListener("click", async () => {
     try { const r = await Notification.requestPermission(); toast(r === "granted" ? "Notifications are on." : "Notifications stay off."); } catch {}
@@ -1113,6 +1116,10 @@
   // ------------------------------------------------------------------ voice
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const hasTTS = "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
+  // Push-to-talk / Voice mode / follow-ups can use Groq Whisper (accurate, Urdu + Hindi + mixed speech); the always-on
+  // "Hey Aegis" wake word stays on the free browser recognizer because it has to listen continuously.
+  const groqOn = () => !!(window.AegisGroq && AegisGroq.canListen());
+  const canListen = () => !!(SR || groqOn());
   let rec = null, recKind = null, recGotFinal = false, recErr = "";
   let manual = false;      // push-to-talk
   let followUp = false;    // heard "Hey Aegis" with no command yet: listen once for it
@@ -1154,11 +1161,12 @@
   }
 
   function startRec(kind) {
-    if (!SR || rec) return;
-    const r = new SR();
+    const useGroq = kind === "once" && groqOn();
+    if ((!SR && !useGroq) || (kind === "wake" && !SR) || rec) return;
+    const r = useGroq ? new AegisGroq.Recognizer() : new SR();
     rec = r; recKind = kind; recGotFinal = false; recErr = "";
     if (kind === "once") followUp = false;
-    r.lang = $("lang").value;
+    r.lang = $("lang").value === "auto" ? (useGroq ? "auto" : "en-US") : $("lang").value;
     r.interimResults = true;
     r.continuous = kind === "wake";
     r.maxAlternatives = 1;
@@ -1193,6 +1201,8 @@
         voiceFail("Microphone access is blocked. Allow it in your browser's address bar." + hint);
       } else if (recErr === "audio-capture") {
         voiceFail("No microphone found. Plug one in, or choose it in your browser's site settings.");
+      } else if (recErr === "groq") {
+        voiceFail("Groq voice: " + (e.message || "transcription failed.") + " Switch Voice input engine to Browser in Settings to keep talking.");
       } else if (recErr === "network") {
         voiceFail("The browser's speech service can't be reached. Chrome sends your voice to Google to transcribe it, so voice needs internet.");
       } else if (recErr === "language-not-supported") {
@@ -1237,8 +1247,8 @@
 
   // One place decides what the microphone should be doing right now.
   function syncVoice() {
-    if (!SR || !authed || busy || speaking || $("confirm").open) return stopRec(); // instant commands need no server, so voice works before the AI link is up
-    const want = manual || followUp || convo ? "once" : wake && gestured ? "wake" : null;
+    if (!canListen() || !authed || busy || speaking || $("confirm").open) return stopRec(); // instant commands need no server, so voice works before the AI link is up
+    const want = manual || followUp || convo ? "once" : wake && gestured && SR ? "wake" : null;
     if (!want) return stopRec();
     if (rec && recKind === want) return;
     if (rec) { stopRec(); return void setTimeout(syncVoice, 300); }
@@ -1275,6 +1285,7 @@
   const VOICE_RANK = /neural|natural|online|premium|enhanced|google|samantha|daniel|aria|jenny|guy|libby|ryan/i;
   function voicesFor(lang) {
     if (!hasTTS) return [];
+    if (lang === "auto") lang = "en-US";
     const base = lang.split("-")[0];
     return speechSynthesis.getVoices().filter((v) => v.lang === lang || v.lang.startsWith(base)).sort((x, y) => VOICE_RANK.test(y.name) - VOICE_RANK.test(x.name));
   }
@@ -1343,12 +1354,17 @@
     $("voice-mode").checked = convo;
     $("wake").checked = wake;
   }
-  if (!SR) {
-    ["mic-btn", "voice-mode", "wake"].forEach((id) => { $(id).disabled = true; });
-    $("mic-btn").title = "Voice input needs Chrome, Edge or Safari";
-    $("voice-mode").title = $("wake").title = "Voice input needs Chrome, Edge or Safari";
-    wake = false;
+  function syncVoiceSupport() {
+    const ok = canListen();
+    ["mic-btn", "voice-mode"].forEach((id) => { $(id).disabled = !ok; });
+    $("wake").disabled = !SR;
+    $("mic-btn").title = ok ? "Speak (push to talk)" : "Voice input needs Chrome, Edge or Safari, or a Groq key in Settings";
+    $("voice-mode").title = ok ? "" : "Voice input needs Chrome, Edge or Safari, or a Groq key in Settings";
+    $("wake").title = SR ? "" : "The wake word needs Chrome, Edge or Safari";
+    if (!SR) wake = false;
   }
+  syncVoiceSupport();
+  document.addEventListener("aegis:stt", () => { syncVoiceSupport(); stopRec(); syncVoice(); });
   if (!hasTTS) { $("speak").disabled = true; }
   $("lang").value = safeGet("aegis_lang") || "en-US";
   $("lang").addEventListener("change", () => { safeSet("aegis_lang", $("lang").value); fillVoices(); stopRec(); syncVoice(); });
@@ -1378,7 +1394,7 @@
   });
   $("mic-btn").addEventListener("click", () => {
     gestured = true;
-    if (!SR || busy) return;
+    if (!canListen() || busy) return;
     if (rec && recKind === "once") { manual = false; convo = false; syncToggles(); stopRec(); return; }
     stopSpeaking();
     manual = true;
@@ -1567,6 +1583,7 @@
     safeSet(AI_SECRET_KEY, remember && c.api_key ? c.api_key : null);
     try { remember ? sessionStorage.removeItem(AI_SECRET_KEY) : (c.api_key ? sessionStorage.setItem(AI_SECRET_KEY, c.api_key) : sessionStorage.removeItem(AI_SECRET_KEY)); } catch {}
     renderAiStatus();
+    if (c.provider === "groq" && c.api_key && window.AegisGroq && !AegisGroq.getKey()) { AegisGroq.setKey(c.api_key, remember); document.dispatchEvent(new Event("aegis:stt")); } // one Groq key powers chat, Whisper voice and meetings
     if (wsOpen) { aiMsg("Applying...", "warn"); pushAiCfg(); }
     else { aiMsg(LOCAL ? "Saved. Chat now works straight from this browser with your key." : "Saved. It will be applied when the connection is up.", "ok"); if (LOCAL) refreshConnectBtn(); }
   });
@@ -1706,6 +1723,7 @@
   tick();
   setInterval(tick, 20000);
   mountOrbs();
+  window.AegisApp = { toast, submitText: (t) => submitText(t), loadTasks: () => loadTasks() }; // used by meetings.js
   if (window.__AEGIS_TEST__) window.__aegis = { extractWake, rich, labelFor };
   start();
 })();

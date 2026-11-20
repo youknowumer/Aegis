@@ -77,6 +77,16 @@ CREATE TABLE IF NOT EXISTS email_log (
   created REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_email_log_user ON email_log(user_id, day);
+CREATE TABLE IF NOT EXISTS meetings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  duration REAL NOT NULL DEFAULT 0,
+  transcript TEXT NOT NULL,
+  notes TEXT NOT NULL,
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_meetings_user ON meetings(user_id, id);
 CREATE TABLE IF NOT EXISTS usage (
   user_id INTEGER NOT NULL,
   day TEXT NOT NULL,
@@ -227,6 +237,13 @@ class DB:
         self.set_task_done(uid, row["id"], True)
         return row["text"]
 
+    def delete_task_matching(self, uid, text):
+        row = self.one("SELECT id, text FROM tasks WHERE user_id = ? AND text LIKE ? ORDER BY done, id DESC LIMIT 1", (uid, f"%{text}%"))
+        if not row:
+            return None
+        self.delete_task(uid, row["id"])
+        return row["text"]
+
     def delete_task(self, uid, task_id):
         return self.execute("DELETE FROM tasks WHERE id = ? AND user_id = ?", (task_id, uid)).rowcount
 
@@ -349,3 +366,27 @@ class DB:
 
     def log_email(self, uid):
         self.execute("INSERT INTO email_log (user_id, day, created) VALUES (?, ?, ?)", (uid, date.today().isoformat(), time.time()))
+
+    # ---- meetings ----
+    def add_meeting(self, uid, title, duration, transcript, notes_json):
+        return self.execute(
+            "INSERT INTO meetings (user_id, title, duration, transcript, notes, created) VALUES (?, ?, ?, ?, ?, ?)",
+            (uid, title.strip()[:120] or "Meeting", float(duration or 0), transcript[:400000], notes_json, time.time()),
+        ).lastrowid
+
+    def meetings(self, uid, limit=50):
+        return [dict(r) for r in self.all("SELECT id, title, duration, created FROM meetings WHERE user_id = ? ORDER BY id DESC LIMIT ?", (uid, limit))]
+
+    def meeting(self, uid, mid):
+        r = self.one("SELECT id, title, duration, transcript, notes, created FROM meetings WHERE id = ? AND user_id = ?", (mid, uid))
+        return dict(r) if r else None
+
+    def latest_meeting(self, uid, query=""):
+        if query:
+            r = self.one("SELECT id, title, duration, transcript, notes, created FROM meetings WHERE user_id = ? AND (title LIKE ? OR notes LIKE ?) ORDER BY id DESC LIMIT 1", (uid, f"%{query}%", f"%{query}%"))
+        else:
+            r = self.one("SELECT id, title, duration, transcript, notes, created FROM meetings WHERE user_id = ? ORDER BY id DESC LIMIT 1", (uid,))
+        return dict(r) if r else None
+
+    def delete_meeting(self, uid, mid):
+        return self.execute("DELETE FROM meetings WHERE id = ? AND user_id = ?", (mid, uid)).rowcount

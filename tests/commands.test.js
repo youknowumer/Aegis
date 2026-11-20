@@ -20,7 +20,11 @@ const cases=[
 ["what voices do you have","voice-list"],["say hello world","say"],
 ["start stopwatch","stopwatch"],["lap","stopwatch"],["stop stopwatch","stopwatch"],["reset stopwatch","stopwatch"],
 ["generate a password","password"],["password 20","password"],["days until christmas","days-until"],["how many days until 25 december","days-until"],["copy that","copy"],["show memory tab","show-tab"],["open the activity panel","show-tab"],["show voice tab","show-tab"],
+["start meeting","meeting-start"],["start a meeting","meeting-start"],["record the meeting","meeting-start"],["meeting shuru karo","meeting-start"],["start recording","meeting-start"],
+["stop meeting","meeting-stop"],["end the meeting","meeting-stop"],["stop recording","meeting-stop"],["meeting khatam karo","meeting-stop"],["pause meeting","meeting-pause"],["resume the meeting","meeting-pause"],
+["show meeting notes","meeting-notes"],["open meetings","meeting-notes"],["meeting notes","meeting-notes"],["show my last meeting","meeting-notes"],
 // should go to AI (null)
+["summarize my meeting with ali",null],["what was decided in my last meeting",null],["schedule a meeting tomorrow at 3",null],["how do I run a good meeting",null],["write meeting minutes for me",null],
 ["what is the capital of france",null],["explain quantum physics",null],["tell me a joke",null],["write an email to my boss",null],["who won the world cup in 2022",null],["open my downloads folder",null],["what is 2022",null],["translate hello to urdu",null],["how do I make biryani",null],
 ];
 test("commands route correctly (and unknown things fall through to the AI)",()=>{

@@ -236,6 +236,71 @@ def wikipedia_summary(query: str, lang: str = "en") -> str:
     return f"{d.get('title', title)}: {extract[:1800]}" + (f"\nSource: {link}" if link else "")
 
 
+def _fetch_raw(url: str, accept: str = "text/html", max_bytes: int = 400_000) -> str:
+    """GET one fixed public URL (no user-controlled host) and return the body as text."""
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; Aegis/7.0)", "Accept": accept, "Accept-Language": "en"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        raw = r.read(max_bytes)
+        return raw.decode(r.headers.get_content_charset() or "utf-8", errors="replace")
+
+
+def parse_search_html(html: str, limit: int = 6) -> list:
+    """DuckDuckGo's plain-HTML results page -> [(title, url, snippet)]."""
+    out = []
+    for m in re.finditer(r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>(.*?)(?=<a[^>]+class="result__a"|$)', html, re.S):
+        href, title, rest = m.group(1), m.group(2), m.group(3)
+        if "uddg=" in href:  # DuckDuckGo wraps the real address in a redirect
+            href = urllib.parse.unquote(href.split("uddg=", 1)[1].split("&", 1)[0])
+        if href.startswith("//"):
+            href = "https:" + href
+        if not href.startswith("http"):
+            continue
+        sn = re.search(r'class="result__snippet"[^>]*>(.*?)</(?:a|td|div)>', rest, re.S)
+        clean = lambda t: re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", __import__("html").unescape(t))).strip()
+        out.append((clean(title), href, clean(sn.group(1)) if sn else ""))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def web_search(query: str, limit: int = 6) -> str:
+    """Live web search for any AI provider (Claude has its own built-in search; Groq, OpenAI, Gemini... do not)."""
+    query = str(query).strip()[:200]
+    if len(query) < 2:
+        return "Error: give something to search for."
+    try:
+        html = _fetch_raw("https://html.duckduckgo.com/html/?q=" + urllib.parse.quote(query))
+    except Exception:
+        return "Error: web search is not reachable right now."
+    rows = parse_search_html(html, max(1, min(int(limit or 6), 8)))
+    if not rows:
+        return f"No web results found for {query}."
+    return "\n\n".join(f"{i}. {t}\n{u}\n{sn}" for i, (t, u, sn) in enumerate(rows, 1))
+
+
+def news_headlines(topic: str = "", country: str = "PK", limit: int = 6) -> str:
+    """Top headlines from Google News RSS (no key). Empty topic = top stories for the country."""
+    import xml.etree.ElementTree as ET
+
+    country = country.upper() if re.fullmatch(r"[A-Za-z]{2}", str(country or "")) else "PK"
+    q = f"&q={urllib.parse.quote(str(topic).strip()[:100])}" if str(topic).strip() else ""
+    base = "https://news.google.com/rss/search?" if q else "https://news.google.com/rss?"
+    try:
+        xml = _fetch_raw(f"{base}hl=en-{country}&gl={country}&ceid={country}:en{q}", "application/rss+xml,text/xml", 600_000)
+        root = ET.fromstring(xml)
+    except Exception:
+        return "Error: the news feed is not reachable right now."
+    items = []
+    for it in root.iter("item"):
+        title = (it.findtext("title") or "").strip()
+        src = (it.findtext("source") or "").strip()
+        if title:
+            items.append(f"- {title}" + (f" ({src})" if src and src not in title else ""))
+        if len(items) >= max(1, min(int(limit or 6), 10)):
+            break
+    return "\n".join(items) if items else "No headlines found."
+
+
 def convert_currency(amount, src: str, dst: str) -> str:
     src, dst = str(src).strip().upper(), str(dst).strip().upper()
     try:

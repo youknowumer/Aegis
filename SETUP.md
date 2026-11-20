@@ -57,3 +57,17 @@ For Gmail/Outlook, create an **app password** (needs 2-step verification) and us
 | "This website is not allowed to use that server" | `AEGIS_ALLOWED_ORIGINS` is missing your website address. |
 | Login works but AI says error | Key missing/wrong, or no credit on the Anthropic account. |
 | Accounts vanish after a restart | Free Render has no disk. Use a paid instance with the disk in `render.yaml`. |
+
+## Groq: voice transcription + meeting notes (v7)
+
+1. Free key: https://console.groq.com/keys (starts with `gsk_`).
+2. Either paste it in the app (Settings > Voice & meetings (Groq) > Save & test), or set `GROQ_API_KEY` on the server
+   (Render: Environment tab). With only `GROQ_API_KEY` set (no Claude key) Aegis also uses Groq for chat.
+3. Voice: push-to-talk, Voice mode and follow-ups use Groq Whisper (accurate for Urdu/Hindi/English). "Hey Aegis" stays on browser speech.
+4. Meetings: top-bar button or Alt+M. Record (mic, or mic + browser-tab audio for Meet/Zoom web), upload audio, or paste text.
+   You get summary, important points, decisions, action items (-> your tasks), enhancement ideas, risks, open questions, next steps.
+   Voice commands: "start meeting", "stop meeting", "show meeting notes". Ask "what was decided in my last meeting?" any time.
+
+Optional env vars: `AEGIS_GROQ_MODEL`, `AEGIS_GROQ_CHAT_MODEL`, `AEGIS_GROQ_STT_BEST`, `AEGIS_GROQ_STT_FAST`,
+`AEGIS_SERVER_STT_PER_DAY` (300) and `AEGIS_SERVER_NOTES_PER_DAY` (30) cap usage of the server's own key.
+New assistant tools for every provider: `search_web`, `news_headlines`, `get_meeting`, `list_meetings`, `meeting_actions_to_tasks`, `delete_task`.

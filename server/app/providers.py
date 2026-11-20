@@ -43,7 +43,7 @@ PROVIDERS = [
     Provider("gemini", "Google Gemini", "openai", "https://generativelanguage.googleapis.com/v1beta/openai", "GEMINI_API_KEY",
              ["gemini-2.5-pro", "gemini-2.5-flash"], "AIza...", "https://aistudio.google.com/apikey"),
     Provider("groq", "Groq (fast, free tier)", "openai", "https://api.groq.com/openai/v1", "GROQ_API_KEY",
-             ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"], "gsk_...", "https://console.groq.com/keys"),
+             ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.1-8b-instant"], "gsk_...", "https://console.groq.com/keys"),
     Provider("openrouter", "OpenRouter (many models)", "openai", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY",
              ["anthropic/claude-sonnet-4.5", "openai/gpt-4o-mini", "google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct"], "sk-or-...", "https://openrouter.ai/keys"),
     Provider("mistral", "Mistral", "openai", "https://api.mistral.ai/v1", "MISTRAL_API_KEY",
@@ -246,30 +246,40 @@ class _Stream:
         body = self.owner._body(self.kw, stream=True)
         text, calls, finish = [], {}, ""
         async with httpx.AsyncClient(timeout=TIMEOUT) as http:
-            async with http.stream("POST", self.owner.url, json=body, headers=self.owner.headers) as r:
-                if r.status_code >= 400:
-                    _raise_for(r.status_code, (await r.aread()).decode("utf-8", "replace"))
-                async for line in r.aiter_lines():
-                    if not line.startswith("data:"):
+            for attempt in range(3):
+                # Free tiers (Groq especially) sometimes answer 429 for a second or reject a malformed tool call:
+                # both are worth one quiet retry before the user ever sees an error.
+                async with http.stream("POST", self.owner.url, json=body, headers=self.owner.headers) as r:
+                    if r.status_code >= 400:
+                        err = (await r.aread()).decode("utf-8", "replace")
+                        wait = r.headers.get("retry-after", "")
+                        retryable = attempt < 2 and ((r.status_code == 429 and wait.replace(".", "", 1).isdigit() and float(wait) <= 10) or (r.status_code == 400 and "tool_use_failed" in err))
+                        if not retryable:
+                            _raise_for(r.status_code, err)
+                        await asyncio.sleep(min(float(wait), 10) if r.status_code == 429 else 0.3)
                         continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        break
-                    try:
-                        ch = json.loads(data)["choices"][0]
-                    except (ValueError, KeyError, IndexError):
-                        continue
-                    d = ch.get("delta") or {}
-                    if d.get("content"):
-                        text.append(d["content"])
-                        yield SimpleNamespace(type="text", text=d["content"])
-                    for tc in d.get("tool_calls") or []:
-                        c = calls.setdefault(tc.get("index", 0), {"id": "", "name": "", "args": ""})
-                        c["id"] = tc.get("id") or c["id"]
-                        fn = tc.get("function") or {}
-                        c["name"] = fn.get("name") or c["name"]
-                        c["args"] += fn.get("arguments") or ""
-                    finish = ch.get("finish_reason") or finish
+                    async for line in r.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        data = line[5:].strip()
+                        if data == "[DONE]":
+                            break
+                        try:
+                            ch = json.loads(data)["choices"][0]
+                        except (ValueError, KeyError, IndexError):
+                            continue
+                        d = ch.get("delta") or {}
+                        if d.get("content"):
+                            text.append(d["content"])
+                            yield SimpleNamespace(type="text", text=d["content"])
+                        for tc in d.get("tool_calls") or []:
+                            c = calls.setdefault(tc.get("index", 0), {"id": "", "name": "", "args": ""})
+                            c["id"] = tc.get("id") or c["id"]
+                            fn = tc.get("function") or {}
+                            c["name"] = fn.get("name") or c["name"]
+                            c["args"] += fn.get("arguments") or ""
+                        finish = ch.get("finish_reason") or finish
+                    break
         self.final = _final("".join(text), calls, finish)
 
     async def get_final_message(self):

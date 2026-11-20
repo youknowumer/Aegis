@@ -9,6 +9,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z' fill='%2338d6f2'/%3E%3Cpath d='M11 16l4 4 7-8' fill='none' stroke='%23051018' stroke-width='2.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="app-fx.css">
+  <link rel="stylesheet" href="meetings.css">
 </head>
 <body>
 <div class="bg-aurora" aria-hidden="true"></div>
@@ -138,6 +139,10 @@
     </button>
     <div class="grow"></div>
     <button id="connect-btn" class="btn ghost small-btn tb-btn" type="button">Connect AI</button>
+    <button id="meet-btn" class="icon-btn meet-btn" type="button" aria-label="Meeting assistant" title="Meeting assistant: record, transcribe, key points (Alt+M)">
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9 4h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8zM9 4v4H5M9 12h6M9 16h4"/></svg>
+      <i class="rec-dot" aria-hidden="true"></i>
+    </button>
     <button id="find-btn" class="icon-btn" type="button" aria-label="Search this conversation" title="Search conversation (Ctrl+Shift+F)">
       <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 6h16M4 12h8M4 18h6M17 17l3 3"/><circle cx="16" cy="15" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
     </button>
@@ -440,6 +445,7 @@
     <h4>Voice</h4>
     <label class="field">Language
       <select id="lang" aria-label="Voice language">
+        <option value="auto">Auto-detect (Groq)</option>
         <option value="en-US">English</option>
         <option value="ur-PK">اردو</option>
         <option value="hi-IN">हिन्दी</option>
@@ -447,6 +453,30 @@
     </label>
     <label class="field">Voice <select id="voice-pick" aria-label="Assistant voice"></select></label>
     <label class="field">Speaking speed <input id="rate" type="range" min="0.8" max="1.4" step="0.05" value="1.02" aria-label="Speaking speed"></label>
+  </div>
+  <div class="set-group" id="groq-group">
+    <h4>Voice &amp; meetings (Groq)</h4>
+    <p class="muted small">Groq Whisper transcribes your voice far more accurately than the browser (Urdu, Hindi, English and mixed speech) and powers the Meeting assistant. Free key: <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">console.groq.com/keys</a></p>
+    <p id="groq-status" class="muted small"></p>
+    <label class="field"><span>Groq API key</span>
+      <span class="keyrow"><input id="groq-key" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_..."><button id="groq-show" class="btn ghost small-btn" type="button">Show</button></span>
+    </label>
+    <label class="field">Voice input engine
+      <select id="stt-engine" aria-label="Voice input engine">
+        <option value="auto">Automatic (Groq when a key is set)</option>
+        <option value="groq">Always Groq Whisper</option>
+        <option value="browser">Browser speech only</option>
+      </select>
+    </label>
+    <p id="stt-now" class="muted small"></p>
+    <label class="field chk"><input id="groq-remember" type="checkbox" checked> Remember the key on this device</label>
+    <p id="groq-msg" class="error" role="alert"></p>
+    <div class="row gap">
+      <button id="groq-save" class="btn primary small-btn" type="button">Save &amp; test</button>
+      <button id="groq-test" class="btn ghost small-btn" type="button">Test</button>
+      <button id="groq-clear" class="btn ghost small-btn hidden" type="button">Remove key</button>
+      <button id="meet-open-settings" class="btn ghost small-btn" type="button">Open Meeting assistant</button>
+    </div>
   </div>
   <div class="set-group">
     <h4>Accent colour</h4>
@@ -467,6 +497,94 @@
     <h4>Notifications</h4>
     <p class="muted small">Get reminders and timers even when this tab is in the background.</p>
     <button id="notif-btn" class="btn ghost small-btn" type="button">Allow notifications</button>
+  </div>
+</dialog>
+
+<!-- ============ MEETINGS ============ -->
+<dialog id="meetings" class="modal meetings" aria-label="Meeting assistant">
+  <div class="row"><h3 class="modal-title">Meeting assistant</h3><span id="mt-state-wrap" class="mt-state"><i id="mt-dot" class="mt-dot"></i><span id="mt-state">Ready</span></span><span class="grow"></span><button id="mt-close" class="icon-btn small" type="button" aria-label="Close">&times;</button></div>
+  <p class="muted small">Record a meeting (or upload audio, or paste a transcript). Aegis transcribes it with Groq Whisper and writes the important points, decisions, action items and enhancement ideas.</p>
+  <div class="mt-tabs" role="tablist">
+    <button class="mt-tab on" type="button" role="tab" data-tab="record" aria-selected="true">Record</button>
+    <button class="mt-tab" type="button" role="tab" data-tab="upload" aria-selected="false">Upload / paste</button>
+    <button class="mt-tab" type="button" role="tab" data-tab="notes" aria-selected="false">Notes</button>
+    <button class="mt-tab" type="button" role="tab" data-tab="history" aria-selected="false">History</button>
+  </div>
+  <div id="mt-draft" class="mt-draft hidden"></div>
+
+  <div class="mt-pane" data-pane="record">
+    <div id="mt-setup">
+      <label class="field">Meeting title (optional)<input id="mt-title" maxlength="120" placeholder="e.g. Weekly product sync" autocomplete="off"></label>
+      <div class="mt-grid">
+        <label class="field">Audio source
+          <select id="mt-src"><option value="mic">Microphone (in person or on speaker)</option><option value="mic+tab">Microphone + browser tab audio (Meet / Zoom / Teams web)</option></select>
+        </label>
+        <label class="field">Spoken language
+          <select id="mt-lang"><option value="">Auto-detect (best for mixed languages)</option><option value="en">English</option><option value="ur">اردو Urdu</option><option value="hi">हिन्दी Hindi</option><option value="ar">العربية Arabic</option><option value="pa">Punjabi</option></select>
+        </label>
+        <label class="field">Write the notes in
+          <select id="mt-out"><option value="en">English</option><option value="roman">Roman Urdu</option><option value="ur">اردو Urdu</option><option value="hi">हिन्दी Hindi</option><option value="auto">Same as the meeting</option></select>
+        </label>
+      </div>
+      <p id="mt-src-note" class="muted small"></p>
+    </div>
+    <div id="mt-session" class="mt-session hidden">
+      <div class="mt-clockrow"><span id="mt-clock" class="mt-clock tnum">0:00</span><div class="mt-meter" aria-hidden="true"><i id="mt-meter-i"></i></div><span id="mt-words" class="muted small tnum">0 words</span></div>
+      <p id="mt-status" class="muted small" role="status" aria-live="polite"></p>
+    </div>
+    <div class="row gap mt-controls">
+      <button id="mt-start" class="btn primary" type="button">Start recording</button>
+      <button id="mt-pause" class="btn ghost hidden" type="button">Pause</button>
+      <button id="mt-stop" class="btn stop hidden" type="button">Stop &amp; write notes</button>
+      <button id="mt-keypoints" class="btn ghost small-btn" type="button" disabled>Key points so far</button>
+    </div>
+    <p id="mt-hint" class="mt-hint" role="alert"></p>
+    <div id="mt-kp" class="mt-kp hidden"></div>
+    <div class="mt-live-head"><b>Live transcript</b></div>
+    <div id="mt-live" class="mt-live" dir="auto" aria-live="polite"></div>
+  </div>
+
+  <div class="mt-pane hidden" data-pane="upload">
+    <label class="field">Meeting title (optional)<input id="mt-title-up" maxlength="120" autocomplete="off"></label>
+    <div class="mt-grid two">
+      <label class="field">Spoken language
+        <select id="mt-lang-up"><option value="">Auto-detect</option><option value="en">English</option><option value="ur">اردو Urdu</option><option value="hi">हिन्दी Hindi</option><option value="ar">العربية Arabic</option><option value="pa">Punjabi</option></select>
+      </label>
+      <label class="field">Write the notes in
+        <select id="mt-out-up"><option value="en">English</option><option value="roman">Roman Urdu</option><option value="ur">اردو Urdu</option><option value="hi">हिन्दी Hindi</option><option value="auto">Same as the meeting</option></select>
+      </label>
+    </div>
+    <div class="mt-box">
+      <b>Upload a recording</b>
+      <p class="muted small">mp3, m4a, wav, webm, ogg, mp4 and more, up to about 24 MB (about 25 minutes of normal mp3).</p>
+      <input id="mt-file" type="file" accept="audio/*,video/mp4,video/webm,.m4a,.mp3,.wav,.ogg,.opus,.flac,.webm,.mp4">
+      <button id="mt-up-go" class="btn primary small-btn" type="button">Transcribe &amp; write notes</button>
+    </div>
+    <div class="mt-box">
+      <b>Or paste a transcript</b>
+      <textarea id="mt-paste" rows="6" placeholder="Paste meeting text here (from Zoom, Meet, Teams, WhatsApp voice notes, anywhere)..." dir="auto"></textarea>
+      <button id="mt-paste-go" class="btn primary small-btn" type="button">Write notes from this text</button>
+    </div>
+    <p id="mt-up-msg" class="mt-hint" role="alert"></p>
+  </div>
+
+  <div class="mt-pane hidden" data-pane="notes">
+    <p id="mt-notes-empty" class="empty muted">No notes yet. Record or upload a meeting, or open one from History.</p>
+    <div id="mt-notes-actions" class="mt-actions hidden">
+      <span id="mt-notes-meta" class="muted small"></span>
+      <span class="grow"></span>
+      <button id="mt-copy" class="btn ghost small-btn" type="button">Copy</button>
+      <button id="mt-dl" class="btn ghost small-btn" type="button">Download .md</button>
+      <button id="mt-dl-tr" class="btn ghost small-btn" type="button">Transcript</button>
+      <button id="mt-email" class="btn ghost small-btn" type="button">Draft follow-up email</button>
+    </div>
+    <div id="mt-notes-body" class="mt-notes"></div>
+    <details id="mt-transcript-box" class="mt-transcript hidden"><summary>Full transcript</summary><pre id="mt-transcript" dir="auto"></pre></details>
+  </div>
+
+  <div class="mt-pane hidden" data-pane="history">
+    <ul id="mt-hist" class="mt-histlist"></ul>
+    <p id="mt-hist-empty" class="empty muted">Saved meetings show up here.</p>
   </div>
 </dialog>
 
@@ -564,7 +682,9 @@
 <script src="orb.js"></script>
 <script src="voice.js"></script>
 <script src="commands.js"></script>
+<script src="groq.js"></script>
 <script src="app.js"></script>
+<script src="meetings.js"></script>
 <script src="hud.js"></script>
 <script src="ui-plus.js"></script>
 <script src="features.js"></script>

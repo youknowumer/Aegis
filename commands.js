@@ -199,6 +199,7 @@
     "- Control me: \"voice mode on\", \"be quiet\", \"switch to Urdu\", \"change theme to red\", \"focus mode\", \"full screen\", \"repeat that\"\n" +
     "- Fun: \"flip a coin\", \"roll a dice\", \"random number between 1 and 100\"\n" +
     "- Voice: \"change voice to British male\", \"use Siri voice\", \"next voice\", \"speak faster\", \"deeper voice\", \"louder\", \"what voices do you have\", \"say hello world\"\n" +
+    "- Meetings: \"start meeting\" / \"stop meeting\" (records, transcribes with Groq Whisper, then lists key points, decisions, action items and improvements), \"show meeting notes\", \"pause meeting\"; ask \"what was decided in my last meeting\"\n" +
     "- Tabs: \"show memory tab\", \"open the activity panel\", \"show voice tab\" (or Alt+1 to Alt+7)\n" +
     "- Tools: \"start stopwatch\" / \"lap\" / \"stop stopwatch\", \"generate a password\", \"days until Christmas\", \"copy that\"\n" +
     "- Roman Urdu works too: \"youtube kholo\", \"mausam batao\", \"5 minute ka timer lagao\", \"date batao\", \"note karo doodh lana hai\"\n" +
@@ -229,6 +230,17 @@
       try { await navigator.clipboard.writeText(r); return c.say("Copied to your clipboard."); } catch { return c.say("Your browser blocked copying."); }
     });
 
+
+  // ---- meeting assistant (recording, notes). The heavy lifting lives in meetings.js + groq.js.
+  const MEET = "(?:meeting|meetings|میٹنگ|मीटिंग)";
+  add("meeting-start", (t) => rx("^(?:start|begin|record|take|shuru karo|shuru kar do)(?: a| the| my| this| new)? " + MEET + "(?: recording| notes)?(?: start karo| shuru karo| record karo)?$").test(t) || rx("^" + MEET + "(?: ki)?(?: recording)? (?:shuru|start|record) (?:karo|kar do|kro)$").test(t) || /^(?:start recording|record this|record the call)$/.test(t) || /^میٹنگ (?:ریکارڈ|شروع) کرو$/.test(t),
+    (m, c) => { if (!c.meetings) return c.say("The meeting assistant isn't available here."); if (c.meetings.state() === "recording") return c.say("A meeting is already being recorded."); c.meetings.start(); return c.say("Opening the meeting recorder. Press Start recording and I'll take notes.", { speak: "Opening the meeting recorder." }); });
+  add("meeting-stop", (t) => /^(?:stop|end|finish|wrap up)(?: the| my| this)? (?:meeting|میٹنگ|मीटिंग)(?: recording)?$/.test(t) || /^stop recording$/.test(t) || /^(?:meeting|میٹنگ) (?:khatam|band|end) (?:karo|kar do|kro)$/.test(t) || /^(?:meeting|میٹنگ) (?:khatam|band) ho gayi$/.test(t),
+    (m, c) => { if (!c.meetings || (c.meetings.state() !== "recording" && c.meetings.state() !== "paused")) return c.say("No meeting is being recorded right now."); c.meetings.stop(); return c.say("Stopping. I'll transcribe the rest and write your notes.", { speak: "Stopping the meeting. Writing your notes." }); });
+  add("meeting-pause", (t) => rx("^(pause|resume)(?: the| my)? " + MEET + "(?: recording)?$").test(t) || /^(?:pause|resume) recording$/.test(t),
+    (m, c) => { if (!c.meetings) return null; const resume = /resume/.test(m.t); const st = c.meetings.state(); if (resume && st === "paused") { c.meetings.resume(); return c.say("Recording resumed."); } if (!resume && st === "recording") { c.meetings.pause(); return c.say("Recording paused."); } return c.say("There's no meeting to " + (resume ? "resume" : "pause") + "."); });
+  add("meeting-notes", (t) => rx("^(?:show|open|see|view)(?: me)?(?: my| the| last| latest)* (?:" + MEET + "|meeting notes|meeting assistant|meeting history|key points|minutes of meeting)$").test(t) || rx("^(?:my |last |latest )?" + MEET + " (?:notes|history|summary)$").test(t) || /^meeting (?:notes|ke notes) (?:dikhao|dikha do|kholo)$/.test(t),
+    (m, c) => { if (!c.meetings) return c.say("The meeting assistant isn't available here."); c.meetings.open(c.meetings.hasNotes() ? "notes" : "history"); return c.say("Here are your meeting notes. Ask me anything about them too.", { speak: "Here are your meeting notes." }); });
 
   // ---- sidebar tabs ("show memory tab", "open the activity panel")
   const TAB_WORDS = { plan: "plan", tasks: "plan", task: "plan", reminders: "plan", focus: "focus", timer: "focus", scratchpad: "focus", memory: "memory", memories: "memory", activity: "activity", status: "status", usage: "status", device: "status", weather: "world", world: "world", shortcuts: "world", voice: "voice", voices: "voice" };

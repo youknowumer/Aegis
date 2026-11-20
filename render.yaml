@@ -14,6 +14,8 @@ services:
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false            # you paste it in the Render dashboard, never in git
+      - key: GROQ_API_KEY
+        sync: false            # optional: Groq voice transcription, meeting notes (and chat if no Claude key)
       - key: AEGIS_JWT_SECRET
         generateValue: true
       - key: AEGIS_ALLOWED_ORIGINS

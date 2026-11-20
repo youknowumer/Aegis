@@ -40,6 +40,12 @@ TOOLS: List[Tool] = [
     Tool("fetch_url", "Open a public web page and read its text. Use it to read an article or link the user gives you, or to follow up a search result.", "server", {"url": S}, ["url"]),
     Tool("wikipedia", "Look up a person, place, concept or event on Wikipedia and get the summary. Good for quick, reliable facts.", "server", {"topic": S, "lang": {"type": "string", "description": "2-letter language code, default en"}}, ["topic"]),
     Tool("convert_currency", "Convert money between currencies at the live exchange rate (USD, PKR, EUR, GBP, AED...).", "server", {"amount": N, "from_currency": S, "to_currency": S}, ["amount", "from_currency", "to_currency"]),
+    Tool("search_web", "Search the live web (works with every AI provider). Returns the top results with links and snippets. Use it for current events, prices, facts that may have changed, or anything you are unsure about; then use fetch_url to read a result in full if needed.", "server", {"query": S}, ["query"]),
+    Tool("news_headlines", "Get today's top news headlines, optionally on a topic and for a country (2-letter code, default PK). Use for 'what's the news', 'latest on cricket', 'tech news'.", "server", {"topic": S, "country": S}),
+    Tool("list_meetings", "List the user's saved meetings (recorded or uploaded) with their ids and dates.", "server"),
+    Tool("get_meeting", "Get the notes of a saved meeting: summary, important points, decisions, action items, enhancement ideas, risks and next steps. Pass a title word or leave empty for the latest meeting. Use it when the user asks about a meeting, what was decided, or what they have to do after it.", "server", {"query": S, "include_transcript": {"type": "boolean"}}),
+    Tool("meeting_actions_to_tasks", "Add every action item of a saved meeting (latest one, or the one matching query) to the user's to-do list.", "server", {"query": S}),
+    Tool("delete_task", "Delete the to-do item that contains the given text.", "server", {"contains": S}, ["contains"], risky=True),
     Tool("add_task", "Add an item to the user's to-do list.", "server", {"text": S, "due": {"type": "string", "description": "optional due date or time in plain words"}}, ["text"]),
     Tool("list_tasks", "Show the user's to-do list (open tasks first).", "server"),
     Tool("complete_task", "Mark the to-do item that contains the given text as done.", "server", {"contains": S}, ["contains"]),
@@ -106,7 +112,8 @@ def schemas(device_connected: bool, web_search: bool = False, max_uses: int = 4)
             return mail.imap_configured()
         return True
 
-    out = [t.schema() for t in TOOLS if (device_connected or t.where == "server") and available(t)]
+    # Claude has its own built-in web search; every other provider uses our `search_web`
+    out = [t.schema() for t in TOOLS if (device_connected or t.where == "server") and available(t) and not (web_search and t.name == "search_web")]
     if web_search:
         # Anthropic runs this one itself; the server never sees a tool_use for it.
         out.append({"type": "web_search_20250305", "name": "web_search", "max_uses": max_uses})

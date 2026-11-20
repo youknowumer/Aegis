@@ -4,6 +4,7 @@ Run:  uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000
 """
 import asyncio
 import contextlib
+import json
 import logging
 import os
 import re
@@ -19,7 +20,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import providers, settings
+from . import meeting, providers, settings
 from .agent import Agent, Session
 from .auth import EMAIL_RE, hash_password, make_token, read_token, verify_password
 from .db import DB
@@ -49,6 +50,15 @@ class AIBody(BaseModel):
     base_url: str = ""
     max_tokens: int = 0
     temperature: float | None = None
+
+
+class MeetingIn(BaseModel):
+    transcript: str
+    title: str = ""
+    duration: float = 0
+    output_lang: str = "en"
+    save: bool = True
+    quick: bool = False
 
 
 class Credentials(BaseModel):
@@ -133,7 +143,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             allow_origins=exact,
             allow_origin_regex="|".join(w.pattern for w in wild) or None,
             allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_headers=["Authorization", "Content-Type", "X-Groq-Key"],
             max_age=600,
         )
 
@@ -197,11 +207,11 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     @app.get("/healthz")
     def healthz():
         # "ai" = the server has an Anthropic key (or an injected client). Lets the website say exactly what is missing.
-        return {"ok": True, "ai": bool(state["client"] or os.environ.get("ANTHROPIC_API_KEY"))}
+        return {"ok": True, "ai": bool(state["client"] or os.environ.get("ANTHROPIC_API_KEY") or meeting.server_has_key()), "groq": meeting.server_has_key()}
 
     @app.get("/api/config")
     def config():
-        return {"app_name": settings.APP_NAME, "web_search": settings.WEB_SEARCH}
+        return {"app_name": settings.APP_NAME, "web_search": settings.WEB_SEARCH, "groq": meeting.server_has_key()}
 
     @app.get("/api/providers")
     def list_providers():
@@ -315,6 +325,100 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             raise HTTPException(404, "Not found")
         return {"ok": True}
 
+    # ---------- Groq: speech-to-text + meeting notes ----------
+    stt_limiter = LoginLimiter(max_attempts=90, window=60)
+    notes_limiter = LoginLimiter(max_attempts=20, window=300)
+    server_use = defaultdict(int)  # (user, day, kind) -> calls made with the SERVER's key (protects the owner's quota)
+
+    def groq_key(request: Request, user, kind: str) -> str:
+        """The user's own key (header) wins and is only used for this request. Otherwise the server's key, with a daily cap."""
+        own = meeting.clean_key(request.headers.get("x-groq-key", ""))
+        if own:
+            return own
+        key = meeting.resolve_key("")
+        day = time.strftime("%Y-%m-%d")
+        cap = settings.SERVER_STT_PER_DAY if kind == "stt" else settings.SERVER_NOTES_PER_DAY
+        used = server_use[(user["id"], day, kind)]
+        if used >= cap:
+            raise meeting.GroqError("You've used today's share of the server's Groq key. Paste your own free key in Settings > Voice & meetings to keep going.", 429)
+        server_use[(user["id"], day, kind)] = used + 1
+        return key
+
+    def groq_http(e: meeting.GroqError) -> HTTPException:
+        return HTTPException(e.status if 400 <= e.status < 600 else 502, str(e))
+
+    @app.get("/api/groq/status")
+    def groq_status(user=Depends(current_user)):
+        return {"server_key": meeting.server_has_key(), "stt_model": meeting.STT_MODEL_FAST, "stt_model_best": meeting.STT_MODEL_BEST, "chat_model": meeting.CHAT_MODEL, "max_audio_mb": meeting.MAX_AUDIO_BYTES // (1024 * 1024)}
+
+    @app.post("/api/groq/test")
+    async def groq_test(request: Request, user=Depends(current_user)):
+        stt_limiter.check((user["id"], "test"))
+        try:
+            info = await meeting.check_key(meeting.resolve_key(request.headers.get("x-groq-key", "")))
+        except meeting.GroqError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, **info}
+
+    @app.post("/api/transcribe")
+    async def transcribe(request: Request, lang: str = "", prompt: str = "", best: int = 0, user=Depends(current_user)):
+        """Body = raw audio bytes (webm / ogg / mp4 / wav / mp3 / m4a / flac). Returns text with timed segments."""
+        stt_limiter.check((user["id"], "stt"))
+        try:
+            declared = int(request.headers.get("content-length") or 0)
+            if declared > meeting.MAX_AUDIO_BYTES + 4096:
+                raise meeting.GroqError(f"That audio is {declared // (1024 * 1024)} MB. The limit is {meeting.MAX_AUDIO_BYTES // (1024 * 1024)} MB per file. Record or upload it in shorter parts.", 413)
+            audio = await request.body()
+            ctype = (request.headers.get("content-type") or "application/octet-stream").split(";")[0].strip()
+            ext = {"audio/webm": "webm", "video/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a", "video/mp4": "mp4", "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/flac": "flac", "audio/x-m4a": "m4a", "audio/aac": "m4a"}.get(ctype, "webm")
+            return await meeting.transcribe(audio, "audio." + ext, ctype, groq_key(request, user, "stt"), lang, prompt[:400], bool(best))
+        except meeting.GroqError as e:
+            raise groq_http(e)
+
+    @app.post("/api/meetings")
+    async def create_meeting(m: MeetingIn, request: Request, user=Depends(current_user)):
+        """Transcript in -> structured notes out (and saved to the user's meeting history unless save=false)."""
+        notes_limiter.check((user["id"], "notes"))
+        text = m.transcript.strip()
+        try:
+            notes = await meeting.analyze(text, groq_key(request, user, "notes"), m.title.strip()[:120], m.output_lang, m.quick)
+        except meeting.GroqError as e:
+            raise groq_http(e)
+        out = {"notes": notes, "markdown": meeting.to_markdown(notes, "", time.strftime("%d %B %Y"))}
+        if m.save and not m.quick:
+            out["id"] = db.add_meeting(user["id"], notes["title"], m.duration, text, json.dumps(notes, ensure_ascii=False))
+        return out
+
+    @app.get("/api/meetings")
+    def list_meetings(user=Depends(current_user)):
+        return db.meetings(user["id"])
+
+    @app.get("/api/meetings/{mid}")
+    def get_meeting(mid: int, user=Depends(current_user)):
+        row = db.meeting(user["id"], mid)
+        if not row:
+            raise HTTPException(404, "Not found")
+        notes = json.loads(row["notes"])
+        return {"id": row["id"], "title": row["title"], "duration": row["duration"], "created": row["created"], "transcript": row["transcript"], "notes": notes,
+                "markdown": meeting.to_markdown(notes, row["transcript"], time.strftime("%d %B %Y", time.localtime(row["created"])))}
+
+    @app.delete("/api/meetings/{mid}")
+    def delete_meeting(mid: int, user=Depends(current_user)):
+        if not db.delete_meeting(user["id"], mid):
+            raise HTTPException(404, "Not found")
+        return {"ok": True}
+
+    @app.post("/api/meetings/{mid}/tasks")
+    def meeting_to_tasks(mid: int, user=Depends(current_user)):
+        row = db.meeting(user["id"], mid)
+        if not row:
+            raise HTTPException(404, "Not found")
+        n = 0
+        for a in json.loads(row["notes"]).get("action_items", []):
+            db.add_task(user["id"], a["task"] + (f" ({a['owner']})" if a["owner"] else ""), a["due"])
+            n += 1
+        return {"added": n}
+
     # ---------- websocket ----------
     agent_holder = {}
 
@@ -392,6 +496,10 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     return
                 consumed = True
                 agent = get_agent()
+                if sess.client is None and agent.client is None and meeting.server_has_key():
+                    # No Claude key and no personal AI settings, but the owner gave the server a Groq key: use Groq.
+                    gcfg = providers.parse_config({"provider": "groq", "model": settings.GROQ_MODEL}, settings.MODEL, settings.MAX_TOKENS)
+                    sess.client, sess.cfg = providers.build_client(gcfg), gcfg
                 if sess.client is None and agent.client is None:
                     db.refund(uid)
                     await send({"type": "error", "text": "No AI is set up yet. Open Settings > AI Provider and add your API key."})
