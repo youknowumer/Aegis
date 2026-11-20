@@ -22,6 +22,7 @@
     WS_URL = (API && !API_MISSING ? API.replace(/^http/i, "ws") : (location.protocol === "https:" ? "wss://" : "ws://") + location.host) + "/ws";
   }
   applyApi();
+  window.__aegisApi = () => API;
   const LOCAL_USERS_KEY = "aegis_local_users";
   window.AEGIS_RUNTIME = { get api() { return API; }, get local() { return LOCAL; } }; // hud.js reads this
   const TOKEN_KEY = "aegis_token";

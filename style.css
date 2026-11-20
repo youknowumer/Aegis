@@ -805,7 +805,7 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .empty-act[hidden] { display: none; }
 .tabpane .list:empty { display: none; }
 /* fit tuning: the right dock absorbs spare height, the left one stays compact so the tab above it keeps room */
-#right .dock canvas { height: clamp(150px, 31vh, 280px); }
+#right .dock canvas { height: clamp(190px, 36vh, 320px); }
 #left .dock canvas { height: clamp(92px, 15vh, 136px); }
 @media (max-height: 880px) { .tabpane .blk-sub { display: none; } .tabpane .empty { padding-top: 50px !important; } }
 @media (max-height: 820px) { .tabpane .empty { padding-top: 46px !important; font-size: 12px; } .tabpane .empty::after { width: 28px; height: 28px; margin-left: -14px; top: 10px; } .tabpane .empty::before { font-size: 13px; } }
