@@ -7,9 +7,9 @@
   <meta name="theme-color" content="#07111a" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
   <title>Aegis | An AI assistant that works on your PC and asks first</title>
-  <meta name="description" content="Aegis is an AI assistant for the web and Windows. Ask in English, Urdu or Hindi. It opens apps, sorts files and remembers what matters, and it always asks before anything risky.">
+  <meta name="description" content="Aegis is an AI assistant for the web and Windows. Ask in plain English. It opens apps, sorts files and remembers what matters, and it always asks before anything risky.">
   <meta property="og:title" content="Aegis: an AI assistant that works on your PC and asks first">
-  <meta property="og:description" content="Ask in English, Urdu or Hindi. Aegis does the work and asks before anything risky.">
+  <meta property="og:description" content="Ask in plain English. Aegis does the work and asks before anything risky.">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z' fill='%230a7a78'/%3E%3Cpath d='M11 16l4 4 7-8' fill='none' stroke='%23fff' stroke-width='2.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <script src="theme-boot.js"></script>
@@ -18,6 +18,9 @@
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <div class="progress" id="progress" aria-hidden="true"></div>
+<div class="edge edge-top" aria-hidden="true"></div>
+<div class="edge edge-bottom" aria-hidden="true"></div>
+<div class="cursor-glow" id="cursor-glow" aria-hidden="true"></div>
 
 <header class="nav" id="nav">
   <div class="wrap nav-in">
@@ -55,9 +58,9 @@
 
     <div class="hero wrap">
       <div class="hero-copy" id="hero-copy">
-        <p class="hero-badge"><b>Voice</b> Say it in English, Urdu or Hindi. Simple things run in milliseconds</p>
+        <p class="hero-badge"><b>Voice</b> Say it or type it. Simple things run in milliseconds</p>
         <h1>Tell your PC what you need. Aegis does it, and asks before anything risky.</h1>
-        <p class="lead">An AI assistant for the web and Windows. Ask in English, Urdu or Hindi. It opens apps, sorts your folders and remembers what you tell it. Deleting, typing and shell commands always wait for your yes.</p>
+        <p class="lead">An AI assistant for the web and Windows. Ask in plain English. It opens apps, sorts your folders and remembers what you tell it. Deleting, typing and shell commands always wait for your yes.</p>
         <div class="hero-cta">
           <a class="btn solid big" href="app.html?mode=register">Start free</a>
           <a class="btn glass big" href="#download">Get the Windows app</a>
@@ -66,8 +69,8 @@
         <div class="say-row" aria-label="Things you can say to Aegis">
           <span class="say-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12z"/></svg>Say</span>
           <span class="say-chip">&ldquo;Hey Aegis&rdquo;</span>
-          <span class="say-chip">&ldquo;youtube kholo&rdquo;</span>
-          <span class="say-chip">&ldquo;5 minute ka timer lagao&rdquo;</span>
+          <span class="say-chip">&ldquo;open YouTube&rdquo;</span>
+          <span class="say-chip">&ldquo;set a timer for 5 minutes&rdquo;</span>
         </div>
         <ul class="hero-trust" aria-label="Safety highlights">
           <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Asks before risky actions</li>
@@ -93,7 +96,7 @@
 
         <div class="demo-body" id="demo-body" aria-live="polite">
           <!-- filled by landing.js; this is the no-JS fallback -->
-          <div class="bubble me" dir="auto">Organize my Downloads folder</div>
+          <div class="bubble me">Organize my Downloads folder</div>
           <div class="step done"><span class="tick"></span><code>list_files</code><span class="arg">Downloads</span></div>
           <div class="ask">
             <p class="ask-title">Aegis wants to sort 23 files in Downloads</p>
@@ -113,7 +116,7 @@
       <dl class="stats" data-stagger>
         <div><dt>Tools it can use</dt><dd><span data-count="42">42</span></dd></div>
         <div><dt>Tools that wait for you</dt><dd><span data-count="11">11</span></dd></div>
-        <div><dt>Languages for voice</dt><dd><span data-count="3">3</span></dd></div>
+        <div><dt>Free messages a day</dt><dd><span data-count="15">15</span></dd></div>
         <div><dt>Folders it can reach</dt><dd><span data-count="3">3</span></dd></div>
       </dl>
     </div>
@@ -178,30 +181,29 @@
       <div class="cap">
         <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></span><span>Apps and websites</span></dt>
         <dd>Open Chrome, Notepad, Calculator or Spotify. Open any link. Search the web in your own browser.</dd>
-        <dd class="ex" dir="auto">“Open Chrome and search for SpaceX launches”</dd>
+        <dd class="ex">“Open Chrome and search for SpaceX launches”</dd>
       </div>
       <div class="cap">
         <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span>Files and folders</span></dt>
         <dd>List, read, write, move and delete files in Documents, Desktop and Downloads. Sort a messy folder into Images, Documents, Videos, Audio and Archives.</dd>
-        <dd class="ex" dir="auto">“Organize my Downloads folder”</dd>
+        <dd class="ex">“Organize my Downloads folder”</dd>
       </div>
       <div class="cap">
         <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><span>Your screen and system</span></dt>
         <dd>Take a screenshot, check CPU, memory and disk, type into the window you are in, press shortcuts like Ctrl+C or Alt+Tab.</dd>
-        <dd class="ex" dir="auto">“How is my PC doing?”</dd>
+        <dd class="ex">“How is my PC doing?”</dd>
       </div>
       <div class="cap">
         <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-3 11.2V17h6v-2.8A6 6 0 0 0 12 3zM10 20h4"/></svg></span><span>Memory you can edit</span></dt>
         <dd>Tell it once and it remembers. Every saved fact is listed in a panel where you can delete it with one click.</dd>
-        <dd class="ex" dir="auto">“Remember that my meeting is at 5”</dd>
+        <dd class="ex">“Remember that my meeting is at 5”</dd>
       </div>
       <div class="cap">
-        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5h9M8.5 3v2M6 5c.6 3 3 6 6 7M12 5c-.6 3-3 6-6.5 7.5M13 20l4-9 4 9M14.5 17h5"/></svg></span><span>Your language</span></dt>
-        <dd>Type or speak, and hear the answer read back. Aegis replies in the language you wrote in.</dd>
+        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><span>Voice and text</span></dt>
+        <dd>Type or speak, and hear the answer read back. Say &ldquo;Hey Aegis&rdquo; to start hands-free.</dd>
         <dd class="ex langs">
-          <span dir="auto">Mere sister ki birthday Friday ko hai, yaad rakhna</span>
-          <span dir="rtl" lang="ur">میری میٹنگ پانچ بجے ہے، یاد رکھنا</span>
-          <span lang="hi">मेरी डाउनलोड्स फ़ोल्डर साफ़ कर दो</span>
+          <span>&ldquo;Remind me about my sister&rsquo;s birthday on Friday&rdquo;</span>
+          <span>&ldquo;Read that back to me&rdquo;</span>
         </dd>
       </div>
     </dl>
@@ -213,14 +215,14 @@
       <div class="block-head" data-reveal>
         <p class="eyebrow">Instant commands</p>
         <h2>The simple things are answered in milliseconds</h2>
-        <p>Common requests run right in your browser, in English, Roman Urdu, Urdu and Hindi. They are free, do not use your daily messages and keep working without the server.</p>
+        <p>Common requests run right in your browser, in plain English. They are free, do not use your daily messages and keep working without the server.</p>
         <p class="cmd-note"><span><b>Everything else</b> goes to the AI, which answers in your language and can use tools, memory and web search.</span></p>
       </div>
       <div class="cmd-grid" data-stagger>
-        <div class="cmd"><h3>Open and search</h3><q dir="auto">open YouTube</q><q dir="auto">gmail kholo</q><q dir="auto">directions to Islamabad</q></div>
-        <div class="cmd"><h3>Time and math</h3><q dir="auto">time in Tokyo</q><q dir="auto">calculate 15% of 2400</q><q dir="auto">convert 10 km to miles</q></div>
-        <div class="cmd"><h3>Timers and notes</h3><q dir="auto">set a timer for 10 minutes</q><q dir="auto">take a note buy milk</q><q dir="auto">show my notes</q></div>
-        <div class="cmd"><h3>Control Aegis</h3><q dir="auto">voice mode on</q><q dir="auto">switch to Urdu</q><q dir="auto">change theme to red</q></div>
+        <div class="cmd"><h3>Open and search</h3><q>open YouTube</q><q>open Gmail</q><q>directions to Islamabad</q></div>
+        <div class="cmd"><h3>Time and math</h3><q>time in Tokyo</q><q>calculate 15% of 2400</q><q>convert 10 km to miles</q></div>
+        <div class="cmd"><h3>Timers and notes</h3><q>set a timer for 10 minutes</q><q>take a note buy milk</q><q>show my notes</q></div>
+        <div class="cmd"><h3>Control Aegis</h3><q>voice mode on</q><q>focus mode</q><q>change theme to red</q></div>
       </div>
     </div>
   </section>
@@ -391,8 +393,8 @@
         <div class="ans"><p>Only facts you share or ask it to save. They appear in the memory panel, and you can delete any of them at any time.</p></div>
       </details>
       <details>
-        <summary>Which languages can I use?</summary>
-        <div class="ans"><p>English, Urdu and Hindi for voice and text. Aegis answers in the language you write in.</p></div>
+        <summary>Can I talk to it instead of typing?</summary>
+        <div class="ans"><p>Yes. Turn on voice mode, say &ldquo;Hey Aegis&rdquo; and speak your request. Aegis reads the answer back to you, and you can switch it off at any time.</p></div>
       </details>
     </div>
   </section>
@@ -428,7 +430,7 @@
     </nav>
     <div class="foot-base fine">
       <p>&copy; <span id="year">2026</span> Aegis. All rights reserved.</p>
-      <p>Built for English, Urdu and Hindi.</p>
+      <p>Built for people who like to stay in control.</p>
     </div>
   </div>
 </footer>
@@ -444,5 +446,6 @@
 </div>
 
 <script src="landing.js"></script>
+<script src="landing-fx.js"></script>
 </body>
 </html>

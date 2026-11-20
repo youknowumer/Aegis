@@ -236,43 +236,74 @@
   }
 
   // ------------------------------------------------------------------ auth UI
-  document.querySelectorAll(".tab").forEach((t) =>
-    t.addEventListener("click", () => {
-      authMode = t.dataset.mode;
-      document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
-      $("auth-submit").textContent = authMode === "login" ? "Sign in" : "Create account";
-      $("password").autocomplete = authMode === "login" ? "current-password" : "new-password";
-      $("auth-error").textContent = "";
-    })
-  );
-  if (new URLSearchParams(location.search).get("mode") === "register") {
-    document.querySelector('.tab[data-mode="register"]').click();
+  const SUBS = {
+    login: "Welcome back. Pick up where you left off.",
+    register: "Create your free account in under a minute.",
+  };
+  function setAuthMode(mode) {
+    authMode = mode;
+    document.querySelectorAll(".tab").forEach((x) => {
+      const on = x.dataset.mode === mode;
+      x.classList.toggle("active", on);
+      x.setAttribute("aria-selected", String(on));
+    });
+    $("auth-tabs").dataset.mode = mode;
+    $("auth-submit").querySelector(".btn-label").textContent = mode === "login" ? "Sign in" : "Create account";
+    $("auth-sub").textContent = SUBS[mode];
+    $("password").autocomplete = mode === "login" ? "current-password" : "new-password";
+    $("auth-error").textContent = "";
+    $("auth-card").classList.remove("shake");
+    $("strength").hidden = $("rules").hidden = $("auth-legal").hidden = mode === "login";
+    document.dispatchEvent(new CustomEvent("aegis:authmode", { detail: mode }));
   }
+  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => setAuthMode(t.dataset.mode)));
+  if (new URLSearchParams(location.search).get("mode") === "register") setAuthMode("register");
   $("pw-toggle").addEventListener("click", () => {
     const show = $("password").type === "password";
     $("password").type = show ? "text" : "password";
-    $("pw-toggle").textContent = show ? "Hide" : "Show";
+    $("pw-toggle").classList.toggle("on", show);
+    $("pw-toggle").setAttribute("aria-pressed", String(show));
     $("pw-toggle").setAttribute("aria-label", show ? "Hide password" : "Show password");
   });
 
   $("auth-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = $("auth-submit");
-    btn.disabled = true;
+    const card = $("auth-card");
+    const fail = (msg) => {
+      $("auth-error").textContent = msg;
+      card.classList.remove("shake");
+      void card.offsetWidth; // restart the animation
+      card.classList.add("shake");
+    };
     $("auth-error").textContent = "";
+    if (!/^\S+@\S+\.\S+$/.test($("email").value.trim())) { $("email").focus(); return fail("Enter a valid email address."); }
+    if ($("password").value.length < 8 && authMode === "register") { $("password").focus(); return fail("Your password needs at least 8 characters."); }
+    if (!$("password").value) { $("password").focus(); return fail("Enter your password."); }
+    btn.disabled = true;
+    btn.classList.add("loading");
     try {
       const data = await api(authMode === "login" ? "/api/login" : "/api/register", {
         method: "POST",
-        body: JSON.stringify({ email: $("email").value, password: $("password").value }),
+        body: JSON.stringify({ email: $("email").value.trim(), password: $("password").value }),
       });
       token = data.token;
       safeSet(TOKEN_KEY, token);
       $("password").value = "";
+      btn.classList.remove("loading");
+      btn.classList.add("success");
+      btn.querySelector(".btn-label").textContent = authMode === "login" ? "Welcome back" : "Account created";
+      await new Promise((r) => setTimeout(r, 650));
       start();
     } catch (err) {
-      $("auth-error").textContent = err.message;
+      fail(err.message);
     } finally {
       btn.disabled = false;
+      btn.classList.remove("loading");
+      if (btn.classList.contains("success")) {
+        btn.classList.remove("success");
+        btn.querySelector(".btn-label").textContent = authMode === "login" ? "Sign in" : "Create account";
+      }
     }
   });
 

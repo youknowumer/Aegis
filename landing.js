@@ -172,15 +172,15 @@
       reply: "Done. I opened Chrome and searched for SpaceX launches.",
     },
     {
-      user: "Mere sister ki birthday Friday ko hai, yaad rakhna",
+      user: "Remember that my sister's birthday is on Friday",
       steps: [["remember", "Sister’s birthday is Friday", "Saved"]],
-      reply: "Theek hai, yaad rakh liya.",
+      reply: "Done. I will remember that your sister’s birthday is on Friday.",
       viz: "memory",
     },
     {
-      user: "میرا کمپیوٹر کیسا چل رہا ہے؟",
+      user: "How is my PC doing?",
       steps: [["system_health", "", "Checked"]],
-      reply: "آپ کا کمپیوٹر ٹھیک چل رہا ہے۔ ڈسک میں ابھی کافی جگہ ہے۔",
+      reply: "Your PC is running well. CPU is calm and there is plenty of free disk space.",
       viz: "health",
     },
   ];
