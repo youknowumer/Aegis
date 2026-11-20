@@ -119,9 +119,10 @@
       const exit = clamp((r.bottom - NAV) / (vh * 0.18));
       const amt = 1 - Math.min(enter, exit);
       if (amt < 0.02) {
-        if (el.style.getPropertyValue("--sb")) { el.style.removeProperty("--sb"); el.style.removeProperty("--so"); el.style.removeProperty("--ss"); }
+        if (el.classList.contains("soft")) el.classList.remove("soft");
         return;
       }
+      if (!el.classList.contains("soft")) el.classList.add("soft");
       el.style.setProperty("--sb", (amt * 9).toFixed(2) + "px");
       el.style.setProperty("--so", (1 - amt * 0.6).toFixed(3));
       el.style.setProperty("--ss", (1 - amt * 0.035).toFixed(4));
