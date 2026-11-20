@@ -925,9 +925,10 @@
     cmd.run(cmdCtx).catch(() => addMsg("err", "That command failed. Try again.")).finally(() => setTimeout(syncVoice, 300)); // keeps Voice mode alive after silent commands
   }
 
-  function submitText(text) {
+  function submitText(text, opts) {
     text = String(text || "").trim();
     if (!text) return;
+    spokenTurn = !!(opts && opts.voice);
     const cmd = window.AegisCommands && AegisCommands.match(text, { online: wsOpen });
     if (cmd) return runCommand(cmd, text);
     if (busy) return;
@@ -939,7 +940,7 @@
     manual = false;
     followUp = false;
     addMsg("user", text);
-    send({ type: "chat", text, tz: TZ });
+    send({ type: "chat", text, tz: TZ, voice: spokenTurn, callme: callMe() });
     setBusy(true);
   }
   $("composer").addEventListener("submit", (e) => {
@@ -1130,12 +1131,53 @@
   let speakGen = 0;
   let lastSpoken = "";
 
-  // "Hey Aegis, open Chrome" -> "open Chrome". Returns null when there is no wake phrase.
-  const WAKE_RE = /\b(?:(?:hey|hi|hello|ok|okay)\s+(?:aegis|aegus|ejis|edgis|eejis|ages|edges|jarvis)|aegis|jarvis)\b[\s,.:;!?-]*/i;
-  function extractWake(text) {
-    const m = String(text || "").match(WAKE_RE);
-    return m ? String(text).slice(m.index + m[0].length).trim() : null;
+  // ---- wake word ("Jarvis", "Aegis", or your own). "Jarvis, open Chrome" -> "open Chrome". null = no wake phrase heard.
+  // Browsers mishear names, so common variants are accepted. The name must open the sentence ("Jarvis, ...") or follow
+  // "hey / ok / hi", or close it ("... Jarvis"), so a name in the middle of normal talk doesn't wake me.
+  const BASE_WAKE = {
+    jarvis: "jarvis|jarvas|jarves|jarvus|jarwis|jervis|jarviss|charvis|garvis|gervis|جارویس|جاروس|جاروِس|जार्विस",
+    aegis: "aegis|aegus|ejis|edgis|eejis|aejis|ایجس|ایجیس|एजिस",
+  };
+  const callMe = () => (safeGet("aegis_callme") || "").trim();
+  const customWake = () => (safeGet("aegis_wakeword") || "").trim().toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").slice(0, 24);
+  const wakeName = () => { const c = customWake(); return c ? c.replace(/\b\w/g, (x) => x.toUpperCase()) : "Jarvis"; };
+  let wakeRx = null, wakeSig = "";
+  function wakeRegex() {
+    const c = customWake(), sig = c;
+    if (wakeRx && sig === wakeSig) return wakeRx;
+    const names = [BASE_WAKE.jarvis, BASE_WAKE.aegis].concat(c ? [c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")] : []).join("|");
+    const lead = "(?:(?:hey|hi|hello|ok|okay|yo|ae|اے|ہے|ارے)[\\s,]+)?";
+    wakeRx = {
+      start: new RegExp("^[\\s,.!?-]*" + lead + "(?:" + names + ")(?![\\p{L}])[\\s,.:;!?-]*", "iu"),
+      hey: new RegExp("(?:hey|hi|hello|ok|okay|yo)[\\s,]+(?:" + names + ")(?![\\p{L}])[\\s,.:;!?-]*", "iu"),
+      end: new RegExp("[\\s,]+(?:" + names + ")[\\s.!?]*$", "iu"),
+    };
+    wakeSig = sig;
+    return wakeRx;
   }
+  function extractWake(text) {
+    const t = String(text || "").trim(), rx = wakeRegex();
+    let m = t.match(rx.start);
+    if (m) return t.slice(m[0].length).trim();
+    m = t.match(rx.hey);
+    if (m) return (t.slice(0, m.index) + " " + t.slice(m.index + m[0].length)).trim();
+    m = t.match(rx.end);
+    if (m && t.slice(0, m.index).trim().split(/\s+/).length >= 2) return t.slice(0, m.index).trim();
+    return null;
+  }
+  // Short, JARVIS-style acknowledgements. Spoken in the language the person is using.
+  function wakeAck() {
+    const who = callMe();
+    const ur = /^ur/.test($("lang").value);
+    const en = [`Yes${who ? ", " + who : ""}?`, "I'm listening.", "At your service.", "Go ahead.", "Yes?"];
+    const u = ["جی؟", "جی، بولیے۔", "میں سن رہا ہوں۔", "حکم کیجیے۔"];
+    const a = ur ? u : en;
+    return a[Math.floor(Math.random() * a.length)];
+  }
+  // Said while Aegis is awake to end the session ("thanks", "that's all", "bas", "go to sleep").
+  const SLEEP_RE = /^[\s,.!?]*(?:(?:ok(?:ay)?|alright|great|cool)[\s,]+)?(?:thanks?(?: you)?(?: (?:jarvis|aegis|a lot|so much))?|thank you(?: very much)?|that(?:'s| is| will be) (?:all|it|enough)|that(?:'s| is) (?:all|it)|nothing(?: else)?|never ?mind|go to sleep|sleep|stand ?by|dismissed|bas|bas karo|bas itna|shukriya|shukria|bohat shukriya|theek hai|thik hai|ٹھیک ہے|شکریہ|بس|بس کرو|بہت شکریہ)[\s,.!?]*$/iu;
+  let awake = false;           // heard the wake word: keep the conversation going without needing it again
+  let spokenTurn = false;      // the last thing sent came from the microphone, so answer out loud
 
   function setInterim(t) { $("interim").textContent = t || ""; }
 
@@ -1160,6 +1202,21 @@
     refreshState();
   }
 
+  const vmStyle = () => (safeGet("aegis_vm_style") || "wake");           // "wake" = wait for the wake word, "always" = listen non-stop
+  const gated = () => convo && vmStyle() === "wake" && !!SR;              // Voice mode that sleeps until you call it
+  function sleepNow(quiet) {
+    if (!awake) return;
+    awake = false;
+    document.body.classList.remove("awake");
+    if (!quiet) { setInterim(""); }
+    refreshState();
+  }
+  function wakeUp() {
+    awake = true;
+    document.body.classList.add("awake");
+    noSpeechStreak = 0;
+  }
+
   function startRec(kind) {
     const useGroq = kind === "once" && groqOn();
     if ((!SR && !useGroq) || (kind === "wake" && !SR) || rec) return;
@@ -1171,7 +1228,11 @@
     r.continuous = kind === "wake";
     r.maxAlternatives = 1;
 
-    r.onstart = () => { if (rec === r) setListening(kind === "once"); };
+    r.onstart = () => {
+      if (rec !== r) return;
+      setListening(kind === "once");
+      if (kind === "wake" && !awake) { $("interim").dataset.live = "0"; setInterim('Say \u201c' + wakeName() + '\u201d to wake me'); }
+    };
     r.onresult = (e) => {
       if (rec !== r) return;
       let interim = "", final = "";
@@ -1184,13 +1245,24 @@
         if (rest === null) return;
         recGotFinal = true;
         stopRec();
-        beep();
-        if (rest.length > 2) submitText(rest);
-        else { followUp = true; setTimeout(syncVoice, 250); }
+        wakeUp();
+        if (rest.length > 2) submitText(rest, { voice: true });
+        else if (hasTTS) { speak(wakeAck(), true); }   // greet, then listen (speak() hands the mic back)
+        else { beep(); followUp = true; setTimeout(syncVoice, 250); }
         return;
       }
       setInterim(interim || final);
-      if (final) { recGotFinal = true; noSpeechStreak = 0; stopRec(); submitText(final); }
+      if (final) {
+        recGotFinal = true; noSpeechStreak = 0; stopRec();
+        if (awake && SLEEP_RE.test(final)) {            // "thanks, that's all": go back to sleep politely
+          sleepNow();
+          addMsg("user", final);
+          const bye = /^ur/.test($("lang").value) || /[\u0600-\u06ff]/.test(final) ? "ٹھیک ہے۔" : ["Standing by.", "Anytime.", "Just say my name."][Math.floor(Math.random() * 3)];
+          addMsg("ai", bye); speak(bye, true);
+          return;
+        }
+        submitText(final, { voice: true });
+      }
     };
     r.onerror = (e) => {
       if (rec !== r) return;
@@ -1217,8 +1289,9 @@
       setInterim("");
       const wasManual = manual;
       manual = false;
-      if (kind === "once" && !recGotFinal && convo && !wasManual && (recErr === "no-speech" || recErr === "")) {
-        if (++noSpeechStreak >= 3) { convo = false; syncToggles(); toast("Voice mode paused: I didn't hear anything."); }
+      if (kind === "once" && !recGotFinal && !wasManual && (recErr === "no-speech" || recErr === "")) {
+        if (awake) sleepNow();                                   // you went quiet: back to waiting for my name
+        else if (convo && !gated() && ++noSpeechStreak >= 3) { convo = false; syncToggles(); toast("Voice mode paused: I didn't hear anything."); }
       }
       setTimeout(syncVoice, 350);
     };
@@ -1227,7 +1300,7 @@
 
   // Turn every listening mode off and tell the person why (so it never silently loops).
   function voiceFail(msg) {
-    wake = false; convo = false; manual = false; followUp = false;
+    wake = false; convo = false; manual = false; followUp = false; sleepNow(true);
     safeSet("aegis_wake", "0");
     stopRec();
     syncToggles();
@@ -1248,7 +1321,7 @@
   // One place decides what the microphone should be doing right now.
   function syncVoice() {
     if (!canListen() || !authed || busy || speaking || $("confirm").open) return stopRec(); // instant commands need no server, so voice works before the AI link is up
-    const want = manual || followUp || convo ? "once" : wake && gestured && SR ? "wake" : null;
+    const want = manual || followUp || awake || (convo && !gated()) ? "once" : (wake || gated()) && gestured && SR ? "wake" : null;
     if (!want) return stopRec();
     if (rec && recKind === want) return;
     if (rec) { stopRec(); return void setTimeout(syncVoice, 300); }
@@ -1310,7 +1383,7 @@
     if (speaking) { speaking = false; refreshState(); }
   }
   function speak(text, force) {
-    const want = hasTTS && (force || $("speak").checked || convo);
+    const want = hasTTS && (force || $("speak").checked || convo || spokenTurn);
     const parts = want ? chunkSpeech(plainSpeech(text)) : [];
     if (!parts.length) return syncVoice();
     speechSynthesis.cancel();
@@ -1353,6 +1426,7 @@
   function syncToggles() {
     $("voice-mode").checked = convo;
     $("wake").checked = wake;
+    const wl = document.querySelector("#wake + span"); if (wl) wl.textContent = '\u201c' + wakeName() + '\u201d';
   }
   function syncVoiceSupport() {
     const ok = canListen();
@@ -1383,13 +1457,24 @@
     convo = $("voice-mode").checked;
     noSpeechStreak = 0;
     if (convo) { $("speak").checked = true; safeSet("aegis_speak", "1"); }
+    if (!convo) sleepNow(true);
+    if (convo && gated()) toast('Voice mode on. Say \u201c' + wakeName() + '\u201d and ask me anything. Say \u201cthanks\u201d when you are done. Keep this tab open.', 7000);
     syncVoice();
   });
+  // Jarvis-style voice settings
+  $("vm-style").value = vmStyle();
+  $("wake-word").value = safeGet("aegis_wakeword") || "";
+  $("call-me").value = safeGet("aegis_callme") || "";
+  $("vm-style").addEventListener("change", () => { safeSet("aegis_vm_style", $("vm-style").value); sleepNow(true); stopRec(); syncToggles(); syncVoice(); });
+  $("wake-word").addEventListener("change", () => { safeSet("aegis_wakeword", $("wake-word").value); wakeRx = null; syncToggles(); stopRec(); syncVoice(); toast('I will answer to \u201c' + wakeName() + '\u201d (and Jarvis / Aegis).'); });
+  $("call-me").addEventListener("change", () => { safeSet("aegis_callme", $("call-me").value.trim().slice(0, 30)); });
+  syncToggles();
   $("wake").addEventListener("change", () => {
     gestured = true;
     wake = $("wake").checked;
     safeSet("aegis_wake", wake ? "1" : "0");
-    if (wake) toast('Listening for "Hey Aegis". Keep this tab open.');
+    if (wake) toast('Listening for \u201c' + wakeName() + '\u201d. Keep this tab open.');
+    if (!wake) sleepNow(true);
     syncVoice();
   });
   $("mic-btn").addEventListener("click", () => {

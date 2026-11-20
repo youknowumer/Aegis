@@ -275,3 +275,37 @@ def test_web_search_tool_hidden_when_claude_has_native_search():
     from app import tools
     names = lambda web: {t["name"] for t in tools.schemas(False, web)}
     assert "search_web" in names(False) and "search_web" not in names(True)
+
+
+def test_voice_turns_get_a_spoken_jarvis_style_prompt(env):
+    from app.agent import Agent
+    from app.hub import Hub
+
+    agent = Agent(None, env.app.state.db, Hub())
+    plain = agent._system(1, "hi", False)
+    spoken = agent._system(1, "hi", False, voice=True, callme="boss")
+    assert "VOICE CONVERSATION" not in plain
+    assert "VOICE CONVERSATION" in spoken and "No markdown" in spoken and 'addressed as "boss"' in spoken
+
+
+def test_chat_message_voice_flag_reaches_the_session(env):
+    seen = {}
+    from app import agent as agent_mod
+
+    async def fake_run(self, sess, text, emit):
+        seen.update(voice=sess.voice, callme=sess.callme)
+        return "ok"
+
+    orig = agent_mod.Agent.run
+    agent_mod.Agent.run = fake_run
+    try:
+        token = env.h["Authorization"].split()[1]
+        with env.client.websocket_connect("/ws") as ws:
+            ws.send_json({"type": "auth", "token": token})
+            ws.send_json({"type": "chat", "text": "hello", "voice": True, "callme": "  sir  "})
+            for _ in range(10):
+                if ws.receive_json().get("type") == "reply":
+                    break
+    finally:
+        agent_mod.Agent.run = orig
+    assert seen == {"voice": True, "callme": "sir"}

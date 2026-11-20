@@ -71,3 +71,12 @@ For Gmail/Outlook, create an **app password** (needs 2-step verification) and us
 Optional env vars: `AEGIS_GROQ_MODEL`, `AEGIS_GROQ_CHAT_MODEL`, `AEGIS_GROQ_STT_BEST`, `AEGIS_GROQ_STT_FAST`,
 `AEGIS_SERVER_STT_PER_DAY` (300) and `AEGIS_SERVER_NOTES_PER_DAY` (30) cap usage of the server's own key.
 New assistant tools for every provider: `search_web`, `news_headlines`, `get_meeting`, `list_meetings`, `meeting_actions_to_tasks`, `delete_task`.
+
+## Jarvis-style voice mode
+
+Turn on **Voice mode** (under the chat box). Aegis then sleeps until you say its name: **"Jarvis"** or **"Aegis"**
+(or your own word: Settings > Voice > Wake word). Say "Jarvis, what's the weather?" in one go, or just "Jarvis" and wait for
+"Yes?". After that you can keep talking without the name. Say "thanks", "that's all" or "bas" (or stay quiet) and it goes back
+to sleep. Replies are short, spoken, and addressed to you the way you choose ("Call me": sir, boss, your name).
+The wake word needs Chrome/Edge/Safari and this tab open; after waking, your speech is transcribed by Groq Whisper.
+Settings > Voice > "Voice mode listens: Always" gives the old non-stop listening with no wake word.

@@ -346,7 +346,7 @@
 
     <div class="toggles">
       <label class="toggle"><input id="voice-mode" type="checkbox"><span>Voice mode</span></label>
-      <label class="toggle"><input id="wake" type="checkbox"><span>"Hey Aegis"</span></label>
+      <label class="toggle"><input id="wake" type="checkbox"><span>"Jarvis"</span></label>
       <label class="toggle"><input id="speak" type="checkbox"><span>Read aloud</span></label>
       <button id="voice-help" class="vchip" type="button" title="Show everything you can say">What can I say?</button>
       <span class="kbd-hint muted small"><kbd>Enter</kbd> send <kbd>Shift</kbd>+<kbd>Enter</kbd> new line</span>
@@ -452,6 +452,14 @@
       </select>
     </label>
     <label class="field">Voice <select id="voice-pick" aria-label="Assistant voice"></select></label>
+    <label class="field">Voice mode listens
+      <select id="vm-style" aria-label="Voice mode style">
+        <option value="wake">For the wake word, then chats (like Jarvis)</option>
+        <option value="always">Always (no wake word needed)</option>
+      </select>
+    </label>
+    <label class="field">Wake word <input id="wake-word" maxlength="24" placeholder="Jarvis (default; Aegis works too)" autocomplete="off"></label>
+    <label class="field">Call me <input id="call-me" maxlength="30" placeholder="e.g. sir, boss, your name" autocomplete="off"></label>
     <label class="field">Speaking speed <input id="rate" type="range" min="0.8" max="1.4" step="0.05" value="1.02" aria-label="Speaking speed"></label>
   </div>
   <div class="set-group" id="groq-group">

@@ -89,3 +89,6 @@
 #groq-group .field input:not([type=checkbox]), #groq-group .field select { width: 100%; }
 #groq-group .field.chk { flex-direction: row; align-items: center; }
 @media (prefers-reduced-motion: reduce) { .mt-dot, .meet-btn .rec-dot { animation: none; } }
+
+/* Jarvis session: awake and waiting for the next sentence */
+body.awake #mic-btn { box-shadow: 0 0 0 3px rgba(var(--ac), .4), 0 0 18px rgba(var(--ac), .5); }

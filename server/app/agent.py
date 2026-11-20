@@ -88,6 +88,8 @@ class Session:
         self.stopped = False
         self.client = None  # the user's own AI client (set from the website's AI Provider settings); None = server default
         self.cfg = None  # providers.AIConfig for that client
+        self.voice = False  # the current message was spoken aloud and the reply will be read out by text-to-speech
+        self.callme = ""  # how the user likes to be addressed ("sir", "boss", a name)
 
 
 def trim_history(history: List[dict], keep: int = 40, limit: int = 60):
@@ -108,7 +110,7 @@ class Agent:
         self.db = db
         self.hub = hub
 
-    def _system(self, uid: int, user_text: str, device: bool, tz: str = "", web: bool = False) -> str:
+    def _system(self, uid: int, user_text: str, device: bool, tz: str = "", web: bool = False, voice: bool = False, callme: str = "") -> str:
         rows = self.db.facts(uid)
         q = _tokens(user_text)
         relevant = sorted(rows, key=lambda r: -len(q & _tokens(r["text"])))
@@ -136,7 +138,20 @@ class Agent:
             mail_line = "Use `send_email` to send it" + (" and `check_inbox` to read mail." if mail.imap_configured() else ".")
         else:
             mail_line = "Sending from the server is not set up, so when asked to email someone use `compose_email` (it opens the draft in the user's mail app for them to send)" + (" and tell them that." if device else "; without the desktop app, write the email in chat for them to copy.")
-        return SYSTEM.format(mail_line=mail_line, today=utilities.now_in(tz).strftime("%A, %d %B %Y, %H:%M") + (f" ({tz})" if tz else " UTC"), app=settings.APP_NAME, device_line=device_line, search_line=search_line, memory_block=block)
+        extra = ""
+        if voice:
+            extra = (
+                "\n\nVOICE CONVERSATION: the user is speaking to you out loud and your reply is read aloud by a speech voice. "
+                "Talk like JARVIS: natural, calm, confident, a little witty. Lead with the answer in one to three short spoken sentences. "
+                "No markdown, bullet points, tables, links, code blocks, emoji or asterisks; say numbers and times the way a person says them. "
+                "If they speak Urdu or Hindi, answer in Urdu script (so the voice pronounces it properly); Roman Urdu or English gets English. "
+                "If the speech looks mis-heard, make your best guess from context instead of asking them to repeat. "
+                "When an action is done, confirm it in a few words. Offer one short follow-up only when it is genuinely useful. "
+                "For a long answer (a list, a comparison, code) give the gist in speech and say you have put the details on screen."
+            )
+        if callme:
+            extra += f"\nThe user likes to be addressed as \"{callme}\"; use it now and then, not in every sentence."
+        return SYSTEM.format(mail_line=mail_line, today=utilities.now_in(tz).strftime("%A, %d %B %Y, %H:%M") + (f" ({tz})" if tz else " UTC"), app=settings.APP_NAME, device_line=device_line, search_line=search_line, memory_block=block) + extra
 
     async def _run_server_tool(self, uid: int, name: str, args: dict, tz: str = "") -> str:
         import asyncio
@@ -350,7 +365,7 @@ class Agent:
                 web = settings.WEB_SEARCH and (sess.cfg is None or sess.cfg.provider.kind == "anthropic")  # web search is an Anthropic server tool
                 resp = await self._model_turn(
                     sess,
-                    self._system(uid, text, device, sess.tz, web),
+                    self._system(uid, text, device, sess.tz, web, sess.voice, sess.callme),
                     tools.schemas(device, web, settings.WEB_SEARCH_MAX_USES),
                     sess.history,
                     emit,
