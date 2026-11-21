@@ -554,6 +554,22 @@
     search_in_files: (a) => "Searching inside files: " + (a.query || ""),
     read_document: (a) => "Reading " + (a.path || "a document"),
     download_file: (a) => "Downloading " + host(a.url),
+    chrome_tabs: () => "Listing Chrome tabs",
+    chrome_open: (a) => "Chrome: opening " + host(a.url),
+    chrome_go: (a) => "Chrome: going to " + host(a.url),
+    chrome_nav: (a) => "Chrome: " + (a.action || "navigate"),
+    chrome_switch: (a) => "Chrome: switching to tab " + (a.tab || ""),
+    chrome_close: () => "Chrome: closing a tab",
+    chrome_read: () => "Chrome: reading the page",
+    chrome_elements: () => "Chrome: looking at the page controls",
+    chrome_click: (a) => "Chrome: clicking " + (a.text || (a.index != null ? "item " + a.index : a.selector || "")),
+    chrome_type: (a) => "Chrome: typing " + ((a.text || "").length > 40 ? (a.text || "").slice(0, 40) + "…" : a.text || ""),
+    chrome_key: (a) => "Chrome: pressing " + (a.keys || "a key"),
+    chrome_scroll: (a) => "Chrome: scrolling " + (a.direction || "down"),
+    chrome_find: (a) => "Chrome: finding " + (a.text || ""),
+    chrome_wait: () => "Chrome: waiting for the page",
+    chrome_screenshot: () => "Chrome: taking a screenshot",
+    chrome_eval: () => "Chrome: running a script",
     send_email: (a) => "Sending email to " + (a.to || "someone"),
     check_inbox: () => "Checking your inbox",
     save_contact: (a) => "Saving contact " + (a.name || ""),
@@ -812,6 +828,9 @@
     append_file: ["Add text to a file", "Adds the text below to the end of that file."],
     download_file: ["Download a file", "Downloads this file into your Downloads folder. Programs and scripts are always refused."],
     delete_routine: ["Delete a routine", "Removes this saved routine."],
+    chrome_click: ["Click this in Chrome?", "This click looks like it could buy, send, post, delete or accept something. Check the button name below."],
+    chrome_key: ["Press this key in Chrome?", "This shortcut usually sends or submits what is on the page."],
+    chrome_eval: ["Run a script in Chrome?", "Aegis wants to run JavaScript inside the page you have open. Only allow it if you understand the code."],
   };
   const CONFIRM_SECONDS = 60;
 
@@ -910,6 +929,7 @@
     clearChat() { if (ws && wsOpen) send({ type: "reset" }); clearChat(); },
     lastReply() { return lastAi; },
     repeatLast() { speak(lastAi, true); },
+    speakScript,
     setTheme: applyTheme,
     toggleFocus: setFocus,
     get meetings() { return window.AegisMeetings || null; },
@@ -1382,21 +1402,23 @@
     if (hasTTS) speechSynthesis.cancel();
     if (speaking) { speaking = false; refreshState(); }
   }
-  function speak(text, force) {
-    const want = hasTTS && (force || $("speak").checked || convo || spokenTurn);
-    const parts = want ? chunkSpeech(plainSpeech(text)) : [];
-    if (!parts.length) return syncVoice();
+  // Speaks `text` with feeling. opts.emotion forces a feeling for the whole text (calm, warm, joy, concern, confident...).
+  // While Aegis is attending a meeting in present mode it stays silent unless opts.meeting is set (the final read-out).
+  function speak(text, force, opts) {
+    opts = opts || {};
+    if (!opts.meeting && window.AegisMeetings && AegisMeetings.isPresent && AegisMeetings.isPresent()) return syncVoice();
+    const want = hasTTS && (force || $("speak").checked || convo || spokenTurn || opts.meeting);
+    const clean = want ? plainSpeech(text) : "";
+    const lang = langFor(text);
+    const V = window.AegisVoice || null;
+    const pieces = clean ? (V && V.shape ? V.shape(clean, lang, { emotion: opts.emotion }) : chunkSpeech(clean).map((p) => ({ text: p, rate: 1, pitch: 1, volume: 1, pause: 120 }))) : [];
+    if (!pieces.length) return syncVoice();
     speechSynthesis.cancel();
     const gen = ++speakGen;
-    let left = parts.length;
     speaking = true;
     refreshState();
     syncVoice(); // makes sure the mic is off while Aegis talks
-    const lang = langFor(text);
-    const vp = window.AegisVoice ? AegisVoice.resolve(lang) : null;   // Siri-style persona, or null = auto / manual voice
-    const tune = window.AegisVoice ? AegisVoice.tuning() : { pitch: 1, volume: 1 };
-    const voice = vp ? vp.voice : pickVoice(lang);
-    const rate = vp ? vp.rate : parseFloat($("rate").value) || 1.02;
+    const tune = V ? V.tuning() : { pitch: 1, volume: 1 };
     let lastBoundary = 0;
     const pulse = (s) => { if (orbs.main) orbs.main.pulse(s); };
     // Some voices never report word boundaries, so keep the orb alive with a soft heartbeat while speech is playing.
@@ -1404,22 +1426,41 @@
       if (gen !== speakGen || !speaking) return clearInterval(beat);
       if (Date.now() - lastBoundary > 380) pulse(0.3 + Math.random() * 0.35);
     }, 240);
-    parts.forEach((p) => {
-      const u = new SpeechSynthesisUtterance(p);
+    const finish = () => { clearInterval(beat); speaking = false; refreshState(); syncVoice(); if (opts.onend) { try { opts.onend(); } catch {} } };
+    // One sentence at a time, so each gets its own tone and its own pause (emotion lives in these gaps).
+    const next = (i) => {
+      if (gen !== speakGen) return;
+      if (i >= pieces.length) return finish();
+      const p = pieces[i];
+      const vp = V ? V.resolve(lang) : null;          // neutral base for the one female voice; p.* carries the sentence's feeling
+      const voice = vp ? vp.voice : pickVoice(lang);
+      const u = new SpeechSynthesisUtterance(p.text);
       u.lang = vp && vp.voice ? vp.lang : lang;
       if (voice) u.voice = voice;
-      u.rate = rate;
-      u.pitch = vp ? vp.pitch : tune.pitch;
-      u.volume = vp ? vp.volume : tune.volume;
+      const baseRate = vp ? vp.rate : parseFloat($("rate").value) || 1.02;
+      const basePitch = vp ? vp.pitch : tune.pitch;
+      u.rate = Math.max(0.5, Math.min(2, baseRate * (p.rate || 1)));
+      u.pitch = Math.max(0.2, Math.min(2, basePitch * (p.pitch || 1)));
+      u.volume = Math.max(0.05, Math.min(1, (vp ? vp.volume : tune.volume) * (p.volume || 1)));
       u.onstart = () => pulse(0.8);
       u.onboundary = (e) => { if (!e.name || e.name === "word") { lastBoundary = Date.now(); pulse(0.45 + Math.min(0.5, (e.charLength || 4) / 12)); } };
-      const fin = () => {
-        if (gen !== speakGen) return;
-        if (--left === 0) { clearInterval(beat); speaking = false; refreshState(); syncVoice(); }
-      };
-      u.onend = fin; u.onerror = fin;
+      const done = () => { if (gen === speakGen) setTimeout(() => next(i + 1), p.pause || 0); };
+      u.onend = done; u.onerror = done;
       speechSynthesis.speak(u);
-    });
+    };
+    next(0);
+  }
+  // Speak a list of [{ text, emotion }] in order (meeting read-outs): each part keeps its own feeling.
+  function speakScript(parts, opts) {
+    const items = (parts || []).filter((p) => p && p.text);
+    if (!items.length) return;
+    let i = 0;
+    const go = () => {
+      if (i >= items.length) { if (opts && opts.onend) opts.onend(); return; }
+      const it = items[i++];
+      speak(it.text, true, { meeting: true, emotion: it.emotion, onend: go });
+    };
+    go();
   }
 
   // ---- toggles
@@ -1808,7 +1849,7 @@
   tick();
   setInterval(tick, 20000);
   mountOrbs();
-  window.AegisApp = { toast, submitText: (t) => submitText(t), loadTasks: () => loadTasks() }; // used by meetings.js
+  window.AegisApp = { toast, submitText: (t) => submitText(t), loadTasks: () => loadTasks(), speakScript, stopSpeaking, setVoiceMode: (on) => cmdCtx.setVoiceMode(on), isVoiceMode: () => convo }; // used by meetings.js
   if (window.__AEGIS_TEST__) window.__aegis = { extractWake, rich, labelFor };
   start();
 })();

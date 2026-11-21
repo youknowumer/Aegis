@@ -198,7 +198,8 @@
     "- Device status: \"system status\", \"battery\"\n" +
     "- Control me: \"voice mode on\", \"be quiet\", \"switch to Urdu\", \"change theme to red\", \"focus mode\", \"full screen\", \"repeat that\"\n" +
     "- Fun: \"flip a coin\", \"roll a dice\", \"random number between 1 and 100\"\n" +
-    "- Voice: \"change voice to British male\", \"use Siri voice\", \"next voice\", \"speak faster\", \"deeper voice\", \"louder\", \"what voices do you have\", \"say hello world\"\n" +
+    "- Voice (one female voice with emotions): \"more emotion\", \"less emotion\", \"emotions off\", \"speak faster\", \"higher voice\", \"louder\", \"say hello world\"\n" +
+    "- Present mode: say \"meeting chal rahi hai\" / \"present mode\" / \"join the meeting\" and I listen silently. At the end say \"meeting points extract karo\" and I read the key points aloud.\n" +
     "- Meetings: \"start meeting\" / \"stop meeting\" (records, transcribes with Groq Whisper, then lists key points, decisions, action items and improvements), \"show meeting notes\", \"pause meeting\"; ask \"what was decided in my last meeting\"\n" +
     "- Tabs: \"show memory tab\", \"open the activity panel\", \"show voice tab\" (or Alt+1 to Alt+7)\n" +
     "- Tools: \"start stopwatch\" / \"lap\" / \"stop stopwatch\", \"generate a password\", \"days until Christmas\", \"copy that\"\n" +
@@ -235,6 +236,38 @@
   const MEET = "(?:meeting|meetings|میٹنگ|मीटिंग)";
   add("meeting-start", (t) => rx("^(?:start|begin|record|take|shuru karo|shuru kar do)(?: a| the| my| this| new)? " + MEET + "(?: recording| notes)?(?: start karo| shuru karo| record karo)?$").test(t) || rx("^" + MEET + "(?: ki)?(?: recording)? (?:shuru|start|record) (?:karo|kar do|kro)$").test(t) || /^(?:start recording|record this|record the call)$/.test(t) || /^میٹنگ (?:ریکارڈ|شروع) کرو$/.test(t),
     (m, c) => { if (!c.meetings) return c.say("The meeting assistant isn't available here."); if (c.meetings.state() === "recording") return c.say("A meeting is already being recorded."); c.meetings.start(); return c.say("Opening the meeting recorder. Press Start recording and I'll take notes.", { speak: "Opening the meeting recorder." }); });
+  // present mode: Aegis attends a running meeting silently; at the end "meeting points extract karo" reads the notes aloud
+  add("meeting-present", (t) =>
+      /^(?:(?:go |switch |turn |enter |start |begin )?(?:to |on )?(?:present|presence|attend|attendance) mode(?: on| chalu| shuru)?(?: karo| kar do| kro)?|(?:present|presentation) mode (?:on|chalu|shuru|enable) (?:karo|kar do|kro)|present mode on)$/.test(t) ||
+      rx("^(?:join|attend|sit in on|sit in|listen (?:to|in on|in))(?: on)?(?: the| my| this| a| our)? " + MEET + "(?: for me| with me)?$").test(t) ||
+      rx("^" + MEET + "(?: ko)? (?:suno|sun lo|sunna|sun)(?: lo| karo| kro| shuru karo| shuru kro)?$").test(t) ||
+      rx("^" + MEET + "(?: ko)? (?:join|attend) (?:karo|kro|kar lo|kar do)$").test(t) ||
+      rx("^(?:mera |meri |abhi |is )?" + MEET + " (?:chal rahi hai|chal rhi hai|ho rahi hai|ho rhi hai|shuru ho gayi hai|shuru ho gai hai)(?:,? ?(?:sun lo|suno|attend karo|join karo|present mode on karo|record karo))?$").test(t) ||
+      /^میٹنگ (?:سنو|سن لو|جوائن کرو|اٹینڈ کرو)$/.test(t) || /^میٹنگ چل رہی ہے$/.test(t),
+    (m, c) => {
+      if (!c.meetings || !c.meetings.present) return c.say("The meeting assistant isn't available here.");
+      c.meetings.present();   // silent from this moment: no voice reply (it would be recorded into the meeting)
+      return c.say("Present mode on. I'm attending quietly and won't speak until you say \"meeting points extract karo\".");
+    });
+  add("meeting-extract", (t) =>
+      rx("^(?:extract|get|give me|read|tell me|read out|read me|list|share|prepare)(?: me)?(?: all)?(?: the| my| our| this| last| latest)* (?:" + MEET + " )?(?:points|key points|main points|highlights)(?: of (?:the |this |my )?" + MEET + ")?(?: out loud| aloud)?(?: now)?$").test(t) ||
+      rx("^(?:extract|get|give me|read|tell me|read out|read me|share|prepare|write)(?: me)?(?: all)?(?: the| my| our| this| last| latest)* " + MEET + " (?:notes|summary|minutes|points|key points)(?: out loud| aloud)?(?: now)?$").test(t) ||
+      rx("^(?:end|finish|stop|wrap up|close)(?: the| my| this)? " + MEET + " and (?:extract|get|give me|read|show me|write|make)(?: me)?(?: the| my| all)* (?:" + MEET + " )?(?:points|key points|notes|summary|minutes)$").test(t) ||
+      rx("^" + MEET + "(?: ke| ki| ka| k)? (?:points?|notes|summary|minutes|khulasa|nukat)(?: ko)? (?:extract|nikalo|nikal do|nikalo|batao|bata do|sunao|suna do|dikhao|dikha do|likho|do|de do|karo|kro|kar do|kar do)(?: aur (?:suna do|sunao|batao))?$").test(t) ||
+      rx("^(?:meeting|میٹنگ) (?:khatam|band|end) (?:karo|kar do|kro|ho gayi|ho gai) (?:aur|or|phir) (?:points?|notes|summary)(?: ko)? (?:extract|nikalo|nikal do|batao|sunao|suna do|do|de do|karo|kro)(?: aur (?:suna do|sunao|batao))?$").test(t) ||
+      rx("^(?:meeting|میٹنگ) (?:points?|notes|summary) (?:extract|nikalo|batao|sunao)(?: karo| kro| kar do)?$").test(t) ||
+      /^(?:points?|nukat) (?:extract|nikalo|nikal do|batao|sunao) ?(?:karo|kro|kar do)?$/.test(t) ||
+      /^(?:میٹنگ (?:کے )?(?:پوائنٹس|نکات|خلاصہ|نوٹس) (?:نکالو|بتاؤ|سناؤ|بتا دو|سنا دو)|میٹنگ ختم کرو اور (?:پوائنٹس|نکات) (?:نکالو|بتاؤ|سناؤ))$/.test(t) ||
+      /^what (?:were|are) the (?:meeting )?(?:points|key points|decisions|action items) (?:from|of|in) (?:the|this|my) meeting$/.test(t),
+    async (m, c) => {
+      if (!c.meetings || !c.meetings.extract) return c.say("The meeting assistant isn't available here.");
+      const st = c.meetings.state();
+      const live = st === "recording" || st === "paused";
+      const ok = await c.meetings.extract();
+      if (!ok) return c.say("There's no meeting to take points from yet. Say \"present mode\" or \"start meeting\" first.");
+      // the read-out is spoken by the meeting assistant itself, with feeling, once the notes are written
+      return c.say(live ? "Ending the meeting. I'll write the points and read them to you." : "Reading the meeting points.", { silent: true });
+    });
   add("meeting-stop", (t) => /^(?:stop|end|finish|wrap up)(?: the| my| this)? (?:meeting|میٹنگ|मीटिंग)(?: recording)?$/.test(t) || /^stop recording$/.test(t) || /^(?:meeting|میٹنگ) (?:khatam|band|end) (?:karo|kar do|kro)$/.test(t) || /^(?:meeting|میٹنگ) (?:khatam|band) ho gayi$/.test(t),
     (m, c) => { if (!c.meetings || (c.meetings.state() !== "recording" && c.meetings.state() !== "paused")) return c.say("No meeting is being recorded right now."); c.meetings.stop(); return c.say("Stopping. I'll transcribe the rest and write your notes.", { speak: "Stopping the meeting. Writing your notes." }); });
   add("meeting-pause", (t) => rx("^(pause|resume)(?: the| my)? " + MEET + "(?: recording)?$").test(t) || /^(?:pause|resume) recording$/.test(t),
@@ -255,12 +288,24 @@
     if (/^(?:louder|volume up|speak louder|awaaz (?:tez|zyada|barhao)|quieter|softer|volume down|speak softer|awaaz (?:kam|halki))$/.test(t)) return { k: "volume", d: /louder|up|tez|zyada|barhao/.test(t) ? 1 : -1 };
     if (/^(?:(?:a )?(deeper|lower|higher)|(?:make )?(?:your )?(?:voice )?(deeper|lower|higher)|(?:pitch) (up|down)|(?:speak|talk) (?:in a )?(deeper|higher)|(?:deeper|lower|higher) (?:voice|pitch))(?: voice| pitch)?$/.test(t)) return { k: "pitch", d: /higher|up/.test(t) ? 1 : -1 };
     if (/^(?:reset|default|normal) (?:the )?(?:voice|voice settings|speech)(?: settings)?$/.test(t)) return { k: "reset", d: 0 };
+    // emotion level: "more emotion", "be more expressive", "less emotion", "emotions off", "zyada jazbaat", "feelings kam karo"
+    if (/^(?:(?:add |use |show )?(?:more|extra) (?:emotions?|feelings?|expression|feeling)|be more (?:expressive|emotional)|(?:zyada|zyadah|aur) (?:emotions?|jazbaat|feelings?|jazbat)(?: add karo| dalo| karo)?|(?:emotions?|feelings?|jazbaat) (?:add|barhao|zyada) karo)$/.test(t)) return { k: "expression", d: 1 };
+    if (/^(?:(?:use |show )?(?:less|fewer) (?:emotions?|feelings?|expression)|be less (?:expressive|emotional)|(?:kam|kum) (?:emotions?|jazbaat|feelings?)(?: karo)?|(?:emotions?|feelings?|jazbaat) kam karo)$/.test(t)) return { k: "expression", d: -1 };
+    if (/^(?:(?:turn )?(?:emotions?|feelings?|expression) off|no emotions?|flat voice|robot voice|(?:emotions?|jazbaat) band karo)$/.test(t)) return { k: "expression", d: 0 };
+    if (/^(?:(?:turn )?(?:emotions?|feelings?|expression) on|natural voice|(?:emotions?|jazbaat) (?:on|chalu) karo)$/.test(t)) return { k: "expression", d: 2 };
     return null;
   }, (m, c) => {
     const V = c.voice;
     if (!V) return c.say("Voice tuning isn't available in this browser.");
     if (m.k === "reset") { V.reset(); return c.say("Voice settings are back to normal."); }
     const cur = V.tune({});
+    if (m.k === "expression") {
+      if (m.d === 0) { V.tune({ expression: 0 }); return c.say("Emotions off. I'll sound plain and even."); }
+      if (m.d === 2) { V.tune({ expression: 1 }); V.preview(); return null; }
+      const e = V.tune({ expression: (cur.expression == null ? 1 : cur.expression) + m.d * 0.3 }).expression;
+      V.preview();
+      return c.say(m.d > 0 ? (e >= 1.6 ? "That's as expressive as I get." : "More feeling in my voice now.") : (e <= 0 ? "Emotions are off." : "A little less emotion."));
+    }
     if (m.k === "rate") { const r = V.tune({ rate: cur.rate + m.d * 0.15 }).rate; return c.say(m.d > 0 ? (r >= 1.4 ? "That's my fastest." : "Speaking faster.") : (r <= 0.8 ? "That's my slowest." : "Speaking slower.")); }
     if (m.k === "volume") { const v = V.tune({ volume: cur.volume + m.d * 0.25 }).volume; return c.say(m.d > 0 ? (v >= 1 ? "That's full volume." : "Louder.") : "Softer."); }
     V.tune({ pitch: cur.pitch + m.d * 0.12 });
@@ -269,9 +314,8 @@
   add("voice-list", (t) => /^(?:(?:what|which|list|show)(?: me)?(?: all)?(?: the)? voices?(?: do you have| are there| can you (?:use|do))?|list (?:all )?(?:the )?voices|how many voices(?: do you have)?|voices|(?:kaun si|konsi) (?:awaaz|voices?) (?:hain|hai))$/.test(t),
     (m, c) => {
       const V = c.voice;
-      if (!V) return c.say("Voice personalities aren't available in this browser.");
-      const names = V.list().map((p) => p.name.replace("-style", ""));
-      return c.say("I have " + names.length + " voice personalities: " + names.join(", ") + ". Say \"change voice to\" and a name, an accent, or male or female. Right now I'm " + V.describe() + ".");
+      if (!V) return c.say("Voice isn't available in this browser.");
+      return c.say("I have one voice: a warm female voice, " + V.describe() + ". I speak each sentence with its own feeling. Say \"more emotion\" or \"less emotion\" to change how expressive I am.");
     });
   add("voice-set", (t) => {
     if (/^(?:change|switch|next|another|different|new)(?: to)? (?:the |your )?(?:voice|persona|personality)$/.test(t)) return null; // handled by voice-next
@@ -282,20 +326,17 @@
     return null;
   }, (m, c) => {
     const V = c.voice;
-    if (!V) return c.say("Voice personalities aren't available in this browser.");
+    if (!V) return c.say("Voice isn't available in this browser.");
     const p = V.find(m.q);
-    if (!p) return c.say("I couldn't match that voice. Try \"British male\", \"Australian female\", \"deep voice\", or a name like Aria or Oliver.");
-    V.set(p.id);
-    V.preview(p.id);
-    return null; // the preview line is the confirmation, spoken in the new voice
+    if (!p) return c.say("I only have one voice, a female voice, so I can't switch to a male one. I can change my speed, pitch and how much emotion I show.");
+    V.preview();
+    return null; // the preview line is the confirmation, spoken in the one voice
   });
   add("voice-next", (t) => /^(?:(?:change|switch|next|another|different|new) (?:your )?(?:voice|persona|personality)|(?:change|switch) (?:the )?voice|awaaz badlo|voice badlo|آواز بدلو)$/.test(t),
     (m, c) => {
       const V = c.voice;
-      if (!V) return c.say("Voice personalities aren't available in this browser.");
-      const p = V.cycle(1);
-      V.preview(p.id);
-      return null;
+      if (!V) return c.say("Voice isn't available in this browser.");
+      return c.say("I only have one voice, a warm female one. Say \"more emotion\", \"speak slower\" or \"higher voice\" to adjust how I sound.");
     });
   add("say", (t) => { const m = t.match(/^(?:say|speak|repeat after me|bolo|kaho)\s+["']?(.{1,140}?)["']?$/); return m && !/^(?:it|that|again|louder|softer|faster|slower)\b/.test(m[1]) ? { text: m[1] } : null; },
     (m, c) => c.say(cap(m.text) + (/[.!?]$/.test(m.text) ? "" : ".")));

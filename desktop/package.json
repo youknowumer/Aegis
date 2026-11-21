@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/tools.test.js test/documents.test.js",
+    "test": "node --test test/tools.test.js test/documents.test.js test/browser.test.js",
     "dist": "electron-builder --win nsis"
   },
   "dependencies": {
@@ -28,6 +28,7 @@
       "main.js",
       "preload.js",
       "tools.js",
+      "browser.js",
       "offline.html",
       "package.json"
     ],

@@ -1,42 +1,30 @@
-// Aegis voice studio: Siri-style voice personas on top of the browser's built-in speech voices. No keys, no server.
+// Aegis voice: ONE female voice, with feeling.
 //
-// A persona (Aria, Ethan, Olivia, Oliver, ...) is a *recipe*: gender, accent, pitch and speed. At speaking time the
-// recipe is matched against the voices actually installed on this device, so the same persona sounds as good as your
-// system allows (Siri / Neural / Natural / Premium voices are preferred). If a device has no voice of that gender,
-// the closest voice is used and the pitch is shifted so the persona still sounds different.
+// There is a single persona (a warm female voice). It is matched to the best female voice installed on the device
+// (Neural / Natural / Premium / Siri voices are preferred; a male voice is never chosen while a female one exists).
+// On top of that sits an emotion engine: every sentence is read for its feeling (joy, excitement, empathy, concern,
+// urgency, curiosity, warmth, confidence...) and spoken with its own pitch, speed, volume and pause, so the voice
+// does not sound like a monotone reader. No keys, no server: it all runs on the browser's built-in speech.
 //
-//   AegisVoice.resolve(lang) -> { voice, lang, rate, pitch, volume }     used by app.js when speaking
-//   AegisVoice.find("british male") -> persona | null                     used by voice commands
-//   AegisVoice.set(id) / cycle() / tune({rate, pitch, volume}) / reset() / list() / describe() / preview()
+//   AegisVoice.resolve(lang, emotion?) -> { voice, lang, rate, pitch, volume }
+//   AegisVoice.shape(text, lang, opts?) -> [{ text, emotion, rate, pitch, volume, pause }]   used by app.js to speak
+//   AegisVoice.emotionOf(text)          -> "joy" | "excited" | "empathy" | "concern" | "urgent" | "curious" | "warm" | "confident" | "calm"
+//   AegisVoice.tune({rate, pitch, volume, expression}) / reset() / describe() / preview() / find(text)
 (() => {
   "use strict";
 
   const hasTTS = typeof window !== "undefined" && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
-  const $ = (id) => document.getElementById(id);
+  const $ = (id) => (typeof document !== "undefined" ? document.getElementById(id) : null);
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
     set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
   };
 
-  // region = preferred accent (BCP-47 region), g = gender wanted (f / m), pitch + rate = the persona's character
-  const PERSONAS = [
-    { id: "aria",   name: "Aria",   desc: "Warm, friendly, American",     region: "US", g: "f", pitch: 1.05, rate: 1.0 },
-    { id: "ethan",  name: "Ethan",  desc: "Calm, clear, American",        region: "US", g: "m", pitch: 0.95, rate: 1.0 },
-    { id: "olivia", name: "Olivia", desc: "Polished British",             region: "GB", g: "f", pitch: 1.0,  rate: 0.98 },
-    { id: "oliver", name: "Oliver", desc: "Refined British butler",       region: "GB", g: "m", pitch: 0.9,  rate: 0.96 },
-    { id: "ruby",   name: "Ruby",   desc: "Bright Australian",            region: "AU", g: "f", pitch: 1.05, rate: 1.03 },
-    { id: "noah",   name: "Noah",   desc: "Relaxed Australian",           region: "AU", g: "m", pitch: 0.95, rate: 1.0 },
-    { id: "priya",  name: "Priya",  desc: "Indian English, gentle",       region: "IN", g: "f", pitch: 1.02, rate: 1.0 },
-    { id: "arjun",  name: "Arjun",  desc: "Indian English, steady",       region: "IN", g: "m", pitch: 0.95, rate: 1.0 },
-    { id: "nova",   name: "Nova",   desc: "Fast, bright, energetic",      region: "US", g: "f", pitch: 1.22, rate: 1.14 },
-    { id: "atlas",  name: "Atlas",  desc: "Deep, slow, commanding",       region: "US", g: "m", pitch: 0.72, rate: 0.9 },
-  ];
-  const SIRI = { id: "siri", name: "Siri-style", desc: "Your device's Siri voice (Apple devices)", region: "US", g: "f", pitch: 1, rate: 1, siri: true };
-  const AUTO = { id: "auto", name: "Auto", desc: "Best voice on this device", region: "", g: "", pitch: 1, rate: 1 };
-  const SYSTEM = { id: "system", name: "Pick manually", desc: "Choose any installed voice", region: "", g: "", pitch: 1, rate: 1 };
+  // ---------------------------------------------------------------- the one voice
+  const PERSONA = { id: "aegis", name: "Aegis", desc: "Warm, expressive female voice", g: "f", pitch: 1.06, rate: 1.0 };
 
-  const FEMALE = /\b(samantha|ava|allison|susan|victoria|karen|moira|tessa|fiona|veena|zira|hazel|aria|jenny|libby|sonia|natasha|clara|catherine|nicky|joana|serena|kate|heera|neerja|olivia|emma|amy|salli|joanna|kendra|kimberly|ivy|zoe|female|woman|siri voice [24]|google (?:us|uk) english female|lekha|kalpana|nora|ellen|laura|paulina|monica|sara|zuzana|mariska|ting-ting|mei-jia|sin-ji|kyoko|samira|salma|uzma)\b/i;
-  const MALE = /\b(daniel|alex|fred|tom|oliver|arthur|aaron|rishi|david|mark|guy|ryan|george|james|richard|ravi|prabhat|male|man|thomas|liam|william|evan|gordon|lee|matthew|brian|justin|joey|joey|kevin|russell|nathan|jorge|diego|siri voice [13]|hemant|madhur|henry|eddy|reed|rocko|salman|asad)\b/i;
+  const FEMALE = /\b(samantha|ava|allison|susan|victoria|karen|moira|tessa|fiona|veena|zira|hazel|aria|jenny|libby|sonia|natasha|clara|catherine|nicky|joana|serena|kate|heera|neerja|olivia|emma|amy|salli|joanna|kendra|kimberly|ivy|zoe|female|woman|siri voice [24]|lekha|kalpana|nora|ellen|laura|paulina|monica|sara|zuzana|mariska|ting-ting|mei-jia|sin-ji|kyoko|samira|salma|uzma|swara|michelle|ana|emily|maisie|ruth|nicole|jessica|sophia|isabella|ayesha|aisha|zariyah|fatima|hoda|hala|laila|ekaterina|svetlana|katja|elke|denise|lucia|paloma|elvira|vera)\b/i;
+  const MALE = /\b(daniel|alex|fred|tom|oliver|arthur|aaron|rishi|david|mark|guy|ryan|george|james|richard|ravi|prabhat|male|man|thomas|liam|william|evan|gordon|lee|matthew|brian|justin|joey|kevin|russell|nathan|jorge|diego|siri voice [13]|hemant|madhur|henry|eddy|reed|rocko|salman|asad|christopher|eric|roger|steffan|mohan|ravi|hamed|naayf|maged|jamal)\b/i;
   const NOVELTY = /\b(albert|bad news|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|jester|organ|superstar|trinoids|whisper|wobble|zarvox|pipe organ|grandma|grandpa|ralph)\b/i;
   const QUALITY = [[/siri/i, 40], [/neural|natural|online/i, 30], [/premium|enhanced|studio|plus/i, 24], [/google/i, 12], [/microsoft/i, 8]];
 
@@ -54,190 +42,231 @@
     return q;
   }
 
-  function score(v, p, lang) {
-    let s = quality(v);
-    if (baseOf(v.lang) === baseOf(lang)) s += 100; else return -1e9;      // never read English with a Hindi voice
-    if (p.region && baseOf(lang) === "en") s += regionOf(v) === p.region ? 60 : 0;
-    if (p.g) { const g = genderOf(v); if (g === p.g) s += 45; else if (g && g !== p.g) s -= 45; }
-    if (p.siri && /siri/i.test(v.name)) s += 200;
+  // A female voice always beats a male one; accent follows the page language (en-GB page -> British female, and so on).
+  function score(v, lang) {
+    if (baseOf(v.lang) !== baseOf(lang)) return -1e9;                    // never read English with a Hindi voice
+    let s = quality(v) + 100;
+    const g = genderOf(v);
+    if (g === "f") s += 400; else if (g === "m") s -= 400;
+    const want = (normLang(lang).split("-")[1] || "").toUpperCase();
+    if (want && regionOf(v) === want) s += 25;
     return s;
   }
 
-  const hasSiri = () => voices().some((v) => /siri/i.test(v.name));
-  const allPersonas = () => [AUTO, ...(hasSiri() ? [SIRI] : []), ...PERSONAS, SYSTEM];
-  const byId = (id) => allPersonas().find((p) => p.id === id) || AUTO;
-
-  // ---------------------------------------------------------------- state
-  const state = {
-    persona: store.get("aegis_persona") || "auto",
-    pitch: parseFloat(store.get("aegis_pitch")) || 1,
-    volume: store.get("aegis_volume") == null ? 1 : Math.max(0, Math.min(1, parseFloat(store.get("aegis_volume")))),
-  };
-  const listeners = new Set();
-  const emit = () => { listeners.forEach((f) => { try { f(); } catch {} }); render(); };
-
-  function rateInput() { const r = $("rate"); return r ? parseFloat(r.value) || 1.02 : 1.02; }
-
-  function best(p, lang) {
+  function best(lang) {
     let top = null, topScore = -1e8;
-    for (const v of voices()) { const s = score(v, p, lang); if (s > topScore) { top = v; topScore = s; } }
+    for (const v of voices()) { const s = score(v, lang); if (s > topScore) { top = v; topScore = s; } }
     return top;
   }
 
-  // the one function app.js needs. Returns null when personas have nothing to say (auto / manual), so the old picker runs.
-  function resolve(lang) {
+  // ---------------------------------------------------------------- state
+  const num = (k, d, lo, hi) => { const n = parseFloat(store.get(k)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+  const state = {
+    pitch: num("aegis_pitch", 1, 0.6, 1.6),
+    volume: num("aegis_volume", 1, 0.1, 1),
+    expression: num("aegis_expression", 1, 0, 1.6),   // 0 = flat, 1 = natural, 1.6 = very dramatic
+  };
+  const listeners = new Set();
+  const emit = () => { listeners.forEach((f) => { try { f(); } catch {} }); };
+  function rateInput() { const r = $("rate"); return r ? parseFloat(r.value) || 1.02 : 1.02; }
+
+  // ---------------------------------------------------------------- emotion engine
+  // pitch / rate / volume are multipliers around the neutral voice; pause is the silence (ms) left after the sentence.
+  const EMOTIONS = {
+    calm:      { pitch: 1.00, rate: 1.00, volume: 1.00, pause: 240 },
+    warm:      { pitch: 1.05, rate: 0.97, volume: 1.00, pause: 260 },
+    joy:       { pitch: 1.12, rate: 1.05, volume: 1.00, pause: 240 },
+    excited:   { pitch: 1.18, rate: 1.12, volume: 1.00, pause: 200 },
+    curious:   { pitch: 1.09, rate: 1.00, volume: 0.98, pause: 300 },
+    empathy:   { pitch: 0.93, rate: 0.88, volume: 0.90, pause: 420 },
+    concern:   { pitch: 0.96, rate: 0.93, volume: 0.96, pause: 360 },
+    urgent:    { pitch: 1.08, rate: 1.12, volume: 1.00, pause: 160 },
+    confident: { pitch: 0.98, rate: 0.98, volume: 1.00, pause: 280 },
+  };
+
+  // Lexicon in English, Roman Urdu and Urdu script. Each hit is a point for that emotion.
+  const LEX = {
+    joy: /\b(great|awesome|wonderful|fantastic|excellent|perfect|congrat\w*|happy|glad|love|nice|brilliant|amazing|well done|good news|success\w*|celebrat\w*|mubarak|mubarik|shabash|zabardast|khush\w*|kamyab\w*|acha|achha|behtareen|kamaal|wah|bohat khoob|shandar)\b|مبارک|شاباش|زبردست|خوش|کامیاب|بہترین|واہ|شاندار/i,
+    excited: /\b(wow|yay|incredible|unbelievable|can't wait|so exciting|let's go|hooray|woohoo|amazing news|finally)\b|واہ واہ|ماشاء ?اللہ/i,
+    empathy: /\b(sorry|apolog\w*|unfortunately|sadly|regret|my condolences|i understand|that must be|hard time|difficult time|afsos|maaf\w*|dukh|takleef|mushkil waqt|sad|i'm here for you|take care|get well|condolence\w*)\b|معذرت|افسوس|معاف|دکھ|تکلیف|مشکل وقت/i,
+    concern: /\b(warning|careful|caution|risk\w*|danger\w*|problem|issue|blocker|failed|failure|error|cannot|can't|couldn't|unable|missing|delay\w*|late|overdue|khatra|khatrey|masla|masail|ehtiyat|nakam\w*|ghalti|der ho|deri)\b|خطرہ|مسئلہ|احتیاط|ناکام|غلطی|تاخیر/i,
+    urgent: /\b(urgent\w*|immediately|right now|asap|emergency|critical|alert|deadline today|abhi|fori|foran|jaldi|zaroori)\b|فوری|ابھی|جلدی|ضروری/i,
+    warm: /\b(hello|hi there|hey|good (?:morning|afternoon|evening)|welcome|thank(?:s| you)|please|pleasure|assalam\w*|salam|shukriya|meherbani|khush amdeed|khair mubarak|aap ka shukriya)\b|سلام|شکریہ|مہربانی|خوش آمدید|السلام/i,
+    confident: /\b(decided|decision|confirmed|approved|agreed|will do|done|completed|ready|sorted|settled|final|faisla|tay|manzoor|mukammal|ho gaya|ho gayi|tayyar)\b|فیصلہ|منظور|مکمل|تیار|طے/i,
+  };
+
+  // The feeling of one sentence. `hint` (from the caller) wins, so a meeting read-out can say "this part is serious".
+  function emotionOf(text, hint) {
+    if (hint && EMOTIONS[hint]) return hint;
+    const t = String(text || "").trim();
+    if (!t) return "calm";
+    const score = {};
+    for (const k of Object.keys(LEX)) { const m = t.match(new RegExp(LEX[k].source, "gi")); score[k] = m ? m.length : 0; }
+    const bangs = (t.match(/!/g) || []).length;
+    if (bangs) { score.excited += bangs > 1 ? 2 : 0; score.joy += 1; }
+    if (/\?\s*$|؟\s*$/.test(t)) score.curious = (score.curious || 0) + 2;
+    if (/\.{3}|…/.test(t)) score.empathy += 1;
+    if (/[\u{1F600}-\u{1F64F}]/u.test(t)) score.joy += 1;
+    let top = "calm", n = 0;
+    for (const k of ["urgent", "empathy", "concern", "excited", "joy", "curious", "confident", "warm"]) {   // order = tie-break priority
+      if ((score[k] || 0) > n) { top = k; n = score[k]; }
+    }
+    return top;
+  }
+
+  function splitSentences(text) {
+    const parts = [];
+    for (const para of String(text || "").split(/\n{2,}/)) {
+      const ss = para.match(/[^.!?۔।؟\n]+(?:\.{3}|[.!?۔।؟]+)?/g) || [];
+      ss.forEach((s, i) => { const x = s.trim(); if (x) parts.push({ text: x, para: i === ss.length - 1 }); });
+    }
+    return parts;
+  }
+
+  // text -> pieces ready for speechSynthesis. Short sentences are joined (fewer gaps), long ones are cut at commas.
+  function shape(text, lang, opts) {
+    opts = opts || {};
+    const ex = opts.expression != null ? opts.expression : state.expression;
+    const lerp = (m) => 1 + (m - 1) * ex;                 // scale a multiplier by the expression level
+    const out = [];
+    let idx = 0;
+    for (const s of splitSentences(text)) {
+      const emo = emotionOf(s.text, opts.emotion);
+      const e = EMOTIONS[emo];
+      // a gentle alternating lift so even a calm paragraph is never a flat line
+      const drift = ex ? ((idx++ % 3) - 1) * 0.012 * ex : 0;
+      const ell = /\.{3}|…\s*$/.test(s.text);
+      let pieces = [s.text];
+      if (s.text.length > 170) pieces = s.text.match(/.{1,170}(?:[,;،؛]\s|\s|$)/g) || [s.text];   // browsers cut long utterances
+      pieces.forEach((p, i) => {
+        const last = i === pieces.length - 1;
+        out.push({
+          text: p.trim(), emotion: emo,
+          rate: clamp(lerp(e.rate) * (ell ? 0.94 : 1), 0.6, 1.7),
+          pitch: clamp(lerp(e.pitch) + drift, 0.5, 1.9),
+          volume: clamp(lerp(e.volume), 0.1, 1),
+          pause: last ? Math.round(e.pause * (s.para ? 1.5 : 1) * (ell ? 1.6 : 1) * Math.max(0.4, ex)) : 70,
+        });
+      });
+    }
+    return out.filter((x) => x.text);
+  }
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  // ---------------------------------------------------------------- resolve (one voice, optional emotion)
+  function resolve(lang, emotion) {
     lang = lang || "en-US";
-    const p = byId(state.persona);
-    if (p.id === "auto" || p.id === "system" || !hasTTS) return null;
-    const v = best(p, lang);
-    let pitch = p.pitch * state.pitch;
-    if (v && p.g) { const g = genderOf(v); if (g && g !== p.g) pitch *= p.g === "f" ? 1.28 : 0.74; }   // wrong-gender fallback: shift to match
+    if (!hasTTS) return null;
+    const v = best(lang);
+    let pitch = PERSONA.pitch * state.pitch;
+    if (!v) pitch *= 1.08;                                                    // the browser will pick; lean female
+    else if (genderOf(v) === "m") pitch *= 1.28;                              // only male voices installed: lift towards female
+    const e = EMOTIONS[emotion] || EMOTIONS.calm;
     return {
       voice: v, lang: v ? v.lang : lang,
-      rate: Math.max(0.6, Math.min(1.8, rateInput() * p.rate)),
-      pitch: Math.max(0.4, Math.min(2, pitch)),
+      rate: clamp(rateInput() * PERSONA.rate * (1 + (e.rate - 1) * state.expression), 0.6, 1.8),
+      pitch: clamp(pitch * (1 + (e.pitch - 1) * state.expression), 0.4, 2),
       volume: state.volume,
     };
   }
-
-  // extra tuning that applies for auto / manual too (pitch + volume)
   function tuning() { return { pitch: state.pitch, volume: state.volume }; }
 
   // ---------------------------------------------------------------- control
-  function set(id) {
-    const p = byId(id);
-    state.persona = p.id;
-    store.set("aegis_persona", p.id);
-    emit();
-    return p;
-  }
-  function cycle(dir) {
-    const list = allPersonas().filter((p) => p.id !== "system");
-    const i = list.findIndex((p) => p.id === state.persona);
-    return set(list[(i + (dir || 1) + list.length) % list.length].id);
-  }
   function tune(o) {
-    if (o.rate != null) { const r = $("rate"); const nv = Math.max(0.8, Math.min(1.4, o.rate)); if (r) { r.value = String(nv); store.set("aegis_rate", String(nv)); } }
-    if (o.pitch != null) { state.pitch = Math.max(0.6, Math.min(1.6, o.pitch)); store.set("aegis_pitch", String(state.pitch)); }
-    if (o.volume != null) { state.volume = Math.max(0.1, Math.min(1, o.volume)); store.set("aegis_volume", String(state.volume)); }
+    if (o.rate != null) { const r = $("rate"); const nv = clamp(o.rate, 0.8, 1.4); if (r) { r.value = String(nv); store.set("aegis_rate", String(nv)); } }
+    if (o.pitch != null) { state.pitch = clamp(o.pitch, 0.6, 1.6); store.set("aegis_pitch", String(state.pitch)); }
+    if (o.volume != null) { state.volume = clamp(o.volume, 0.1, 1); store.set("aegis_volume", String(state.volume)); }
+    if (o.expression != null) { state.expression = clamp(o.expression, 0, 1.6); store.set("aegis_expression", String(state.expression)); }
     emit();
-    return { rate: rateInput(), pitch: state.pitch, volume: state.volume };
+    return { rate: rateInput(), pitch: state.pitch, volume: state.volume, expression: state.expression };
   }
-  function reset() { state.pitch = 1; state.volume = 1; store.set("aegis_pitch", null); store.set("aegis_volume", null); const r = $("rate"); if (r) { r.value = "1.02"; store.set("aegis_rate", "1.02"); } emit(); }
+  function reset() {
+    state.pitch = 1; state.volume = 1; state.expression = 1;
+    ["aegis_pitch", "aegis_volume", "aegis_expression"].forEach((k) => store.set(k, null));
+    const r = $("rate"); if (r) { r.value = "1.02"; store.set("aegis_rate", "1.02"); }
+    emit();
+  }
 
-  // free-text voice request -> persona ("british male", "deep voice", "siri", "indian woman" ...)
+  // Any request about "which voice" now has one answer. Male / accent requests are mapped to the single persona (or refused by the caller).
   function find(text) {
     const t = String(text || "").toLowerCase();
-    const named = allPersonas().find((p) => p.id !== "auto" && p.id !== "system" && new RegExp("\\b" + p.name.toLowerCase().replace("-style", "") + "\\b").test(t));
-    if (named) return named;
-    if (/\bsiri\b/.test(t)) return hasSiri() ? SIRI : byId("aria");
-    if (/\b(?:robot|robotic|jarvis|butler)\b/.test(t)) return byId("oliver");
-    if (/\b(?:deep|low|heavy|bass|commanding)\b/.test(t)) return byId("atlas");
-    if (/\b(?:fast|energetic|bright|young|cheerful)\b/.test(t)) return byId("nova");
-    const g = /\b(?:female|woman|girl|lady|aurat|larki|she)\b/.test(t) ? "f" : /\b(?:male|man|boy|guy|mard|larka|he)\b/.test(t) ? "m" : "";
-    const region = /\b(?:brit\w*|uk|english uk|london|angrez\w*)\b/.test(t) ? "GB" : /\b(?:austral\w*|aussie|au)\b/.test(t) ? "AU" : /\b(?:indian?|desi|india)\b/.test(t) ? "IN" : /\b(?:americ\w*|us|usa)\b/.test(t) ? "US" : "";
-    if (g || region) {
-      const hit = PERSONAS.find((p) => (!g || p.g === g) && (!region || p.region === region) && !/nova|atlas/.test(p.id));
-      return hit || null;
-    }
-    if (/\bauto(?:matic)?\b|\bdefault\b/.test(t)) return AUTO;
-    return null;
+    if (/\b(?:male|man|boy|guy|mard|larka|he)\b/.test(t) && !/\bfemale\b/.test(t)) return null;   // we only have the female voice
+    return PERSONA;
   }
-
+  const list = () => [PERSONA];
+  const set = () => PERSONA;
+  const cycle = () => PERSONA;
   function describe() {
-    const p = byId(state.persona);
-    const pr = resolve("en-US");
-    const vname = pr && pr.voice ? pr.voice.name.replace(/^(Microsoft|Google)\s+/, "") : "";
-    return p.name + (vname ? " (" + vname + ")" : "");
+    const r = resolve("en-US");
+    const vname = r && r.voice ? r.voice.name.replace(/^(Microsoft|Google)\s+/, "") : "";
+    return PERSONA.name + " (female" + (vname ? ", " + vname : "") + ")";
   }
-  const list = () => allPersonas().filter((p) => p.id !== "auto" && p.id !== "system");
 
   // ---------------------------------------------------------------- preview
+  const SAMPLES = [
+    ["warm", "Hi, I'm Aegis. It's lovely to talk with you."],
+    ["joy", "Great news! Your report is ready, and it looks wonderful."],
+    ["empathy", "I'm sorry, that sounds really hard. I'm here to help."],
+    ["concern", "Careful, there is a risk of a delay on this one."],
+  ];
   let previewGen = 0;
-  function preview(id) {
+  function speakShaped(text, opts) {
     if (!hasTTS) return;
-    const prev = state.persona;
-    const p = id ? byId(id) : byId(prev);
-    const lang = "en-US";
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(p.id === "auto" || p.id === "system" ? "Hello, this is how I sound." : "Hi, I'm " + p.name.replace("-style", "") + ". How can I help you today?");
-    // preview a persona without switching to it
-    const saved = state.persona; state.persona = p.id;
-    const r = resolve(lang); state.persona = saved;
     const gen = ++previewGen;
-    if (r) { if (r.voice) u.voice = r.voice; u.lang = r.lang; u.rate = r.rate; u.pitch = r.pitch; u.volume = r.volume; }
-    else { u.lang = lang; u.rate = rateInput(); u.pitch = state.pitch; u.volume = state.volume; }
-    u.onstart = () => { if (window.__aegisOrb) window.__aegisOrb.pulse(0.9); };
-    u.onboundary = () => { if (gen === previewGen && window.__aegisOrb) window.__aegisOrb.pulse(0.4 + Math.random() * 0.5); };
-    speechSynthesis.speak(u);
+    speechSynthesis.cancel();
+    const pieces = shape(text, "en-US", opts);
+    const lang = "en-US";
+    const step = (i) => {
+      if (gen !== previewGen || i >= pieces.length) return;
+      const p = pieces[i];
+      const r = resolve(lang, p.emotion);
+      const u = new SpeechSynthesisUtterance(p.text);
+      if (r && r.voice) u.voice = r.voice;
+      u.lang = r ? r.lang : lang;
+      u.rate = p.rate * (rateInput() * PERSONA.rate); u.pitch = clamp(p.pitch * PERSONA.pitch * state.pitch, 0.4, 2); u.volume = p.volume * state.volume;
+      u.onstart = () => { if (window.__aegisOrb) window.__aegisOrb.pulse(0.9); };
+      u.onboundary = () => { if (gen === previewGen && window.__aegisOrb) window.__aegisOrb.pulse(0.4 + Math.random() * 0.5); };
+      const next = () => { if (gen === previewGen) setTimeout(() => step(i + 1), p.pause); };
+      u.onend = next; u.onerror = next;
+      speechSynthesis.speak(u);
+    };
+    step(0);
+  }
+  let sampleIdx = 0;
+  function preview() {
+    const s = SAMPLES[sampleIdx++ % SAMPLES.length];
+    speakShaped(s[1], { emotion: s[0] });
   }
 
   // ---------------------------------------------------------------- settings UI
-  let host = null, grid = null, note = null, pitchEl = null, volEl = null;
-  function render() {
-    if (!grid) return;
-    const cur = state.persona;
-    grid.textContent = "";
-    allPersonas().forEach((p) => {
-      const card = document.createElement("div");
-      card.className = "vp-card" + (p.id === cur ? " on" : "");
-      card.setAttribute("role", "radio");
-      card.setAttribute("aria-checked", p.id === cur ? "true" : "false");
-      card.tabIndex = 0;
-      const av = document.createElement("span");
-      av.className = "vp-av"; av.dataset.g = p.g || "n";
-      av.textContent = p.id === "auto" ? "✨" : p.id === "system" ? "⚙" : p.name.charAt(0);
-      const tx = document.createElement("span");
-      tx.className = "vp-tx";
-      const b = document.createElement("b"); b.textContent = p.name;
-      const s = document.createElement("small"); s.textContent = p.desc;
-      tx.append(b, s);
-      const play = document.createElement("button");
-      play.type = "button"; play.className = "vp-play"; play.setAttribute("aria-label", "Preview " + p.name); play.title = "Preview";
-      play.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>';
-      play.addEventListener("click", (e) => { e.stopPropagation(); preview(p.id); });
-      const pick = () => { set(p.id); preview(p.id); };
-      card.addEventListener("click", pick);
-      card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
-      card.append(av, tx, play);
-      grid.appendChild(card);
-    });
-    const manual = $("voice-pick");
-    if (manual) manual.closest("label").style.display = cur === "system" ? "" : "none";
-    if (note) {
-      const siri = hasSiri();
-      note.textContent = (hasTTS ? "Now using: " + describe() + ". " : "This browser can't speak. ") +
-        (siri ? "Siri voices detected on this device. " : voices().length ? "More voices appear here when you install them in your system's speech settings. " : "Loading voices...");
-    }
-    if (pitchEl) pitchEl.value = String(state.pitch);
-    if (volEl) volEl.value = String(state.volume);
-  }
-
   function mountUI() {
-    const group = $("voice-pick") && $("voice-pick").closest(".set-group");
-    if (!group || host) return;
-    host = document.createElement("div");
+    const pick = $("voice-pick");
+    const group = pick && pick.closest(".set-group");
+    if (!group || group.querySelector(".vp")) return;
+    const lab = pick.closest("label"); if (lab) lab.style.display = "none";       // one voice only: no manual voice picker
+    const host = document.createElement("div");
     host.className = "vp";
-    const h = document.createElement("div"); h.className = "vp-h"; h.textContent = "Voice personality";
-    grid = document.createElement("div"); grid.className = "vp-grid"; grid.setAttribute("role", "radiogroup"); grid.setAttribute("aria-label", "Voice personality");
-    note = document.createElement("p"); note.className = "muted small vp-note";
-    const mk = (label, min, max, step, onInput) => {
+    const h = document.createElement("div"); h.className = "vp-h"; h.textContent = "Aegis voice";
+    const note = document.createElement("p"); note.className = "muted small vp-note";
+    const refresh = () => { note.textContent = hasTTS ? "One female voice: " + describe() + ". It reads the feeling of each sentence and speaks it with matching tone, speed and pauses." : "This browser can't speak."; };
+    refresh(); listeners.add(refresh);
+    const mk = (label, min, max, step, get, set) => {
       const l = document.createElement("label"); l.className = "field";
       const sp = document.createElement("span"); sp.textContent = label;
-      const inp = document.createElement("input"); inp.type = "range"; inp.min = min; inp.max = max; inp.step = step; inp.setAttribute("aria-label", label);
-      inp.addEventListener("input", () => onInput(parseFloat(inp.value)));
+      const inp = document.createElement("input"); inp.type = "range"; inp.min = min; inp.max = max; inp.step = step; inp.value = String(get()); inp.setAttribute("aria-label", label);
+      inp.addEventListener("input", () => set(parseFloat(inp.value)));
+      inp.addEventListener("change", () => preview());
       l.append(sp, inp);
-      return [l, inp];
+      return l;
     };
-    const [pl, pi] = mk("Pitch", "0.6", "1.6", "0.05", (v) => { state.pitch = v; store.set("aegis_pitch", String(v)); });
-    const [vl, vi] = mk("Volume", "0.1", "1", "0.05", (v) => { state.volume = v; store.set("aegis_volume", String(v)); });
-    [pi, vi].forEach((i) => i.addEventListener("change", () => preview()));
-    pitchEl = pi; volEl = vi;
-    host.append(h, grid, note, pl, vl);
-    // put personas first inside the Voice group, right under its title
-    const title = group.querySelector("h4");
-    title.after(host);
-    render();
+    const test = document.createElement("button"); test.type = "button"; test.className = "btn ghost small-btn"; test.textContent = "Hear my emotions";
+    test.addEventListener("click", () => speakShaped(SAMPLES.map((s) => s[1]).join("\n\n")));
+    host.append(h, note,
+      mk("Emotion (0 flat, 1 natural, 1.6 dramatic)", "0", "1.6", "0.1", () => state.expression, (v) => { state.expression = v; store.set("aegis_expression", String(v)); }),
+      mk("Pitch", "0.6", "1.6", "0.05", () => state.pitch, (v) => { state.pitch = v; store.set("aegis_pitch", String(v)); }),
+      mk("Volume", "0.1", "1", "0.05", () => state.volume, (v) => { state.volume = v; store.set("aegis_volume", String(v)); }),
+      test);
+    group.querySelector("h4").after(host);
   }
 
   // compact controller for the right-hand "Voice" tab (tabs.js creates #vp-quick; safe to call twice)
@@ -252,7 +281,6 @@
     const eq = document.createElement("div"); eq.className = "vq-eq"; eq.setAttribute("aria-hidden", "true");
     for (let i = 0; i < 24; i++) { const b = document.createElement("i"); b.style.setProperty("--i", i); eq.appendChild(b); }
     quick.now = document.createElement("p"); quick.now.className = "vq-now";
-    quick.chips = document.createElement("div"); quick.chips.className = "vq-chips"; quick.chips.setAttribute("role", "radiogroup"); quick.chips.setAttribute("aria-label", "Voice personality");
     const mk = (label, min, max, step, get, set) => {
       const l = document.createElement("label"); l.className = "vq-row";
       const sp = document.createElement("span"); sp.textContent = label;
@@ -264,34 +292,29 @@
       return { l, inp, out, get };
     };
     quick.rows = [
+      mk("Emotion", "0", "1.6", "0.1", () => state.expression, (v) => tune({ expression: v })),
       mk("Speed", "0.8", "1.4", "0.05", rateInput, (v) => tune({ rate: v })),
       mk("Pitch", "0.6", "1.6", "0.05", () => state.pitch, (v) => tune({ pitch: v })),
       mk("Volume", "0.1", "1", "0.05", () => state.volume, (v) => tune({ volume: v })),
     ];
-    const test = document.createElement("button"); test.type = "button"; test.className = "btn ghost small-btn vq-test"; test.textContent = "Test voice";
-    test.addEventListener("click", () => preview());
-    box.append(head, eq, quick.now, quick.chips, ...quick.rows.map((r) => r.l), test);
+    const test = document.createElement("button"); test.type = "button"; test.className = "btn ghost small-btn vq-test"; test.textContent = "Hear my emotions";
+    test.addEventListener("click", () => speakShaped(SAMPLES.map((s) => s[1]).join("\n\n")));
+    box.append(head, eq, quick.now, ...quick.rows.map((r) => r.l), test);
     renderQuick();
   }
   function renderQuick() {
     if (!quick) return;
     quick.now.textContent = hasTTS ? describe() : "Speech is not supported in this browser";
-    quick.chips.textContent = "";
-    allPersonas().filter((p) => p.id !== "system").forEach((p) => {
-      const c = document.createElement("button");
-      c.type = "button"; c.className = "vq-chip" + (p.id === state.persona ? " on" : ""); c.textContent = p.name.replace("-style", ""); c.title = p.desc;
-      c.setAttribute("role", "radio"); c.setAttribute("aria-checked", p.id === state.persona ? "true" : "false");
-      c.addEventListener("click", () => { set(p.id); preview(p.id); });
-      quick.chips.appendChild(c);
-    });
     quick.rows.forEach((r) => { const v = r.get(); r.inp.value = String(v); r.out.textContent = Number(v).toFixed(2); });
   }
   listeners.add(renderQuick);
 
-  if (hasTTS) {
-    speechSynthesis.addEventListener("voiceschanged", () => emit());
+  if (hasTTS && typeof document !== "undefined") {
+    speechSynthesis.addEventListener("voiceschanged", emit);
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountUI); else mountUI();
   }
 
-  window.AegisVoice = { mountQuick, resolve, tuning, find, set, cycle, tune, reset, list, describe, preview, get persona() { return state.persona; }, onChange(f) { listeners.add(f); } };
+  const api = { mountQuick, resolve, shape, emotionOf, tuning, find, set, cycle, tune, reset, list, describe, preview, speakShaped, EMOTIONS, get persona() { return PERSONA.id; }, onChange(f) { listeners.add(f); } };
+  if (typeof window !== "undefined") window.AegisVoice = api;
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

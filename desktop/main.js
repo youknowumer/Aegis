@@ -146,6 +146,22 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
   app.whenReady().then(() => {
+    // Meeting "present mode": let the Aegis page capture the PC's own audio (what Meet / Zoom / Teams / any app plays) without a picker.
+    // Windows supports system-audio loopback; elsewhere the page falls back to the microphone. Only the Aegis page itself may ask.
+    try {
+      const { session, desktopCapturer } = require("electron");
+      session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+        let origin = "";
+        try { origin = new URL(request.frame.url).origin; } catch {}
+        if (origin !== SERVER_ORIGIN) return callback({});
+        desktopCapturer.getSources({ types: ["screen"] }).then((sources) => {
+          if (!sources.length) return callback({});
+          const grant = { video: sources[0] };
+          if (process.platform === "win32") grant.audio = "loopback";
+          callback(grant);
+        }).catch(() => callback({}));
+      }, { useSystemPicker: false });
+    } catch {}
     token = loadToken();
     createWindow();
     if (token) connectDevice();

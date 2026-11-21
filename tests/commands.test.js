@@ -75,23 +75,46 @@ test("focus mode on/off resolves to the right state", async () => {
   }
 });
 
-test("voice commands drive AegisVoice and utilities behave", async () => {
+test("voice commands drive the single female AegisVoice and utilities behave", async () => {
   const said = [], calls = [];
-  const V = { tune(o) { calls.push(["tune", o]); return { rate: 1.02, pitch: 1, volume: 1 }; }, reset() { calls.push(["reset"]); }, find(q) { calls.push(["find", q]); return /british/.test(q) ? { id: "oliver", name: "Oliver" } : null; },
-    set(id) { calls.push(["set", id]); }, preview(id) { calls.push(["preview", id]); }, cycle() { calls.push(["cycle"]); return { id: "x" }; }, list() { return [{ name: "Aria" }, { name: "Oliver" }]; }, describe() { return "Aria"; } };
+  const V = { tune(o) { calls.push(["tune", o]); return { rate: 1.02, pitch: 1, volume: 1, expression: 1 }; }, reset() { calls.push(["reset"]); },
+    find(q) { calls.push(["find", q]); return /\bmale\b/.test(q) && !/female/.test(q) ? null : { id: "aegis", name: "Aegis" }; },
+    preview() { calls.push(["preview"]); }, list() { return [{ name: "Aegis" }]; }, describe() { return "Aegis (female, Aria)"; } };
   const c = { voice: V, say: (t) => { said.push(t); return Promise.resolve(); }, copy: () => Promise.resolve(true), lastReply: () => "hi" };
   const run = (t) => A.match(t, { online: false }).run(c);
-  await run("change voice to british male");
-  assert.deepStrictEqual(calls.filter((x) => x[0] === "set" || x[0] === "preview").map((x) => x.join(":")), ["set:oliver", "preview:oliver"]);
+  await run("change voice to male"); assert.match(said.pop(), /only have one voice, a female voice/);
+  assert.ok(!calls.some((x) => x[0] === "preview"));
+  await run("use a female voice"); assert.ok(calls.some((x) => x[0] === "preview"));
+  await run("more emotion"); assert.ok(calls.some((x) => x[0] === "tune" && x[1].expression > 1));
+  await run("emotions off"); assert.ok(calls.some((x) => x[0] === "tune" && x[1].expression === 0)); assert.match(said.pop(), /Emotions off/);
   await run("speak faster"); assert.ok(calls.some((x) => x[0] === "tune" && x[1].rate > 1.02));
   await run("deeper voice"); assert.ok(calls.some((x) => x[0] === "tune" && x[1].pitch < 1));
-  await run("what voices do you have"); assert.match(said.pop(), /Aria, Oliver/);
+  await run("what voices do you have"); assert.match(said.pop(), /one voice: a warm female voice/);
+  await run("change voice"); assert.match(said.pop(), /only have one voice/);
   await run("start stopwatch"); assert.match(said.pop(), /started/i);
   await run("lap"); assert.match(said.pop(), /Lap 1/);
   await run("stop stopwatch"); assert.match(said.pop(), /Stopped at/);
   await run("password 20"); assert.match(said.pop(), /20-character password: \S{20}\n/);
   await run("days until christmas"); assert.match(said.pop(), /day.*until .*December/);
   await run("say hello world"); assert.strictEqual(said.pop(), "Hello world.");
-  // a voice request the personas can't match is answered, never silently dropped
-  await run("use a robotic voice"); 
+});
+
+test("present mode and 'extract meeting points' route to the meeting assistant (English, Roman Urdu, Urdu)", async () => {
+  const hit = (phrase, name) => { const m = A.match(phrase, { online: false }); assert.ok(m, "no match for: " + phrase); assert.equal(m.name, name, phrase + " -> " + m.name); };
+  for (const p of ["present mode", "join the meeting", "meeting suno", "meeting chal rahi hai", "meeting chal rhi hai sun lo", "میٹنگ سنو"]) hit(p, "meeting-present");
+  for (const p of ["extract meeting points", "meeting points extract karo", "meeting ke points nikalo", "meeting khatam karo aur points nikalo", "give me the key points", "read the meeting notes", "میٹنگ کے پوائنٹس نکالو"]) hit(p, "meeting-extract");
+  // the older meeting commands keep their own meaning
+  hit("start meeting", "meeting-start"); hit("stop meeting", "meeting-stop"); hit("show meeting notes", "meeting-notes"); hit("mere notes dikhao", "note-list");
+  const said = [], seen = [];
+  const meetings = { present() { seen.push("present"); return Promise.resolve(true); }, extract() { seen.push("extract"); return Promise.resolve(true); }, state: () => "recording" };
+  const c = { meetings, say: (t, o) => { said.push([t, o]); return Promise.resolve(); } };
+  await A.match("present mode", { online: false }).run(c);
+  assert.deepStrictEqual(seen, ["present"]);
+  assert.match(said.pop()[0], /Present mode on/);
+  await A.match("meeting points extract karo", { online: false }).run(c);
+  assert.deepStrictEqual(seen, ["present", "extract"]);
+  assert.match(said.pop()[0], /Ending the meeting/);
+  const none = { meetings: { extract: () => Promise.resolve(false), state: () => "idle" }, say: (t) => { said.push(t); return Promise.resolve(); } };
+  await A.match("extract meeting points", { online: false }).run(none);
+  assert.match(said.pop(), /no meeting to take points from/);
 });

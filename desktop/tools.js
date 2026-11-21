@@ -762,6 +762,9 @@ const impl = {
   },
 };
 
+// Chrome control (tabs, navigation, reading, clicking, typing, screenshots) lives in browser.js; its tools are chrome_*
+Object.assign(impl, require("./browser").tools);
+
 async function runTool(name, args) {
   if (!Object.prototype.hasOwnProperty.call(impl, name)) return `Error: unknown tool ${name}`;
   try {

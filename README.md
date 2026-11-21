@@ -69,13 +69,19 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 
 ## What's new in v6 (voices like Siri, deeper orb animation). Details in `CHANGES-v6.md`
 
-- **Voice personalities** in Settings > Voice (Aria, Ethan, Olivia, Oliver, Ruby, Noah, Priya, Arjun, Nova, Atlas, plus Siri-style on Apple devices), with preview, pitch and volume. Change by voice: "change voice to British male".
+- **Voice personalities** (replaced in v7 by one expressive female voice; see below).
 - **Orb** reacts to real speech, with parallax stars, comet trails, neural arcs while thinking and inward particles while listening.
 - **New instant commands**: stopwatch, password generator, days-until, say, copy that.
 
 - **v6.1: tabbed side rails** (Plan / Focus / Memory and Activity / Status / World / Voice), Alt+1..7, plus a rotating state ring on the message box.
 
 - **v6.2: live docks** (radar of your real items, live telemetry), a description on every panel, and action-led empty states.
+
+## What's new in v7 (one expressive female voice, meeting present mode, full Chrome control). Details in `CHANGES-v7.md`
+
+- **One female voice with emotions**: each sentence is spoken with its own feeling (joy, empathy, concern, urgency, curiosity...). "more emotion" / "less emotion".
+- **Meeting present mode**: "meeting chal rahi hai" and Aegis listens silently; at the end say "meeting points extract karo" and it reads the key points aloud.
+- **Chrome A to Z** (desktop app): `chrome_*` tools open / switch / close tabs, read pages, click, type, scroll, screenshot. Risky clicks and scripts ask first.
 
 ## Voice and instant commands
 
@@ -180,8 +186,8 @@ Plans/limits: edit `PLAN_LIMITS` in `server/app/settings.py`. Activate a paying 
 ## Tests
 
 ```
-cd server  && pip install pytest httpx && pytest      # 58 tests, fake AI, no API key needed
-cd desktop && npm test                                # 31 tests
+cd server  && pip install pytest httpx && pytest      # 85 tests, fake AI, no API key needed
+cd desktop && npm test                                # 35 tests (includes real-Chrome end-to-end)
 node --test tests/commands.test.js                                   # voice-command router
 ```
 
@@ -191,6 +197,9 @@ node --test tests/commands.test.js                                   # voice-com
 |---|---|
 | `index.html`, `landing.*` | Landing page |
 | `app.html`, `style.css`, `app.js`, `orb.js` | The assistant UI (login, HUD, chat, voice) |
+| `voice.js` | The one female voice + emotion engine |
+| `meetings.js`, `groq.js` | Meeting assistant, present mode, spoken read-out |
+| `desktop/browser.js` | Chrome control (DevTools Protocol) |
 | `commands.js` | Instant voice/text commands (open, search, time, math, timers, notes, UI control) |
 | `ui-plus.js`, `features.js`, `theme-boot.js` | Extra UI behaviour, quick prompts/timer/scratchpad, landing theme bootstrap |
 | `hud.js` | HUD widgets: date/time, live system gauges, weather (Open-Meteo), shortcuts |

@@ -3,6 +3,9 @@
 //
 //   AegisMeetings.open(tab?)  AegisMeetings.start()  AegisMeetings.stop()  AegisMeetings.pause()  AegisMeetings.resume()
 //   AegisMeetings.state() -> "idle" | "recording" | "paused" | "working"
+//   AegisMeetings.present(opts?)   Present mode: Aegis attends the running meeting silently (no voice, no replies, voice mode off).
+//   AegisMeetings.extract()        "Extract the meeting points": ends the meeting, writes the notes and READS them out loud with feeling.
+//   AegisMeetings.isPresent()
 //
 // Long meetings are recorded in ~75 second segments. Each segment is transcribed as soon as it ends, so the transcript
 // fills in live, nothing hits Groq's per-file size limit, and a failed segment can be retried without losing the rest.
@@ -24,6 +27,7 @@
   let failed = [];                            // segments that could not be transcribed yet
   let notes = null, current = null;           // current = {id?, title, notes, transcript, created}
   let R = null;                               // live recording resources
+  let present = false, wantRead = false, resumeVoiceMode = false, pill = null;   // present mode (silent attendance) + read-out after notes
   const queue = []; let pumping = false, queueDone = [];
 
   const prefs = (() => { try { return Object.assign({ src: "mic", lang: "", out: "en" }, JSON.parse(sget(PREFS) || "{}")); } catch { return { src: "mic", lang: "", out: "en" }; } })();
@@ -49,10 +53,10 @@
   // ---------------------------------------------------------------- recording
   const activeMs = () => (R ? R.accum + (R.running ? performance.now() - R.runStart : 0) : 0);
 
-  async function getStreams() {
+  async function getStreams(src) {
     const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     let tabStream = null;
-    if (prefs.src === "mic+tab") {
+    if ((src || prefs.src) === "mic+tab") {
       try {
         tabStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
         if (!tabStream.getAudioTracks().length) { toast("No tab audio was shared. Next time tick \"Share tab audio\". Recording your microphone only.", 8000); tabStream.getTracks().forEach((t) => t.stop()); tabStream = null; }
@@ -65,15 +69,29 @@
     return ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"].find((m) => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } }) || "";
   }
 
-  async function start() {
-    if (phase !== "idle") return open("record");
-    if (!G() || !G().hasMic()) return toast("This browser can't record audio. Use Chrome, Edge or Safari.", 7000);
-    open("record");
-    if (!G().hasKey()) { G().refreshStatus(true); if (!G().hasKey()) { setHint("Add your Groq key first (Settings > Voice & meetings). It's free at console.groq.com/keys.", true); return; } }
-    if (lines.length && !confirm("Start a new meeting? The current transcript will be cleared.")) return;
+  async function start(opts) {
+    opts = opts || {};
+    const quiet = !!opts.present;                  // present mode never pops the dialog over the meeting
+    if (phase !== "idle") { if (!quiet) open("record"); return false; }
+    if (!G() || !G().hasMic()) { toast("This browser can't record audio. Use Chrome, Edge or Safari.", 7000); return false; }
+    if (!quiet) open("record");
+    if (!G().hasKey()) {
+      G().refreshStatus(true);
+      if (!G().hasKey()) {
+        if (quiet) { open("record"); }
+        setHint("Add your Groq key first (Settings > Voice & meetings). It's free at console.groq.com/keys.", true);
+        return false;
+      }
+    }
+    if (lines.length && !quiet && !confirm("Start a new meeting? The current transcript will be cleared.")) return false;
     let streams;
-    try { streams = await getStreams(); }
-    catch (e) { return setHint(e && e.name === "NotFoundError" ? "No microphone found." : "Microphone access is blocked. Allow it in the address bar and try again.", true); }
+    try { streams = await getStreams(opts.src); }
+    catch (e) {
+      const msg = e && e.name === "NotFoundError" ? "No microphone found." : "Microphone access is blocked. Allow it in the address bar and try again.";
+      if (quiet) toast(msg, 7000);
+      setHint(msg, true);
+      return false;
+    }
     lines = []; failed = []; notes = null; current = null; queue.length = 0; queueDone = [];
     renderLive();
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -92,6 +110,7 @@
     R.timer = setInterval(tick, 200);
     setPhase("recording");
     window.addEventListener("beforeunload", guard);
+    return true;
   }
   const guard = (e) => { if (phase === "recording" || phase === "paused") { e.preventDefault(); e.returnValue = ""; } };
 
@@ -134,6 +153,7 @@
     R.level = R.level * 0.6 + Math.min(1, rms * 9) * 0.4;
     $("mt-meter-i").style.transform = "scaleX(" + (R.running ? R.level.toFixed(3) : 0) + ")";
     $("mt-clock").textContent = mmss(activeMs());
+    if (pill) { pill.clock.textContent = mmss(activeMs()); pill.bar.style.transform = "scaleX(" + (R.running ? R.level.toFixed(3) : 0) + ")"; }
   }
 
   function pause() {
@@ -159,6 +179,7 @@
   }
   async function stop() {
     if (phase !== "recording" && phase !== "paused") return;
+    if (present) wantRead = true;                   // ending a meeting you were attending = "give me the points"
     const duration = activeMs();
     const last = phase === "recording" ? endSegment() : Promise.resolve();
     setPhase("working");
@@ -167,8 +188,9 @@
     teardown();
     const title = $("mt-title").value.trim();
     R = null;
+    leavePresent();
     await drainQueue();
-    if (!lines.length) { setPhase("idle"); setHint(failed.length ? "Couldn't transcribe the audio (see the retry button below)." : "I didn't hear any speech, so there is nothing to summarise.", true); return; }
+    if (!lines.length) { wantRead = false; setPhase("idle"); setHint(failed.length ? "Couldn't transcribe the audio (see the retry button below)." : "I didn't hear any speech, so there is nothing to summarise.", true); return; }
     await makeNotes({ title, duration: duration / 1000, transcript: transcriptText() });
   }
 
@@ -220,7 +242,9 @@
       showTab("notes");
       renderNotes();
       loadHistory();
+      if (wantRead) { wantRead = false; open("notes"); readOut(n); }
     } catch (e) {
+      wantRead = false;
       setPhase("idle");
       sset(DRAFT, JSON.stringify({ title, lines, duration: duration * 1000, at: Date.now(), out: prefs.out }));
       setHint("Couldn't write the notes: " + e.message + " Your transcript is safe; press \"Write notes\" to try again.", true);
@@ -244,6 +268,8 @@
     $("mt-session").classList.toggle("hidden", p === "idle");
     $("mt-start").disabled = work;
     $("mt-start").classList.toggle("hidden", rec || pa);
+    $("mt-present").classList.toggle("hidden", rec || pa);
+    $("mt-present").disabled = work;
     $("mt-pause").classList.toggle("hidden", !(rec || pa));
     $("mt-pause").textContent = pa ? "Resume" : "Pause";
     $("mt-stop").classList.toggle("hidden", !(rec || pa));
@@ -265,6 +291,7 @@
     box.scrollTop = box.scrollHeight;
     $("mt-keypoints").disabled = phase === "working" || !lines.length;
     $("mt-words").textContent = lines.reduce((n, l) => n + l.text.split(/\s+/).length, 0) + " words";
+    if (pill) { const last = sortedLines().slice(-1)[0]; pill.cap.textContent = last ? last.text : "Listening quietly. Say \"meeting points extract karo\" when it ends."; pill.cap.dir = "auto"; }
   }
 
   function chip(text, kind) { return el("span", "mt-chip " + (kind || ""), text); }
@@ -435,6 +462,101 @@
     showTab("notes"); renderNotes();
   }
 
+  // ---------------------------------------------------------------- present mode + read-out
+  // Present mode = Aegis sits in on a meeting that is already running. It listens (microphone, and the call's audio when the
+  // browser / desktop app can share it), stays completely silent, keeps voice mode off so it never answers your colleagues, and
+  // shows a small floating pill. When the meeting ends you say "meeting points extract karo" and it writes the notes and reads them to you.
+  const L10N = {
+    en: { intro: "The meeting is over. Here are the key points.", summary: "In short.", points: "The most important points.", decisions: "Decisions that were made.", actions: "Action items.", risks: "Things to watch out for.", next: "Next steps.", outro: "The full notes are on your screen.", none: "I didn't catch enough to summarise.", owner: " is on it", due: ", due " },
+    roman: { intro: "Meeting khatam ho gayi. Ye rahe meeting ke main points.", summary: "Mukhtasar yeh ke.", points: "Sab se zaroori baatein.", decisions: "Jo faisle hue.", actions: "Action items.", risks: "In baaton ka khayal rakhna.", next: "Agle qadam.", outro: "Poore notes aap ki screen par hain.", none: "Mujhe summary ke liye kaafi baat sunai nahi di.", owner: " ke zimme", due: ", deadline " },
+    ur: { intro: "میٹنگ ختم ہو گئی۔ یہ رہے اہم نکات۔", summary: "مختصراً۔", points: "سب سے اہم باتیں۔", decisions: "جو فیصلے ہوئے۔", actions: "کرنے کے کام۔", risks: "ان باتوں کا خیال رکھیں۔", next: "اگلے اقدامات۔", outro: "مکمل نوٹس آپ کی سکرین پر ہیں۔", none: "خلاصے کے لیے کافی گفتگو نہیں سنائی دی۔", owner: " کے ذمے", due: "، آخری تاریخ " },
+    hi: { intro: "मीटिंग खत्म हुई। ये रहे मुख्य बिंदु।", summary: "संक्षेप में।", points: "सबसे ज़रूरी बातें।", decisions: "जो फैसले हुए।", actions: "करने के काम।", risks: "इन बातों का ध्यान रखें।", next: "अगले कदम।", outro: "पूरे नोट्स आपकी स्क्रीन पर हैं।", none: "सारांश के लिए पर्याप्त बातचीत नहीं सुनाई दी।", owner: " के ज़िम्मे", due: ", समय सीमा " },
+  };
+  // notes -> [{ text, emotion }]: every section is spoken with its own feeling (calm summary, confident decisions, concerned risks...)
+  function scriptFor(n, lang) {
+    const T = L10N[lang] || L10N.en;
+    const out = [];
+    const add = (text, emotion) => { text = String(text || "").trim(); if (text) out.push({ text, emotion }); };
+    add(T.intro, "warm");
+    if (n.summary) { add(T.summary, "calm"); add(n.summary, "calm"); }
+    const pts = (n.important_points || []).slice(0, 5);
+    if (pts.length) { add(T.points, "confident"); pts.forEach((p) => add(p.point.replace(/[.!?]*$/, "."), p.importance === "high" ? "urgent" : "calm")); }
+    const dec = (n.decisions || []).slice(0, 4);
+    if (dec.length) { add(T.decisions, "confident"); dec.forEach((d) => add(String(d).replace(/[.!?]*$/, "."), "confident")); }
+    const acts = (n.action_items || []).slice(0, 5);
+    if (acts.length) { add(T.actions, "calm"); acts.forEach((a) => add(a.task.replace(/[.!?]*$/, "") + (a.owner ? ", " + a.owner + T.owner : "") + (a.due ? T.due + a.due : "") + ".", "calm")); }
+    const risks = (n.risks || []).slice(0, 3);
+    if (risks.length) { add(T.risks, "concern"); risks.forEach((r) => add(String(r).replace(/[.!?]*$/, "."), "concern")); }
+    const nxt = (n.next_steps || []).slice(0, 3);
+    if (nxt.length) { add(T.next, "warm"); nxt.forEach((x) => add(String(x).replace(/[.!?]*$/, "."), "warm")); }
+    if (out.length <= 1) add(T.none, "empathy");
+    add(T.outro, "warm");
+    return out;
+  }
+  function readOut(n) {
+    if (!n || !window.AegisApp || !AegisApp.speakScript) return false;
+    const lang = prefs.out === "auto" ? "en" : prefs.out;
+    AegisApp.speakScript(scriptFor(n, lang), { onend: () => { if (resumeVoiceMode && AegisApp.setVoiceMode) { resumeVoiceMode = false; AegisApp.setVoiceMode(true); } } });
+    return true;
+  }
+
+  function buildPill() {
+    if (pill) return pill;
+    const root = el("div", "present-pill");
+    root.setAttribute("role", "status"); root.setAttribute("aria-live", "polite");
+    const top = el("div", "pp-top");
+    const dot = el("i", "pp-dot");
+    const title = el("b", "", "Aegis is present");
+    const clock = el("span", "pp-clock tnum", "0:00");
+    top.append(dot, title, clock);
+    const meter = el("div", "pp-meter"); const bar = el("i"); meter.appendChild(bar);
+    const cap = el("p", "pp-cap muted small", "");
+    const row = el("div", "pp-row");
+    const ex = el("button", "btn primary small-btn", "Extract points"); ex.type = "button"; ex.addEventListener("click", () => extract());
+    const pa = el("button", "btn ghost small-btn", "Pause"); pa.type = "button";
+    pa.addEventListener("click", () => { if (phase === "paused") { resume(); pa.textContent = "Pause"; } else { pause(); pa.textContent = "Resume"; } });
+    const op = el("button", "btn ghost small-btn", "Transcript"); op.type = "button"; op.addEventListener("click", () => open("record"));
+    row.append(ex, pa, op);
+    root.append(top, meter, cap, row);
+    document.body.appendChild(root);
+    pill = { root, clock, bar, cap, pause: pa };
+    return pill;
+  }
+  function leavePresent() {
+    present = false;
+    delete document.documentElement.dataset.present;
+    if (pill) { pill.root.remove(); pill = null; }
+  }
+
+  async function startPresent(opts) {
+    opts = opts || {};
+    if (present || phase === "recording" || phase === "paused") {
+      toast(present ? "I'm already attending this meeting." : "A meeting is already being recorded.");
+      return present;
+    }
+    present = true;                                   // set first: from here on Aegis never speaks (app.js checks isPresent)
+    if (window.AegisApp && AegisApp.stopSpeaking) AegisApp.stopSpeaking();
+    if (window.AegisApp && AegisApp.isVoiceMode && AegisApp.isVoiceMode()) { resumeVoiceMode = true; AegisApp.setVoiceMode(false); }
+    document.documentElement.dataset.present = "1";
+    const ok = await start({ present: true, src: opts.src || (prefs.src === "mic+tab" ? "mic+tab" : "mic") });
+    if (!ok) {
+      leavePresent();
+      if (resumeVoiceMode && window.AegisApp) { resumeVoiceMode = false; AegisApp.setVoiceMode(true); }
+      return false;
+    }
+    buildPill(); renderLive();
+    toast("Present mode: I'm listening quietly. Say \"meeting points extract karo\" at the end.", 6000);
+    return true;
+  }
+
+  // "Extract the meeting points": works while the meeting is still going, while it is being transcribed, or afterwards.
+  async function extract() {
+    if (phase === "recording" || phase === "paused") { wantRead = true; await stop(); return true; }
+    if (phase === "working") { wantRead = true; return true; }
+    if (current) { open("notes"); return readOut(current.notes); }
+    return false;
+  }
+
   // ---------------------------------------------------------------- key points so far
   async function keyPoints() {
     if (!lines.length) return;
@@ -488,7 +610,8 @@
     const bind = (id, key) => { const s = $(id); s.value = prefs[key]; s.addEventListener("change", () => { prefs[key] = s.value; savePrefs(); }); };
     bind("mt-src", "src"); bind("mt-lang", "lang"); bind("mt-out", "out");
     $("mt-lang-up").value = prefs.lang; $("mt-out-up").value = prefs.out;
-    $("mt-start").addEventListener("click", start);
+    $("mt-start").addEventListener("click", () => start());
+    $("mt-present").addEventListener("click", () => { dlg.close(); startPresent({ src: prefs.src }); });
     $("mt-pause").addEventListener("click", () => (phase === "paused" ? resume() : pause()));
     $("mt-stop").addEventListener("click", stop);
     $("mt-keypoints").addEventListener("click", keyPoints);
@@ -504,5 +627,5 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 
-  window.AegisMeetings = { open, start, stop, pause, resume, state: () => phase, hasNotes: () => !!current };
+  window.AegisMeetings = { open, start, stop, pause, resume, present: startPresent, extract, isPresent: () => present, state: () => phase, hasNotes: () => !!current, scriptFor };
 })();

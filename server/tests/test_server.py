@@ -753,3 +753,59 @@ def test_ai_test_endpoint_needs_login_and_reports_errors(env):
     assert c.post("/api/ai/test", json={"provider": "openai"}).status_code == 401
     r = c.post("/api/ai/test", json={"provider": "openai"}, headers=auth(register(c))).json()
     assert r["ok"] is False and "API key" in r["error"]
+
+
+# ---------- Chrome control tools ----------
+def test_chrome_tools_registered_and_device_only():
+    from app import tools
+    names = {t.name for t in tools.TOOLS if t.name.startswith("chrome_")}
+    assert {"chrome_tabs", "chrome_open", "chrome_go", "chrome_nav", "chrome_switch", "chrome_close", "chrome_read", "chrome_elements",
+            "chrome_click", "chrome_type", "chrome_key", "chrome_scroll", "chrome_find", "chrome_wait", "chrome_screenshot", "chrome_eval"} == names
+    assert all(tools.BY_NAME[n].where == "device" for n in names)
+    assert not any(t["name"].startswith("chrome_") for t in tools.schemas(False))           # no desktop app, no Chrome tools
+    assert sum(t["name"].startswith("chrome_") for t in tools.schemas(True)) == 16
+
+
+def test_chrome_approval_rules():
+    from app import tools
+    B = tools.BY_NAME
+    assert B["chrome_eval"].is_risky({"js": "1"})                                            # own JavaScript always asks
+    for n in ("chrome_read", "chrome_elements", "chrome_tabs", "chrome_open", "chrome_go", "chrome_scroll", "chrome_screenshot", "chrome_type"):
+        assert not B[n].is_risky({}), n
+    assert not B["chrome_click"].is_risky({"text": "Next page"})
+    assert B["chrome_click"].is_risky({"text": "Buy now", "approved": True})                  # approved=true => the user is asked
+    assert B["chrome_key"].is_risky({"keys": "ctrl+enter", "approved": True}) and not B["chrome_key"].is_risky({"keys": "Tab"})
+    assert B["send_email"].is_risky({}) and B["delete_file"].is_risky({})                     # old always-risky tools are unchanged
+    for t in tools.TOOLS:
+        for k in t.properties:
+            assert isinstance(t.properties[k], dict)
+        assert set(t.required) <= set(t.properties)
+
+
+def test_approved_chrome_click_asks_the_user_but_plain_click_does_not(env):
+    c, fake = env.client, env.fake
+    token = register(c)
+    dws, dev = connect(c, token, "device")
+    dev.receive_json()
+    fake.script = [
+        resp(tool("1", "chrome_click", text="Next")),
+        resp(tool("2", "chrome_click", text="Buy now", approved=True)),
+        resp(text("All done.")),
+    ]
+    cws, chat = connect(c, token)
+    try:
+        chat.receive_json()
+        chat.send_json({"type": "chat", "text": "click next then buy"})
+        req = dev.receive_json()                                    # plain click: straight to the device, no approval
+        assert req["name"] == "chrome_click" and req["args"]["text"] == "Next"
+        dev.send_json({"type": "tool_result", "id": req["id"], "result": "Clicked Next"})
+        conf = drain_until(chat, "confirm")                         # approved=true: the user is asked first
+        assert conf["tool"] == "chrome_click" and conf["args"]["approved"] is True
+        chat.send_json({"type": "confirm_response", "id": conf["id"], "ok": True})
+        req2 = dev.receive_json()
+        assert req2["args"]["text"] == "Buy now"
+        dev.send_json({"type": "tool_result", "id": req2["id"], "result": "Clicked Buy now"})
+        assert drain_until(chat, "reply")["text"] == "All done."
+    finally:
+        cws.__exit__(None, None, None)
+        dws.__exit__(None, None, None)
