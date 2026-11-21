@@ -31,3 +31,10 @@ services:
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
+      # Optional (v8): studio voice with ElevenLabs (OPENAI_API_KEY above also works), and Home Assistant.
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: AEGIS_HA_URL
+        sync: false
+      - key: AEGIS_HA_TOKEN
+        sync: false

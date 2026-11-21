@@ -62,6 +62,16 @@ CREATE TABLE IF NOT EXISTS contacts (
   created REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_contacts_user ON contacts(user_id);
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  start REAL NOT NULL,
+  end REAL NOT NULL DEFAULT 0,
+  location TEXT NOT NULL DEFAULT '',
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id, start);
 CREATE TABLE IF NOT EXISTS routines (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
@@ -390,3 +400,30 @@ class DB:
 
     def delete_meeting(self, uid, mid):
         return self.execute("DELETE FROM meetings WHERE id = ? AND user_id = ?", (mid, uid)).rowcount
+
+    # ---- calendar events ----
+    def add_event(self, uid, title, start_ts, end_ts=0, location=""):
+        return self.execute(
+            "INSERT INTO events (user_id, title, start, end, location, created) VALUES (?, ?, ?, ?, ?, ?)",
+            (uid, str(title).strip()[:200], float(start_ts), float(end_ts or 0), str(location or "").strip()[:200], time.time()),
+        ).lastrowid
+
+    def events_between(self, uid, start_ts, end_ts, query=""):
+        """Events that start inside [start_ts, end_ts) or are still running at start_ts, oldest first."""
+        rows = self.all(
+            "SELECT id, title, start, end, location FROM events WHERE user_id = ? AND ((start >= ? AND start < ?) OR (end > ? AND start < ?)) ORDER BY start LIMIT 200",
+            (uid, float(start_ts), float(end_ts), float(start_ts), float(end_ts)),
+        )
+        q = str(query or "").strip().lower()
+        return [dict(r) for r in rows if not q or q in r["title"].lower() or q in r["location"].lower()]
+
+    def delete_events_matching(self, uid, text):
+        """Delete upcoming events whose title contains `text`. Past events are kept as history. Returns how many."""
+        cur = self.execute(
+            "DELETE FROM events WHERE user_id = ? AND instr(lower(title), lower(?)) > 0 AND (start >= ? OR end >= ?)",
+            (uid, str(text).strip(), time.time() - 3600, time.time()),
+        )
+        return cur.rowcount
+
+    def delete_event(self, uid, event_id):
+        return self.execute("DELETE FROM events WHERE id = ? AND user_id = ?", (int(event_id), uid)).rowcount

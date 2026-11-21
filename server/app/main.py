@@ -16,11 +16,11 @@ from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import meeting, providers, settings
+from . import meeting, providers, settings, smarthome, tts
 from .agent import Agent, Session
 from .auth import EMAIL_RE, hash_password, make_token, read_token, verify_password
 from .db import DB
@@ -50,6 +50,12 @@ class AIBody(BaseModel):
     base_url: str = ""
     max_tokens: int = 0
     temperature: float | None = None
+
+
+class TTSIn(BaseModel):
+    text: str
+    emotion: str = "calm"
+    lang: str = ""
 
 
 class MeetingIn(BaseModel):
@@ -211,7 +217,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
 
     @app.get("/api/config")
     def config():
-        return {"app_name": settings.APP_NAME, "web_search": settings.WEB_SEARCH, "groq": meeting.server_has_key()}
+        return {"app_name": settings.APP_NAME, "web_search": settings.WEB_SEARCH, "groq": meeting.server_has_key(), "studio_voice": tts.available(), "smart_home": smarthome.configured()}
 
     @app.get("/api/providers")
     def list_providers():
@@ -324,6 +330,34 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         if not db.delete_note(user["id"], nid):
             raise HTTPException(404, "Not found")
         return {"ok": True}
+
+    # ---------- Studio voice (optional cloud text-to-speech) ----------
+    tts_quota = tts.Quota()
+    tts_limiter = LoginLimiter(max_attempts=60, window=60)
+
+    @app.get("/api/tts/status")
+    def tts_status(user=Depends(current_user)):
+        on = tts.available()
+        return {"available": on, "provider": tts.provider(), "chars_left": tts_quota.left(user["id"]) if on else 0, "max_chars": tts.MAX_CHARS}
+
+    @app.post("/api/tts")
+    async def tts_speak(body: TTSIn, user=Depends(current_user)):
+        if not tts.available():
+            raise HTTPException(503, "Studio voice is not set up on this server.")
+        tts_limiter.check((user["id"], "tts"))
+        text = " ".join(body.text.split())
+        if not text:
+            raise HTTPException(400, "Nothing to say.")
+        if len(text) > tts.MAX_CHARS:
+            raise HTTPException(413, f"Send at most {tts.MAX_CHARS} characters at a time.")
+        if not tts_quota.take(user["id"], len(text)):
+            raise HTTPException(429, "Today's studio-voice allowance is used up. The built-in voice takes over.")
+        try:
+            audio = await asyncio.to_thread(tts.synthesize, text, body.emotion, body.lang)
+        except tts.TTSError as e:
+            tts_quota.refund(user["id"], len(text))
+            raise HTTPException(502, str(e))
+        return Response(content=audio, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 
     # ---------- Groq: speech-to-text + meeting notes ----------
     stt_limiter = LoginLimiter(max_attempts=90, window=60)

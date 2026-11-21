@@ -88,7 +88,7 @@
       if (!key) throw new GroqError("Add your Groq key in Settings > Voice & meetings first.", 400);
       const fd = new FormData();
       fd.append("file", blob, "audio." + (baseType(blob).includes("mp4") ? "m4a" : baseType(blob).includes("ogg") ? "ogg" : "webm"));
-      fd.append("model", o.best || /^(ur|hi|pa)$/.test(lang) ? "whisper-large-v3" : "whisper-large-v3-turbo");
+      fd.append("model", o.best || (lang && lang !== "en") ? "whisper-large-v3" : "whisper-large-v3-turbo");   // the full model for every language except English
       fd.append("response_format", "verbose_json");
       fd.append("temperature", "0");
       if (lang) fd.append("language", lang);

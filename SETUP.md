@@ -72,11 +72,33 @@ Optional env vars: `AEGIS_GROQ_MODEL`, `AEGIS_GROQ_CHAT_MODEL`, `AEGIS_GROQ_STT_
 `AEGIS_SERVER_STT_PER_DAY` (300) and `AEGIS_SERVER_NOTES_PER_DAY` (30) cap usage of the server's own key.
 New assistant tools for every provider: `search_web`, `news_headlines`, `get_meeting`, `list_meetings`, `meeting_actions_to_tasks`, `delete_task`.
 
-## Jarvis-style voice mode
+## Voice mode
 
-Turn on **Voice mode** (under the chat box). Aegis then sleeps until you say its name: **"Jarvis"** or **"Aegis"**
-(or your own word: Settings > Voice > Wake word). Say "Jarvis, what's the weather?" in one go, or just "Jarvis" and wait for
+Turn on **Voice mode** (under the chat box). Aegis then sleeps until you say its name: **"Aegis"**
+(or your own word: Settings > Voice > Wake word). Say "Aegis, what's the weather?" in one go, or just "Aegis" and wait for
 "Yes?". After that you can keep talking without the name. Say "thanks", "that's all" or "bas" (or stay quiet) and it goes back
 to sleep. Replies are short, spoken, and addressed to you the way you choose ("Call me": sir, boss, your name).
 The wake word needs Chrome/Edge/Safari and this tab open; after waking, your speech is transcribed by Groq Whisper.
 Settings > Voice > "Voice mode listens: Always" gives the old non-stop listening with no wake word.
+
+## Studio voice: natural, emotional speech in every language (optional)
+
+Browser voices differ a lot between devices (Urdu is often missing). For one consistent, natural voice that sounds happy, gentle or
+urgent in any language, add ONE key on the server (Render > Environment, or `.env`):
+
+| Key | Voice |
+|---|---|
+| `OPENAI_API_KEY` | OpenAI `gpt-4o-mini-tts`: follows a spoken-style instruction per sentence. Change the voice with `AEGIS_TTS_VOICE` (default `coral`). |
+| `ELEVENLABS_API_KEY` | ElevenLabs multilingual v2. Choose the voice with `AEGIS_ELEVENLABS_VOICE` (a voice id from your ElevenLabs library). |
+
+Restart the server, open the app, then Settings > Voice shows "Studio voice is on". Each user has a daily allowance
+(`AEGIS_TTS_CHARS_PER_DAY`, default 6000 characters) so cost stays under control; when it is used up, or the service fails, the
+browser voice takes over without interruption. Untick "Studio voice" in the same place to switch it off.
+
+## Calendar, markets and smart home
+
+- **Calendar** works out of the box: "add dentist tomorrow at 3pm, remind me 30 minutes before", "what is on today?", "am I free on Friday?". Events are stored on the server per user.
+- **Markets**: "bitcoin price", "Tesla stock", "ETH in PKR". Free public data (CoinGecko, Stooq), may be delayed. Information only, never advice.
+- **Smart home** needs Home Assistant. In Home Assistant open your profile > Security > Long-lived access tokens, create one, then set
+  `AEGIS_HA_URL` (for example `http://homeassistant.local:8123`, reachable from the server) and `AEGIS_HA_TOKEN`. Say "turn off the bedroom light",
+  "set the AC to 24", "movie scene". Locks, doors, garage and alarms always ask you to approve first.

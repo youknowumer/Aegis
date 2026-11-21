@@ -7,6 +7,8 @@
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional
 
+from . import smarthome
+
 S = {"type": "string"}
 N = {"type": "number"}
 B = {"type": "boolean"}
@@ -51,6 +53,12 @@ TOOLS: List[Tool] = [
     Tool("convert_currency", "Convert money between currencies at the live exchange rate (USD, PKR, EUR, GBP, AED...).", "server", {"amount": N, "from_currency": S, "to_currency": S}, ["amount", "from_currency", "to_currency"]),
     Tool("search_web", "Search the live web (works with every AI provider). Returns the top results with links and snippets. Use it for current events, prices, facts that may have changed, or anything you are unsure about; then use fetch_url to read a result in full if needed.", "server", {"query": S}, ["query"]),
     Tool("news_headlines", "Get today's top news headlines, optionally on a topic and for a country (2-letter code, default PK). Use for 'what's the news', 'latest on cricket', 'tech news'.", "server", {"topic": S, "country": S}),
+    Tool("add_event", "Add an event to the user's calendar (meeting, appointment, birthday, trip, class). start is the user's local time as 'YYYY-MM-DD HH:MM'. Optional duration_minutes (default 60), location, and remind_minutes_before to also set a spoken reminder ahead of it.", "server", {"title": S, "start": S, "duration_minutes": N, "location": S, "remind_minutes_before": N}, ["title", "start"]),
+    Tool("list_events", "Show the user's calendar. Give date ('YYYY-MM-DD') for one day, or days (how many days ahead; 1 = today, default 7). Optional query filters by title or place. Use it for 'what is on today', 'am I free tomorrow at 3', 'what is my week like'.", "server", {"date": S, "days": N, "query": S}),
+    Tool("delete_event", "Delete upcoming calendar events whose title contains the given text.", "server", {"contains": S}, ["contains"], risky=True),
+    Tool("market_price", "Get the live price of a cryptocurrency (bitcoin, ETH, SOL...) or a stock / ETF (AAPL, TSLA, SPY...), with today's or 24-hour change. For coins you can ask for another currency such as PKR or EUR.", "server", {"symbol": S, "kind": {"type": "string", "enum": ["auto", "crypto", "stock"]}, "currency": {"type": "string", "description": "3-letter currency for coins, default USD"}}, ["symbol"]),
+    Tool("home_list", "List the user's smart-home devices (lights, switches, fans, thermostats, locks, covers, scenes) with their state. Filter with query (a room or name) or domain (light, switch, climate, lock, cover, scene...). Call this before home_control when you are not sure of the exact device name.", "server", {"query": S, "domain": S}, needs="ha"),
+    Tool("home_control", "Control a smart-home device by its entity id or its name. action: turn_on, turn_off, toggle, set_brightness (value 0-100), set_temperature (value in Celsius), set_volume (value 0-100), activate (scene), run (script), lock, unlock, open, close, arm, disarm. Locks, doors, garage covers and alarms always ask the user first.", "server", {"entity": S, "action": {"type": "string", "enum": ["turn_on", "turn_off", "toggle", "set_brightness", "set_temperature", "set_volume", "activate", "run", "lock", "unlock", "open", "close", "arm", "disarm"]}, "value": {"type": "string", "description": "number for set_brightness / set_temperature / set_volume"}}, ["entity", "action"], needs="ha", risky_when=lambda a: smarthome.needs_approval(a)),
     Tool("list_meetings", "List the user's saved meetings (recorded or uploaded) with their ids and dates.", "server"),
     Tool("get_meeting", "Get the notes of a saved meeting: summary, important points, decisions, action items, enhancement ideas, risks and next steps. Pass a title word or leave empty for the latest meeting. Use it when the user asks about a meeting, what was decided, or what they have to do after it.", "server", {"query": S, "include_transcript": {"type": "boolean"}}),
     Tool("meeting_actions_to_tasks", "Add every action item of a saved meeting (latest one, or the one matching query) to the user's to-do list.", "server", {"query": S}),
@@ -132,6 +140,8 @@ def schemas(device_connected: bool, web_search: bool = False, max_uses: int = 4)
     from . import mail
 
     def available(t):
+        if t.needs == "ha":
+            return smarthome.configured()
         if t.needs == "smtp":
             return mail.smtp_configured()
         if t.needs == "imap":

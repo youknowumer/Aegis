@@ -1,6 +1,6 @@
 # v5: a much more capable assistant
 
-Goal: Aegis should *do things*, like Jarvis: open files, read documents, send email, run multi-step jobs.
+Goal: Aegis should *do things*: open files, read documents, send email, run multi-step jobs.
 Everything below was added without removing any earlier feature, and every new action keeps the same safety model
 (risky = you approve it first; files stay inside allowed folders).
 

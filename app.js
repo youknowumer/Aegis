@@ -362,7 +362,13 @@
   }
 
   // Mini markdown: paragraphs, bullet / numbered lists, fenced code, **bold**, `code`, links.
+  // The AI marks each sentence with a feeling tag such as [joy]; it shapes the voice and is never shown.
+  function stripEmo(t, partial) {
+    if (window.AegisVoice && AegisVoice.stripTags) return AegisVoice.stripTags(t, partial);
+    return String(t == null ? "" : t).replace(/\[(?:calm|warm|joy|excited|curious|empathy|concern|urgent|confident)\][ \t]?/gi, "");
+  }
   function rich(el, text) {
+    text = stripEmo(text);
     el.textContent = "";
     let list = null, code = null, para = null;
     for (const line of String(text).replace(/\r/g, "").split("\n")) {
@@ -405,7 +411,7 @@
     const copy = document.createElement("button");
     copy.type = "button"; copy.textContent = "Copy";
     copy.addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText(text); copy.textContent = "Copied"; } catch { copy.textContent = "Can't copy"; }
+      try { await navigator.clipboard.writeText(stripEmo(text)); copy.textContent = "Copied"; } catch { copy.textContent = "Can't copy"; }
       setTimeout(() => (copy.textContent = "Copy"), 1500);
     });
     const say = document.createElement("button");
@@ -430,6 +436,7 @@
 
   // While text is still arriving, hide half-typed markdown (an unclosed ** or code fence) so it never flashes raw.
   function partialSafe(t) {
+    t = stripEmo(t, true);
     if ((t.match(/```/g) || []).length % 2) t += "\n```";
     const outside = t.split(/```/).filter((_, i) => i % 2 === 0).join("");
     if ((outside.match(/\*\*/g) || []).length % 2) { const i = t.lastIndexOf("**"); t = t.slice(0, i) + t.slice(i + 2); }
@@ -778,6 +785,7 @@
     switch (m.type) {
       case "hello":
         wsOpen = true;
+        if (window.AegisVoice && AegisVoice.cloud) AegisVoice.cloud.refresh(true);   // is the studio voice available on this server?
         setLink("online");
         pushAiCfg();
         checkAI();
@@ -927,7 +935,7 @@
     get tabs() { return window.AegisTabs || null; },
     copy(text) { try { return navigator.clipboard.writeText(text).then(() => true, () => false); } catch { return Promise.resolve(false); } },
     clearChat() { if (ws && wsOpen) send({ type: "reset" }); clearChat(); },
-    lastReply() { return lastAi; },
+    lastReply() { return stripEmo(lastAi); },
     repeatLast() { speak(lastAi, true); },
     speakScript,
     setTheme: applyTheme,
@@ -1151,25 +1159,28 @@
   let speakGen = 0;
   let lastSpoken = "";
 
-  // ---- wake word ("Jarvis", "Aegis", or your own). "Jarvis, open Chrome" -> "open Chrome". null = no wake phrase heard.
-  // Browsers mishear names, so common variants are accepted. The name must open the sentence ("Jarvis, ...") or follow
-  // "hey / ok / hi", or close it ("... Jarvis"), so a name in the middle of normal talk doesn't wake me.
+  // ---- wake word ("Aegis", or your own). "Aegis, open Chrome" -> "open Chrome". null = no wake phrase heard.
+  // Browsers mishear names, so common variants (and the name written in other scripts) are accepted. The name must open the
+  // sentence ("Aegis, ..."), follow a greeting ("hey / hola / salut ..."), or close it ("... Aegis"), so a name in the middle
+  // of normal talk doesn't wake me.
   const BASE_WAKE = {
-    jarvis: "jarvis|jarvas|jarves|jarvus|jarwis|jervis|jarviss|charvis|garvis|gervis|جارویس|جاروس|جاروِس|जार्विस",
-    aegis: "aegis|aegus|ejis|edgis|eejis|aejis|ایجس|ایجیس|एजिस",
+    aegis: "aegis|aegus|aegies|egis|ejis|edgis|eejis|aejis|aijis|ageis|eijis|ایجس|ایجیس|ایجز|ایگس|ايجس|إيجس|ايجيس|एजिस|एजीस|इजिस|ईजिस|এজিস|эджис|эгис|эйджис",
+    cjk: "イージス|이지스|埃吉斯|伊吉斯|艾吉斯",
   };
+  const WAKE_LEAD = "hey|hi|hello|ok|okay|yo|ae|hola|oye|salut|hallo|ciao|merhaba|hei|ola|olá|привет|эй|يا|مرحبا|اے|ہے|ارے|सुनो|सुनिए|नमस्ते|你好|ねえ|안녕";
   const callMe = () => (safeGet("aegis_callme") || "").trim();
   const customWake = () => (safeGet("aegis_wakeword") || "").trim().toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").slice(0, 24);
-  const wakeName = () => { const c = customWake(); return c ? c.replace(/\b\w/g, (x) => x.toUpperCase()) : "Jarvis"; };
+  const wakeName = () => { const c = customWake(); return c ? c.replace(/\b\w/g, (x) => x.toUpperCase()) : "Aegis"; };
   let wakeRx = null, wakeSig = "";
   function wakeRegex() {
     const c = customWake(), sig = c;
     if (wakeRx && sig === wakeSig) return wakeRx;
-    const names = [BASE_WAKE.jarvis, BASE_WAKE.aegis].concat(c ? [c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")] : []).join("|");
-    const lead = "(?:(?:hey|hi|hello|ok|okay|yo|ae|اے|ہے|ارے)[\\s,]+)?";
+    const names = [BASE_WAKE.aegis].concat(c ? [c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")] : []).join("|");
+    const lead = "(?:(?:" + WAKE_LEAD + ")[\\s,]+)?";
+    const named = "(?:(?:" + names + ")(?![\\p{L}])|(?:" + BASE_WAKE.cjk + "))";    // CJK names are written without a space after them
     wakeRx = {
-      start: new RegExp("^[\\s,.!?-]*" + lead + "(?:" + names + ")(?![\\p{L}])[\\s,.:;!?-]*", "iu"),
-      hey: new RegExp("(?:hey|hi|hello|ok|okay|yo)[\\s,]+(?:" + names + ")(?![\\p{L}])[\\s,.:;!?-]*", "iu"),
+      start: new RegExp("^[\\s,.!?-]*" + lead + named + "[\\s,.:;!?\u3001\u3002\uff0c\uff01\uff1f-]*", "iu"),
+      hey: new RegExp("(?:" + WAKE_LEAD + ")[\\s,]+" + named + "[\\s,.:;!?-]*", "iu"),
       end: new RegExp("[\\s,]+(?:" + names + ")[\\s.!?]*$", "iu"),
     };
     wakeSig = sig;
@@ -1185,17 +1196,24 @@
     if (m && t.slice(0, m.index).trim().split(/\s+/).length >= 2) return t.slice(0, m.index).trim();
     return null;
   }
-  // Short, JARVIS-style acknowledgements. Spoken in the language the person is using.
+  // Short acknowledgements, spoken in the language chosen for listening.
+  const ACKS = {
+    ur: ["جی؟", "جی، بولیے۔", "میں سن رہی ہوں۔", "حکم کیجیے۔"], hi: ["जी?", "जी, बोलिए।", "मैं सुन रही हूँ।", "हुक्म कीजिए।"],
+    ar: ["نعم؟", "أنا أسمعك.", "تفضّل."], fa: ["بله؟", "گوش می‌دهم.", "بفرمایید."], bn: ["জি?", "আমি শুনছি।", "বলুন।"],
+    es: ["¿Sí?", "Te escucho.", "Dime."], fr: ["Oui ?", "Je vous écoute.", "Je t'écoute."], de: ["Ja?", "Ich höre zu.", "Sag nur."],
+    pt: ["Sim?", "Estou ouvindo.", "Pode falar."], it: ["Sì?", "Ti ascolto.", "Dimmi pure."], tr: ["Evet?", "Dinliyorum.", "Buyurun."],
+    ru: ["Да?", "Слушаю.", "Говорите."], zh: ["在的。", "请说。", "我在听。"], ja: ["はい。", "聞いています。", "どうぞ。"],
+    ko: ["네?", "듣고 있어요.", "말씀하세요."], id: ["Ya?", "Saya mendengarkan.", "Silakan."], nl: ["Ja?", "Ik luister.", "Zeg het maar."],
+  };
   function wakeAck() {
     const who = callMe();
-    const ur = /^ur/.test($("lang").value);
+    const base = String($("lang").value || "en").split("-")[0];
     const en = [`Yes${who ? ", " + who : ""}?`, "I'm listening.", "At your service.", "Go ahead.", "Yes?"];
-    const u = ["جی؟", "جی، بولیے۔", "میں سن رہا ہوں۔", "حکم کیجیے۔"];
-    const a = ur ? u : en;
+    const a = ACKS[base] || en;
     return a[Math.floor(Math.random() * a.length)];
   }
   // Said while Aegis is awake to end the session ("thanks", "that's all", "bas", "go to sleep").
-  const SLEEP_RE = /^[\s,.!?]*(?:(?:ok(?:ay)?|alright|great|cool)[\s,]+)?(?:thanks?(?: you)?(?: (?:jarvis|aegis|a lot|so much))?|thank you(?: very much)?|that(?:'s| is| will be) (?:all|it|enough)|that(?:'s| is) (?:all|it)|nothing(?: else)?|never ?mind|go to sleep|sleep|stand ?by|dismissed|bas|bas karo|bas itna|shukriya|shukria|bohat shukriya|theek hai|thik hai|ٹھیک ہے|شکریہ|بس|بس کرو|بہت شکریہ)[\s,.!?]*$/iu;
+  const SLEEP_RE = /^[\s,.!?]*(?:(?:ok(?:ay)?|alright|great|cool)[\s,]+)?(?:thanks?(?: you)?(?: (?:aegis|a lot|so much))?|thank you(?: very much)?|that(?:'s| is| will be) (?:all|it|enough)|that(?:'s| is) (?:all|it)|nothing(?: else)?|never ?mind|go to sleep|sleep|stand ?by|dismissed|bas|bas karo|bas itna|shukriya|shukria|bohat shukriya|theek hai|thik hai|ٹھیک ہے|شکریہ|بس|بس کرو|بہت شکریہ|gracias|merci|danke|grazie|obrigad[oa]|спасибо|teşekkürler|terima kasih|شكرا|धन्यवाद|शुक्रिया|ありがとう|谢谢|謝謝|감사합니다|eso es todo|c'est tout|das ist alles|basta|bu kadar|itu saja|это всё|بس|बस)[\s,.!?]*$/iu;
   let awake = false;           // heard the wake word: keep the conversation going without needing it again
   let spokenTurn = false;      // the last thing sent came from the microphone, so answer out loud
 
@@ -1354,8 +1372,10 @@
       .replace(/```[\s\S]*?```/g, " code block. ")
       .replace(/https?:\/\/\S+/g, " link ")
       .replace(/[*`#_>]/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
+      .replace(/[ \t]+/g, " ")
+      .replace(/ ?\n ?/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();                                         // feeling tags stay: shape() turns them into tone, then drops them
   }
   function chunkSpeech(text) {
     // Chrome silently stops long utterances, so speak in short pieces.
@@ -1369,7 +1389,9 @@
     return out;
   }
   // Speak in the language the TEXT is written in, so an English answer isn't read with an Urdu voice and vice versa.
+  function pageLang() { const s = $("lang").value; return s === "auto" ? "en-US" : s; }
   function langFor(text) {
+    if (window.AegisVoice && AegisVoice.detectLang) return AegisVoice.detectLang(text, pageLang());   // any script, any language
     if (/[\u0600-\u06ff]/.test(text)) return "ur-PK";
     if (/[\u0900-\u097f]/.test(text)) return "hi-IN";
     const sel = $("lang").value;
@@ -1397,8 +1419,14 @@
     list.forEach((v) => sel.append(new Option(v.name.replace(/^(Microsoft|Google)\s+/, "").slice(0, 28), v.name)));
     sel.value = list.some((v) => v.name === saved) ? saved : list[0].name;
   }
+  let curAudio = null, cloudCtl = null;     // studio-voice playback in progress
+  function killAudio() {
+    if (cloudCtl) { try { cloudCtl.abort(); } catch {} cloudCtl = null; }
+    if (curAudio) { try { curAudio.pause(); } catch {} curAudio = null; }
+  }
   function stopSpeaking() {
     speakGen++;
+    killAudio();
     if (hasTTS) speechSynthesis.cancel();
     if (speaking) { speaking = false; refreshState(); }
   }
@@ -1409,10 +1437,11 @@
     if (!opts.meeting && window.AegisMeetings && AegisMeetings.isPresent && AegisMeetings.isPresent()) return syncVoice();
     const want = hasTTS && (force || $("speak").checked || convo || spokenTurn || opts.meeting);
     const clean = want ? plainSpeech(text) : "";
-    const lang = langFor(text);
+    const lang = pageLang();
     const V = window.AegisVoice || null;
-    const pieces = clean ? (V && V.shape ? V.shape(clean, lang, { emotion: opts.emotion }) : chunkSpeech(clean).map((p) => ({ text: p, rate: 1, pitch: 1, volume: 1, pause: 120 }))) : [];
+    const pieces = clean ? (V && V.shape ? V.shape(clean, lang, { emotion: opts.emotion }) : chunkSpeech(stripEmo(clean)).map((p) => ({ text: p, rate: 1, pitch: 1, volume: 1, pause: 120 }))) : [];
     if (!pieces.length) return syncVoice();
+    killAudio();
     speechSynthesis.cancel();
     const gen = ++speakGen;
     speaking = true;
@@ -1421,34 +1450,65 @@
     const tune = V ? V.tuning() : { pitch: 1, volume: 1 };
     let lastBoundary = 0;
     const pulse = (s) => { if (orbs.main) orbs.main.pulse(s); };
-    // Some voices never report word boundaries, so keep the orb alive with a soft heartbeat while speech is playing.
+    // Some voices (and the studio voice) never report word boundaries, so keep the orb alive with a soft heartbeat while speech is playing.
     const beat = setInterval(() => {
       if (gen !== speakGen || !speaking) return clearInterval(beat);
       if (Date.now() - lastBoundary > 380) pulse(0.3 + Math.random() * 0.35);
     }, 240);
     const finish = () => { clearInterval(beat); speaking = false; refreshState(); syncVoice(); if (opts.onend) { try { opts.onend(); } catch {} } };
-    // One sentence at a time, so each gets its own tone and its own pause (emotion lives in these gaps).
-    const next = (i) => {
-      if (gen !== speakGen) return;
-      if (i >= pieces.length) return finish();
-      const p = pieces[i];
-      const vp = V ? V.resolve(lang) : null;          // neutral base for the one female voice; p.* carries the sentence's feeling
-      const voice = vp ? vp.voice : pickVoice(lang);
-      const u = new SpeechSynthesisUtterance(p.text);
-      u.lang = vp && vp.voice ? vp.lang : lang;
-      if (voice) u.voice = voice;
-      const baseRate = vp ? vp.rate : parseFloat($("rate").value) || 1.02;
-      const basePitch = vp ? vp.pitch : tune.pitch;
-      u.rate = Math.max(0.5, Math.min(2, baseRate * (p.rate || 1)));
-      u.pitch = Math.max(0.2, Math.min(2, basePitch * (p.pitch || 1)));
-      u.volume = Math.max(0.05, Math.min(1, (vp ? vp.volume : tune.volume) * (p.volume || 1)));
-      u.onstart = () => pulse(0.8);
-      u.onboundary = (e) => { if (!e.name || e.name === "word") { lastBoundary = Date.now(); pulse(0.45 + Math.min(0.5, (e.charLength || 4) / 12)); } };
-      const done = () => { if (gen === speakGen) setTimeout(() => next(i + 1), p.pause || 0); };
-      u.onend = done; u.onerror = done;
-      speechSynthesis.speak(u);
+    // Browser voices: one sentence at a time, so each gets its own tone, its own language and its own pause (emotion lives in these gaps).
+    const speakPieces = (list, done) => {
+      const step = (i) => {
+        if (gen !== speakGen) return;
+        if (i >= list.length) return done();
+        const p = list[i];
+        const pl = p.lang || lang;
+        const vp = V ? V.resolve(pl) : null;          // neutral base for the one female voice, in this sentence's language; p.* carries its feeling
+        const voice = vp ? vp.voice : pickVoice(pl);
+        const u = new SpeechSynthesisUtterance(p.text);
+        u.lang = vp && vp.voice ? vp.lang : pl;
+        if (voice) u.voice = voice;
+        const baseRate = vp ? vp.rate : parseFloat($("rate").value) || 1.02;
+        const basePitch = vp ? vp.pitch : tune.pitch;
+        u.rate = Math.max(0.5, Math.min(2, baseRate * (p.rate || 1)));
+        u.pitch = Math.max(0.2, Math.min(2, basePitch * (p.pitch || 1)));
+        u.volume = Math.max(0.05, Math.min(1, (vp ? vp.volume : tune.volume) * (p.volume || 1)));
+        u.onstart = () => pulse(0.8);
+        u.onboundary = (e) => { if (!e.name || e.name === "word") { lastBoundary = Date.now(); pulse(0.45 + Math.min(0.5, (e.charLength || 4) / 12)); } };
+        const next = () => { if (gen === speakGen) setTimeout(() => step(i + 1), p.pause || 0); };
+        u.onend = next; u.onerror = next;
+        speechSynthesis.speak(u);
+      };
+      step(0);
     };
-    next(0);
+    // Studio voice (when the server has one): natural speech in any language. Each group is fetched while the previous one plays;
+    // if a group cannot be fetched or played, the browser voice reads that group so speech never stops.
+    if (V && V.cloud && V.cloud.ready() && V.cloudGroups) {
+      const groups = V.cloudGroups(pieces);
+      const ctl = cloudCtl = new AbortController();
+      const jobs = [];
+      const want = (i) => { if (i < groups.length && !jobs[i]) jobs[i] = V.cloud.audio(groups[i], ctl.signal); };
+      const nextGroup = async (i) => {
+        if (gen !== speakGen) return;
+        if (i >= groups.length) return finish();
+        want(i); want(i + 1);
+        const url = await jobs[i];
+        if (gen !== speakGen) { if (url) URL.revokeObjectURL(url); return; }
+        const g = groups[i], again = () => { if (gen === speakGen) setTimeout(() => nextGroup(i + 1), g.pause || 0); };
+        const fallback = () => speakPieces(g.items || [g], () => nextGroup(i + 1));
+        if (!url) return fallback();
+        const au = new Audio(url);
+        curAudio = au;
+        au.volume = Math.max(0.05, Math.min(1, tune.volume));
+        au.playbackRate = Math.max(0.7, Math.min(1.6, (parseFloat($("rate").value) || 1.02) / 1.02));
+        const over = (ok) => { URL.revokeObjectURL(url); if (curAudio === au) curAudio = null; if (ok) again(); else if (gen === speakGen) fallback(); };
+        au.onended = () => over(true);
+        au.onerror = () => over(false);
+        au.play().catch(() => over(false));
+      };
+      return void nextGroup(0);
+    }
+    speakPieces(pieces, finish);
   }
   // Speak a list of [{ text, emotion }] in order (meeting read-outs): each part keeps its own feeling.
   function speakScript(parts, opts) {
@@ -1502,12 +1562,12 @@
     if (convo && gated()) toast('Voice mode on. Say \u201c' + wakeName() + '\u201d and ask me anything. Say \u201cthanks\u201d when you are done. Keep this tab open.', 7000);
     syncVoice();
   });
-  // Jarvis-style voice settings
+  // voice settings
   $("vm-style").value = vmStyle();
   $("wake-word").value = safeGet("aegis_wakeword") || "";
   $("call-me").value = safeGet("aegis_callme") || "";
   $("vm-style").addEventListener("change", () => { safeSet("aegis_vm_style", $("vm-style").value); sleepNow(true); stopRec(); syncToggles(); syncVoice(); });
-  $("wake-word").addEventListener("change", () => { safeSet("aegis_wakeword", $("wake-word").value); wakeRx = null; syncToggles(); stopRec(); syncVoice(); toast('I will answer to \u201c' + wakeName() + '\u201d (and Jarvis / Aegis).'); });
+  $("wake-word").addEventListener("change", () => { safeSet("aegis_wakeword", $("wake-word").value); wakeRx = null; syncToggles(); stopRec(); syncVoice(); toast('I will answer to \u201c' + wakeName() + '\u201d (and Aegis / Aegis).'); });
   $("call-me").addEventListener("change", () => { safeSet("aegis_callme", $("call-me").value.trim().slice(0, 30)); });
   syncToggles();
   $("wake").addEventListener("change", () => {
@@ -1732,7 +1792,7 @@
   let directCtl = null;
   const directReady = () => LOCAL && aiCfg && (aiCfg.api_key || (aiCfg.provider === "custom"));
   function directSystem() {
-    return "You are Aegis, a calm, sharp, warm personal AI assistant (JARVIS-like). Answer any question directly. Match the user's language and script exactly (English, Urdu, Hindi, or Roman Urdu). Keep replies short and plain (1-3 sentences) unless asked to explain in depth; no markdown tables. It is now " + new Date().toLocaleString() + " (" + (TZ || "local time") + "). You have no tools in this mode, so say so if asked to control a PC, set reminders or browse live.";
+    return "You are Aegis, a calm, sharp, warm personal AI assistant with real feeling. Answer any question directly. Speak every language the user speaks and match their language and script exactly (Urdu script, Roman Urdu, Hindi, Arabic, Spanish, French, Chinese... any), switching when they switch. Notice how they feel and answer the feeling first, with genuine warmth. Begin every sentence with one tag from [calm] [warm] [joy] [excited] [curious] [empathy] [concern] [urgent] [confident] (the app hides the tags and uses them to shape your voice; never mention them). Keep replies short and plain (1-3 sentences) unless asked to explain in depth; no markdown tables. It is now " + new Date().toLocaleString() + " (" + (TZ || "local time") + "). You have no tools in this mode, so say so if asked to control a PC, set reminders or browse live.";
   }
   async function* sse(res) {
     const rd = res.body.getReader(), dec = new TextDecoder(); let buf = "";

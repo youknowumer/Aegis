@@ -1,4 +1,4 @@
-# Aegis: Jarvis-style AI assistant for web + Windows PC
+# Aegis: your own AI voice assistant for web + Windows PC
 
 **New here? Read `SETUP.md` (10-minute setup, including where the API key goes).**
 
@@ -82,6 +82,17 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 - **One female voice with emotions**: each sentence is spoken with its own feeling (joy, empathy, concern, urgency, curiosity...). "more emotion" / "less emotion".
 - **Meeting present mode**: "meeting chal rahi hai" and Aegis listens silently; at the end say "meeting points extract karo" and it reads the key points aloud.
 - **Chrome A to Z** (desktop app): `chrome_*` tools open / switch / close tabs, read pages, click, type, scroll, screenshot. Risky clicks and scripts ask first.
+
+## What's new in v8 (every language, real feelings, calendar, markets, smart home). Details in `CHANGES-v8.md`
+
+- **Aegis is its own assistant**: the name is Aegis everywhere (wake word, prompts, UI). Wake it with "Aegis" in Latin, Urdu, Hindi, Arabic, Cyrillic, Japanese, Korean or Chinese script, or set your own word.
+- **Talks in every language**: replies follow the language and script you write (Urdu script, Roman Urdu, Hindi, Arabic, Spanish, French, Chinese...). The page can listen in 20 languages, and "switch to Spanish" works.
+- **Feels in every language**: the AI tags each sentence with its feeling ([joy], [empathy], [concern]...), which shapes the voice. The tags are hidden. Each sentence is spoken with a voice of its own language, so mixed answers are read properly.
+- **Studio voice (optional)**: add an OpenAI or ElevenLabs key on the server and replies are spoken by a natural cloud voice that follows each feeling in any language. Without a key nothing changes.
+- **Calendar**: "kal 3 baje dentist add karo, 30 minute pehle yaad dilana", "what is on today?". Today's events are part of the daily briefing.
+- **Markets**: live crypto and stock prices ("bitcoin price in PKR", "how is Tesla doing"), no API key.
+- **Smart home** (optional, Home Assistant): lights, fans, AC, scenes by voice. Locks, doors and alarms always ask first.
+- **Emotional intelligence**: Aegis answers your mood first (sad, stressed, happy, angry), then the task.
 
 ## Voice and instant commands
 
@@ -179,6 +190,8 @@ Before building the installer set `DEFAULT_SERVER` at the top of `desktop/main.j
 | `AEGIS_WEB_SEARCH` | `1` = AI can search the web (enable web search for your org in the Anthropic Console first) |
 | `AEGIS_MODEL` | default `claude-sonnet-5-5` |
 | `AEGIS_DB` | SQLite path, e.g. `/data/aegis.db` |
+| `OPENAI_API_KEY` or `ELEVENLABS_API_KEY` | optional: switches on the **studio voice** (see `SETUP.md`). Also `AEGIS_TTS_PROVIDER`, `AEGIS_TTS_VOICE`, `AEGIS_ELEVENLABS_VOICE`, `AEGIS_TTS_CHARS_PER_DAY` (default 6000 per user) |
+| `AEGIS_HA_URL`, `AEGIS_HA_TOKEN` | optional: connect **Home Assistant** for smart-home control |
 
 Plans/limits: edit `PLAN_LIMITS` in `server/app/settings.py`. Activate a paying customer with
 `python server/scripts/set_plan.py customer@example.com basic`.
@@ -186,9 +199,10 @@ Plans/limits: edit `PLAN_LIMITS` in `server/app/settings.py`. Activate a paying 
 ## Tests
 
 ```
-cd server  && pip install pytest httpx && pytest      # 85 tests, fake AI, no API key needed
+cd server  && pip install pytest httpx && pytest      # 103 tests, fake AI, no API key needed
 cd desktop && npm test                                # 35 tests (includes real-Chrome end-to-end)
-node --test tests/commands.test.js                                   # voice-command router
+node --test tests/*.test.js                                          # voice router, multilingual voice engine, meetings
+npm install --no-save jsdom && node --test tests/ui-smoke.test.js   # loads the real app.html in a simulated browser (skipped without jsdom)
 ```
 
 ## Layout
@@ -197,7 +211,7 @@ node --test tests/commands.test.js                                   # voice-com
 |---|---|
 | `index.html`, `landing.*` | Landing page |
 | `app.html`, `style.css`, `app.js`, `orb.js` | The assistant UI (login, HUD, chat, voice) |
-| `voice.js` | The one female voice + emotion engine |
+| `voice.js` | The one female voice, multilingual emotion engine, language detection, studio-voice client |
 | `meetings.js`, `groq.js` | Meeting assistant, present mode, spoken read-out |
 | `desktop/browser.js` | Chrome control (DevTools Protocol) |
 | `commands.js` | Instant voice/text commands (open, search, time, math, timers, notes, UI control) |
@@ -207,6 +221,8 @@ node --test tests/commands.test.js                                   # voice-com
 | `server/app/agent.py` | AI tool-use loop and persona |
 | `server/app/tools.py` | Tool list (add new tools here) |
 | `server/app/mail.py` | Email sending (SMTP) and inbox reading (IMAP, read-only) with the safety checks |
+| `server/app/tts.py` | Optional studio voice (OpenAI / ElevenLabs) with a daily per-user allowance |
+| `server/app/smarthome.py` | Optional Home Assistant control with approval rules for locks and doors |
 | `server/app/utilities.py` | Safe helpers: calculator, weather, web page reader, Wikipedia, currency, reminder times |
 | `server/app/main.py` | Accounts, memory API, websocket, CORS, static hosting |
 | `desktop/` | Electron app + the PC tools |
@@ -221,6 +237,10 @@ node --test tests/commands.test.js                                   # voice-com
 - Reminders fire while the server is running and a chat tab is open (or the next time you open one). Free hosts that sleep will miss them until you reconnect.
 - Volume/mute use the Windows media keys (steps of 2%), and "mute" toggles.
 - Web search is untested against a live account here; turn it on only after enabling it in the Anthropic Console.
+- Studio voice, live market prices and Home Assistant were written against the providers' documented APIs and tested here with fake
+  responses, not with live accounts or keys. Try each once. Without a studio key, voice quality in a language depends on the voices
+  your device has installed (Urdu is often missing: install the OS Urdu voice or use the studio voice).
+- Emotion tags depend on the AI following the prompt; when a sentence has no tag, a keyword guess in 17 languages is used instead.
 - Not built: payments, Google sign-in, installer code-signing, multi-instance scaling (connections live in memory,
   run one process or add Redis).
 - I could verify the server (35 tests), desktop tools (12) and the UI logic in a simulated browser (11 tests). I could not

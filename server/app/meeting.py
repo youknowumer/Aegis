@@ -15,7 +15,7 @@ import re
 from typing import List, Optional
 
 GROQ_BASE = os.environ.get("AEGIS_GROQ_BASE", "https://api.groq.com/openai/v1").rstrip("/")
-# whisper-large-v3 is the most accurate (best for Urdu / Hindi / mixed speech); the turbo model is faster and cheaper.
+# whisper-large-v3 is the most accurate (used for every language except English: Urdu, Hindi, Arabic, mixed speech...); the turbo model is faster and cheaper.
 STT_MODEL_FAST = os.environ.get("AEGIS_GROQ_STT_FAST", "whisper-large-v3-turbo")
 STT_MODEL_BEST = os.environ.get("AEGIS_GROQ_STT_BEST", "whisper-large-v3")
 CHAT_MODEL = os.environ.get("AEGIS_GROQ_CHAT_MODEL", "llama-3.3-70b-versatile")
@@ -116,7 +116,7 @@ async def transcribe(audio: bytes, filename: str, content_type: str, key: str, l
     if len(audio) > MAX_AUDIO_BYTES:
         raise GroqError(f"That audio is {len(audio) // (1024 * 1024)} MB. The limit is {MAX_AUDIO_BYTES // (1024 * 1024)} MB per file. Record or upload it in shorter parts.", 413)
     lang = language.strip().lower()[:5].split("-")[0]
-    data = {"model": STT_MODEL_BEST if (best or lang in ("ur", "hi", "pa", "sd", "ps")) else STT_MODEL_FAST, "response_format": "verbose_json", "temperature": "0"}
+    data = {"model": STT_MODEL_BEST if (best or (lang and lang != "en")) else STT_MODEL_FAST, "response_format": "verbose_json", "temperature": "0"}
     if lang in LANG_CODES:
         data["language"] = lang
     if prompt.strip():

@@ -277,7 +277,7 @@ def test_web_search_tool_hidden_when_claude_has_native_search():
     assert "search_web" in names(False) and "search_web" not in names(True)
 
 
-def test_voice_turns_get_a_spoken_jarvis_style_prompt(env):
+def test_voice_turns_get_a_spoken_conversational_prompt(env):
     from app.agent import Agent
     from app.hub import Hub
 

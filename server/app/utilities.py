@@ -318,6 +318,78 @@ def convert_currency(amount, src: str, dst: str) -> str:
 
 
 # ---------------------------------------------------------------------------------------------
+# Markets: crypto (CoinGecko) and stocks / ETFs (Stooq). Both are free and need no key.
+# ---------------------------------------------------------------------------------------------
+_COINS = {
+    "btc": "bitcoin", "bitcoin": "bitcoin", "eth": "ethereum", "ethereum": "ethereum", "sol": "solana", "solana": "solana",
+    "bnb": "binancecoin", "xrp": "ripple", "ada": "cardano", "doge": "dogecoin", "dogecoin": "dogecoin", "usdt": "tether",
+    "ltc": "litecoin", "dot": "polkadot", "trx": "tron", "avax": "avalanche-2", "link": "chainlink", "ton": "the-open-network",
+    "shib": "shiba-inu", "xlm": "stellar", "atom": "cosmos", "matic": "matic-network",
+}
+
+
+def _crypto_price(symbol: str, currency: str) -> str:
+    key = symbol.lower()
+    coin = _COINS.get(key)
+    if not coin:
+        found = _get("https://api.coingecko.com/api/v3/search?query=" + urllib.parse.quote(key)).get("coins") or []
+        if not found:
+            return ""
+        coin = found[0]["id"]
+    cur = currency.lower()
+    vs = ",".join(dict.fromkeys(["usd", cur]))
+    d = _get(f"https://api.coingecko.com/api/v3/simple/price?ids={urllib.parse.quote(coin)}&vs_currencies={vs}&include_24hr_change=true").get(coin)
+    if not d or cur not in d:
+        return ""
+    out = f"{symbol.upper()} ({coin}): {d[cur]:,.6g} {cur.upper()}"
+    if cur != "usd" and "usd" in d:
+        out += f" ({d['usd']:,.6g} USD)"
+    ch = d.get(cur + "_24h_change")
+    if isinstance(ch, (int, float)):
+        out += f", {ch:+.2f}% in 24 hours"
+    return out + ". Source: CoinGecko, live."
+
+
+def _stock_price(symbol: str) -> str:
+    sym = symbol.lower() if "." in symbol else symbol.lower() + ".us"
+    rows = _fetch_raw("https://stooq.com/q/l/?s=" + urllib.parse.quote(sym) + "&f=sd2t2ohlcv&h&e=csv", "text/csv", 20_000).strip().splitlines()
+    if len(rows) < 2:
+        return ""
+    cols = rows[1].split(",")
+    if len(cols) < 7 or "N/D" in cols[3:7]:
+        return ""
+    try:
+        opn, close = float(cols[3]), float(cols[6])
+    except ValueError:
+        return ""
+    out = f"{cols[0].upper()}: {close:,.2f}" + (" USD" if sym.endswith(".us") else "")
+    if opn:
+        out += f" ({(close - opn) / opn * 100:+.2f}% from today's open)"
+    return out + f", as of {cols[1]} {cols[2]}. Source: Stooq, may be delayed."
+
+
+def market_price(symbol: str, kind: str = "auto", currency: str = "USD") -> str:
+    """Price of a cryptocurrency or a stock / ETF. kind = auto | crypto | stock."""
+    sym = str(symbol or "").strip().lstrip("$")
+    if not re.fullmatch(r"[A-Za-z0-9.^\-]{1,20}", sym):
+        return "Error: give a ticker or coin name such as AAPL, TSLA, BTC or ethereum."
+    cur = str(currency or "USD").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", cur):
+        cur = "USD"
+    kind = str(kind or "auto").lower()
+    try:
+        if kind == "crypto" or (kind == "auto" and sym.lower() in _COINS):
+            res = _crypto_price(sym, cur)
+        else:
+            res = _stock_price(sym)
+            if not res and kind == "auto":
+                res = _crypto_price(sym, cur)
+    except Exception:
+        return "Error: the price service is not reachable right now."
+    return res or f"No price found for {sym}. Check the ticker or coin name."
+
+
+# ---------------------------------------------------------------------------------------------
 # Time helpers (reminders, current time in any zone)
 # ---------------------------------------------------------------------------------------------
 def get_zone(name: str):

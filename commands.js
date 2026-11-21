@@ -19,7 +19,7 @@
   function norm(text) {
     let t = String(text || "").replace(/[۰-۹٠-٩]/g, (c) => DIGITS[c]);
     t = t.toLowerCase().replace(/[“”"]/g, "").replace(/[?!؟.,;]+$/g, "").replace(/\s+/g, " ").trim();
-    t = t.replace(/^(?:please|plz|pls|can you|could you|will you|aegis|jarvis|hey aegis|hey jarvis)[ ,]+/g, "");
+    t = t.replace(/^(?:please|plz|pls|can you|could you|will you|aegis|hey aegis)[ ,]+/g, "");
     t = t.replace(/[ ,]+(?:please|plz|pls|thanks|thank you|shukriya)$/g, "");
     return t.trim();
   }
@@ -184,8 +184,20 @@
 
   // ------------------------------------------------------------------ command table
   const THEMES = ["cyan", "blue", "green", "red", "amber", "purple", "pink"];
-  const LANGS = { english: "en-US", urdu: "ur-PK", hindi: "hi-IN", "اردو": "ur-PK", "हिन्दी": "hi-IN", "انگلش": "en-US", "انگریزی": "en-US" };
-  const LANG_NAME = { "en-US": "English", "ur-PK": "Urdu", "hi-IN": "Hindi" };
+  // Names people use for each language (English, Roman Urdu and the language's own script) -> the code the app listens in.
+  const LANGS = {
+    english: "en-US", angrezi: "en-US", "انگلش": "en-US", "انگریزی": "en-US", urdu: "ur-PK", "اردو": "ur-PK", hindi: "hi-IN", "हिन्दी": "hi-IN", "हिंदी": "hi-IN",
+    arabic: "ar-SA", arabi: "ar-SA", "عربی": "ar-SA", "العربية": "ar-SA", persian: "fa-IR", farsi: "fa-IR", "فارسی": "fa-IR", bengali: "bn-BD", bangla: "bn-BD", "বাংলা": "bn-BD",
+    punjabi: "pa-IN", "پنجابی": "pa-IN", tamil: "ta-IN", "தமிழ்": "ta-IN", spanish: "es-ES", "español": "es-ES", espanol: "es-ES", french: "fr-FR", "français": "fr-FR", francais: "fr-FR",
+    german: "de-DE", deutsch: "de-DE", portuguese: "pt-BR", "português": "pt-BR", portugues: "pt-BR", italian: "it-IT", italiano: "it-IT", turkish: "tr-TR", "türkçe": "tr-TR", turkce: "tr-TR",
+    indonesian: "id-ID", dutch: "nl-NL", nederlands: "nl-NL", russian: "ru-RU", "русский": "ru-RU", chinese: "zh-CN", mandarin: "zh-CN", "中文": "zh-CN", japanese: "ja-JP", "日本語": "ja-JP",
+    korean: "ko-KR", "한국어": "ko-KR",
+  };
+  const LANG_NAME = { "en-US": "English", "ur-PK": "Urdu", "hi-IN": "Hindi", "ar-SA": "Arabic", "fa-IR": "Persian", "bn-BD": "Bengali", "pa-IN": "Punjabi", "ta-IN": "Tamil", "es-ES": "Spanish", "fr-FR": "French", "de-DE": "German", "pt-BR": "Portuguese", "it-IT": "Italian", "tr-TR": "Turkish", "id-ID": "Indonesian", "nl-NL": "Dutch", "ru-RU": "Russian", "zh-CN": "Chinese", "ja-JP": "Japanese", "ko-KR": "Korean" };
+  const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const LANG_ALT = Object.keys(LANGS).sort((a, b) => b.length - a.length).map(reEsc).join("|");
+  const LANG_RX = new RegExp("^(?:switch|change|set)?\\s*(?:language )?(?:to )?(" + LANG_ALT + ")(?: mein| me| mai| میں)?(?: baat karo| bolo| bol| language| speak| mode| میں بات کرو)?$");
+  const LANG_BARE = new Set(["english", "urdu", "hindi", "اردو", "हिन्दी", "हिंदी", "انگلش", "انگریزی"]);   // these alone switch language; for the others a verb is needed ("french" alone is just a word)
   const HELP =
     "Here is what I can do instantly, by voice or text:\n" +
     "- Open sites: \"open YouTube\", \"youtube kholo\", \"open github.com\"\n" +
@@ -418,9 +430,9 @@
     });
   add("talk", (t) => /^(?:baat karo|baatein karo|mujh se baat karo|talk to me|let's talk|lets talk|بات کرو|بات چیت کرو|बात करो)$/.test(t),
     (m, c) => { c.setVoiceMode(true); return c.say("I'm listening."); });
-  add("language", (t) => /^(?:switch|change|set)?\s*(?:language )?(?:to )?(english|urdu|hindi|اردو|हिन्दी|انگلش|انگریزی)(?: mein| me| mai| میں)?(?: baat karo| bolo| bol| language| speak| mode| میں بات کرو)?$/.test(t) && /(?:switch|change|set|language|baat|bolo|speak|mode|mein|me |mai|میں|^urdu$|^hindi$|^english$)/.test(t),
+  add("language", (t) => { const m = t.match(LANG_RX); return !!m && (LANG_BARE.has(m[1]) ? /(?:switch|change|set|language|baat|bolo|speak|mode|mein|me |mai|میں|^(?:urdu|hindi|english)$)/.test(t) || t === m[1] : /(?:switch|change|set|language|baat|bolo|speak|mode|mein|me |mai|میں)/.test(t)); },
     (m, c) => {
-      const k = Object.keys(LANGS).find((x) => m.t.includes(x));
+      const k = Object.keys(LANGS).sort((a, b) => b.length - a.length).find((x) => m.t.includes(x));
       const code = LANGS[k];
       c.setLang(code);
       return c.say("Okay, I will listen in " + LANG_NAME[code] + ".");

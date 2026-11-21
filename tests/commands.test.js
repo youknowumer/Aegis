@@ -118,3 +118,33 @@ test("present mode and 'extract meeting points' route to the meeting assistant (
   await A.match("extract meeting points", { online: false }).run(none);
   assert.match(said.pop(), /no meeting to take points from/);
 });
+
+test("language switching works for every supported language, in English, Roman Urdu and native script", async () => {
+  const want = [["switch to spanish", "es-ES", "Spanish"], ["switch to french", "fr-FR", "French"], ["arabic mein baat karo", "ar-SA", "Arabic"], ["set language to japanese", "ja-JP", "Japanese"],
+    ["switch to 日本語", "ja-JP", "Japanese"], ["change language to german", "de-DE", "German"], ["switch to chinese", "zh-CN", "Chinese"], ["switch to korean", "ko-KR", "Korean"],
+    ["switch to turkish", "tr-TR", "Turkish"], ["switch to portuguese", "pt-BR", "Portuguese"], ["urdu", "ur-PK", "Urdu"], ["hindi", "hi-IN", "Hindi"], ["انگریزی", "en-US", "English"]];
+  for (const [phrase, code, name] of want) {
+    const m = A.match(phrase, { online: false });
+    assert.strictEqual(m && m.name, "language", phrase);
+    let got = null, said = "";
+    await m.run({ setLang: (c) => { got = c; }, say: (t) => { said = t; return t; } });
+    assert.strictEqual(got, code, phrase);
+    assert.match(said, new RegExp(name), phrase);
+  }
+  // a bare foreign word is just a word for the AI (only urdu / hindi / english switch on their own)
+  for (const t of ["french", "spanish", "german", "chinese", "arabic"]) assert.strictEqual(A.match(t, { online: false }), null, t);
+});
+
+test("the old assistant name is no longer stripped as a wake prefix, Aegis still is", () => {
+  assert.strictEqual(A.norm("Aegis, open youtube"), "open youtube");
+  assert.strictEqual(A.norm("hey aegis what time is it"), "what time is it");
+  assert.notStrictEqual(A.norm("jarvis open youtube"), "open youtube");
+});
+
+test("every language the commands can switch to exists in the language dropdown", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "commands.js"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
+  const codes = [...src.match(/const LANG_NAME = \{([^}]*)\}/)[1].matchAll(/"([a-z]{2}-[A-Z]{2})"/g)].map((m) => m[1]);
+  assert.ok(codes.length >= 20);
+  for (const c of codes) assert.ok(html.includes(`<option value="${c}">`), "missing option " + c);
+});
