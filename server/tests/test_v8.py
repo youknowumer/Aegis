@@ -245,6 +245,7 @@ def test_home_control_through_the_agent_asks_before_unlocking(env, ha):
 def voice_env(monkeypatch):
     for k in ("OPENAI_API_KEY", "ELEVENLABS_API_KEY", "AEGIS_TTS_PROVIDER", "AEGIS_TTS_CHARS_PER_DAY"):
         monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("AEGIS_EDGE_TTS", "0")   # the free voice has its own tests (test_voice_edge.py)
     sent = []
     monkeypatch.setattr(tts, "_post", lambda url, headers, body: (sent.append((url, headers, body)) or b"ID3fake-mp3"))
     return sent

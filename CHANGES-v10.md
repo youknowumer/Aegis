@@ -22,9 +22,26 @@
   goals) even when you did not mention them; Aegis uses them like a friend, never like a database dump.
 - The Memory panel shows each memory's kind and marks important ones. Old databases are upgraded automatically.
 
+## Voice: one realistic female voice, free (server/app/tts.py)
+- New default studio voice that needs **no key**: Microsoft Edge's neural read-aloud voices through the `edge-tts` package.
+  It is bundled in the installer, so the desktop app no longer falls back to Windows' robotic voices.
+- ONE woman in every language: the multilingual neural voice "Ava" speaks English, Spanish, French, German, Italian, Portuguese,
+  Japanese, Korean and Chinese; other languages (Urdu, Hindi, Arabic, Persian, Bengali, Turkish, Russian...) use the best native female neural voice.
+  A male voice is never chosen. Roman Urdu/Hindi ("kya haal hai") is spoken by an Indian-English female voice.
+- The voice list is checked live, so a renamed voice never breaks speech; if the service is unreachable the browser voices take over.
+- Each feeling changes speed, pitch and volume (empathy slower and softer, joy brighter, excited faster...).
+- The AI is told to speak like one real woman on a phone call: natural reactions, answers the feeling first, brings up what it remembers.
+  It is still honest if you sincerely ask whether it is an AI.
+- Priority: OPENAI_API_KEY (gpt-4o-mini-tts, the most expressive) > ELEVENLABS_API_KEY > free Edge voice.
+  `AEGIS_EDGE_TTS=0` turns the free voice off; `AEGIS_TTS_PROVIDER=off` turns all studio voices off; the Settings > Voice
+  "studio voice" box turns it off per user. Limit: `AEGIS_TTS_CHARS_PER_DAY` (free voice default 200000 per user).
+- Hearing any language: Settings > Voice & meetings (Groq) with a free Groq key. Whisper then detects the language you speak by itself.
+- Privacy/licence note: with the free voice, the text Aegis speaks is sent to Microsoft's service. Edge's read-aloud service is not an
+  official paid API, so for a commercial product use an OpenAI or ElevenLabs key instead.
+
 ## Tests
 - server/tests/test_emotion.py (mood reading in 4 scripts, danger signs, negation, memory merge, old-database upgrade, mood history,
-  check-in, privacy between users, the AI tools end to end). Server: 173 pass. Front-end: all pass.
+  check-in, privacy between users, the AI tools end to end). Server: 231 pass (test_voice_edge.py: voice choice per language, never male, Roman Urdu, fallbacks, API, limits). Front-end: all pass.
 
 ## Release note
 - The desktop installer contains the server, so users get this through the auto-update: tag a new version (e.g. `v1.1.0`).

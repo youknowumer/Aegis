@@ -498,7 +498,10 @@
     host.className = "vp";
     const h = document.createElement("div"); h.className = "vp-h"; h.textContent = "Aegis voice";
     const note = document.createElement("p"); note.className = "muted small vp-note";
-    const refresh = () => { note.textContent = hasTTS ? "One female voice: " + describe() + ". It reads the feeling of each sentence and speaks it with matching tone, speed and pauses." : "This browser can't speak."; };
+    const refresh = () => {
+      if (cloud.ready()) { note.textContent = "One female studio voice, the same woman in every language. It reads the feeling of each sentence and speaks it with matching tone, speed and pauses."; return; }
+      note.textContent = hasTTS ? "One female voice: " + describe() + ". It reads the feeling of each sentence and speaks it with matching tone, speed and pauses." : "This browser can't speak.";
+    };
     refresh(); listeners.add(refresh);
     const mk = (label, min, max, step, get, set) => {
       const l = document.createElement("label"); l.className = "field";
