@@ -921,3 +921,11 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 
 @media (max-width: 1100px) { .auth-peek { display: none; } }
 @media (max-width: 760px) { .auth-trust { font-size: 11.5px; } .strength-text { min-width: 6.5em; } }
+
+/* mood + memory kinds */
+.mood-line { margin: 0 0 8px; padding: 6px 10px; border-radius: 9px; background: rgba(var(--ac), .08); line-height: 1.4; }
+.mem-kind { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 6px; font-size: .68rem; font-style: normal; text-transform: uppercase; letter-spacing: .04em; background: rgba(var(--ac), .16); }
+.memory li.mem-important { border-left-width: 3px; }
+.mood-actions { margin: 6px 0 0; }
+.linkish { background: none; border: 0; padding: 0; color: inherit; opacity: .7; text-decoration: underline; cursor: pointer; font: inherit; }
+.linkish:hover { opacity: 1; }

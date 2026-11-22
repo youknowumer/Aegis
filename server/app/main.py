@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import meeting, providers, settings, smarthome, tts
+from . import emotion, meeting, providers, settings, smarthome, tts
 from .agent import Agent, Session
 from .auth import EMAIL_RE, hash_password, make_token, read_token, verify_password
 from .db import DB
@@ -274,13 +274,31 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
 
     @app.get("/api/memory")
     def list_memory(user=Depends(current_user)):
-        return [{"id": r["id"], "text": r["text"]} for r in db.facts(user["id"])]
+        return [{"id": r["id"], "text": r["text"], "kind": r["kind"], "important": r["weight"] >= 3} for r in db.facts(user["id"])]
 
     @app.delete("/api/memory/{fact_id}")
     def delete_memory(fact_id: int, user=Depends(current_user)):
         if not db.delete_fact(user["id"], fact_id):
             raise HTTPException(404, "Not found")
         return {"ok": True}
+
+    @app.get("/api/mood")
+    def get_mood(days: int = 7, tz: str = "", user=Depends(current_user)):
+        days = max(1, min(60, days))
+        rows = db.moods(user["id"], since=time.time() - days * 86400)
+        counts = {}
+        for r in rows:
+            counts[r["mood"]] = counts.get(r["mood"], 0) + 1
+        return {
+            "days": days,
+            "summary": emotion.summarize(rows, tz, days),
+            "counts": counts,
+            "latest": rows[0]["mood"] if rows else "",
+        }
+
+    @app.delete("/api/mood")
+    def clear_mood(user=Depends(current_user)):
+        return {"cleared": db.clear_moods(user["id"])}
 
     @app.get("/api/tasks")
     def list_tasks(user=Depends(current_user)):

@@ -167,6 +167,12 @@ uvicorn app.main:create_app --factory --port 8000
 
 Open http://localhost:8000 (the server also serves the website).
 
+## Feelings and memory (v10)
+
+Aegis senses how you feel (English, Roman Urdu, Urdu, Hindi, Arabic), answers the feeling first, remembers how you have been
+over the week and checks in gently. Memories have kinds and importance and duplicates merge. Details: `CHANGES-v10.md`.
+Delete mood history any time from the Memory panel.
+
 ## 4. Windows desktop app (installer, PC control, Outlook, YouTube)
 
 The installer is **self-contained**: it ships its own Python and the Aegis server, starts them when the app opens

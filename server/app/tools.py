@@ -42,8 +42,13 @@ class Tool:
 
 TOOLS: List[Tool] = [
     # ---- server tools ----
-    Tool("remember", "Save a fact about the user to long-term memory.", "server", {"fact": S}, ["fact"]),
-    Tool("recall", "Search long-term memory for facts relevant to a query.", "server", {"query": S}, ["query"]),
+    Tool("remember", "Save something about the user to long-term memory: a fact, preference, person in their life, important date or event, goal, or an emotional moment worth remembering. Set kind to the best fit and important=true for things that matter a lot (family, health, big plans, birthdays). Saving something similar again just updates it.", "server",
+         {"fact": S, "kind": {"type": "string", "enum": ["fact", "preference", "person", "event", "goal", "emotion"]}, "important": B}, ["fact"]),
+    Tool("recall", "Search long-term memory for what is known about the user. Give a topic or name; an empty query returns the most important memories. Optionally filter by kind.", "server",
+         {"query": S, "kind": {"type": "string", "enum": ["fact", "preference", "person", "event", "goal", "emotion"]}}, []),
+    Tool("note_mood", "Quietly record how the user seems to feel right now (use when you sense a feeling the app did not catch, in any language). Never mention that you recorded it.", "server",
+         {"mood": {"type": "string", "enum": ["happy", "excited", "proud", "grateful", "stressed", "anxious", "sad", "lonely", "angry", "tired", "neutral"]}, "intensity": {"type": "number", "description": "1 mild, 2 clear, 3 strong"}, "note": {"type": "string", "description": "optional: the cause in a few words, e.g. 'exam tomorrow'"}}, ["mood"]),
+    Tool("mood_history", "How the user has been feeling lately (days: how many days back, default 7). Use when they ask how they have been, or to be a better friend.", "server", {"days": N}),
     Tool("forget", "Delete memories that contain the given text.", "server", {"contains": S}, ["contains"], risky=True),
     Tool("current_time", "Get the current date and time, optionally in a given IANA timezone such as Asia/Karachi or America/New_York.", "server", {"timezone": S}),
     Tool("calculate", "Evaluate a math expression exactly (+ - * / ** % parentheses, sqrt, sin, cos, tan, log, ln, abs, round, pi, e). Use it for any arithmetic instead of guessing.", "server", {"expression": S}, ["expression"]),

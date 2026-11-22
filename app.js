@@ -130,6 +130,7 @@
       return { email, plan: "local", used: 0, limit: 0, device: false, app_name: "Aegis", web_search: false };
     }
     if (path === "/api/memory") return [];
+    if (path === "/api/mood" || path.startsWith("/api/mood?")) return { summary: "", counts: {}, latest: "" };
     return {};
   }
 
@@ -659,6 +660,8 @@
       facts.forEach((f) => {
         const li = document.createElement("li");
         const s = document.createElement("span"); s.dir = "auto"; s.textContent = f.text;
+        if (f.kind && f.kind !== "fact") { const k = document.createElement("em"); k.className = "mem-kind"; k.textContent = f.kind; li.appendChild(k); }
+        if (f.important) li.classList.add("mem-important");
         const b = document.createElement("button");
         b.type = "button"; b.textContent = "\u00d7"; b.title = "Forget this"; b.setAttribute("aria-label", "Forget this");
         b.addEventListener("click", async () => { try { await api("/api/memory/" + f.id, { method: "DELETE" }); loadMemory(); } catch {} });
@@ -669,6 +672,31 @@
       $("memory-empty").classList.toggle("hidden", facts.length > 0);
     } catch {}
   }
+
+  // ---- how Aegis senses the user feels (words only; the server keeps the mood name, never the message)
+  const FEEL_WORD = { joy: "glad with you", excited: "excited with you", warm: "warm", empathy: "here with you", concern: "concerned for you", calm: "calm and steady" };
+  function showMood(mood, feeling) {
+    const el = $("mood-line");
+    if (!el || !mood || mood === "neutral") return;
+    el.textContent = "You seem " + mood + ". Aegis is " + (FEEL_WORD[feeling] || "listening") + ".";
+    el.classList.remove("hidden");
+    $("mood-clear").classList.remove("hidden");
+  }
+  async function loadMood() {
+    try {
+      const m = await api("/api/mood?days=7&tz=" + encodeURIComponent(TZ || ""));
+      const el = $("mood-line");
+      if (!el) return;
+      const has = !!(m && m.summary);
+      if (has) el.textContent = m.summary;
+      el.classList.toggle("hidden", !has);
+      $("mood-clear").classList.toggle("hidden", !has);
+    } catch {}
+  }
+  (function () {
+    const b = $("mood-clear");
+    if (b) b.addEventListener("click", async () => { try { await api("/api/mood", { method: "DELETE" }); loadMood(); toast("Mood history cleared."); } catch {} });
+  })();
 
   // ---- tasks and reminders
   function emptyToggle(listId, emptyId, countId, n) {
@@ -797,10 +825,11 @@
         $("messages").querySelectorAll(".msg,.tool").forEach((n) => n.remove());
         (m.history || []).forEach((h) => addMsg(h.role === "user" ? "user" : "ai", h.text));
         streamEl = null;
-        loadMemory(); loadTasks(); loadReminders();
+        loadMemory(); loadMood(); loadTasks(); loadReminders();
         refreshState();
         syncVoice();
         break;
+      case "mood": showMood(m.mood, m.feeling); break;
       case "status": setDevice(m.device); break;
       case "delta": onDelta(m.text || ""); break;
       case "delta_end": endStream(); break;

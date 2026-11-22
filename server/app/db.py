@@ -97,6 +97,16 @@ CREATE TABLE IF NOT EXISTS meetings (
   created REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_meetings_user ON meetings(user_id, id);
+CREATE TABLE IF NOT EXISTS moods (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  mood TEXT NOT NULL,
+  intensity INTEGER NOT NULL DEFAULT 1,
+  note TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'auto',
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_moods_user ON moods(user_id, created);
 CREATE TABLE IF NOT EXISTS usage (
   user_id INTEGER NOT NULL,
   day TEXT NOT NULL,
@@ -123,6 +133,11 @@ class DB:
             self.conn.execute("ALTER TABLE reminders ADD COLUMN repeat TEXT NOT NULL DEFAULT ''")
         if "tz" not in cols:
             self.conn.execute("ALTER TABLE reminders ADD COLUMN tz TEXT NOT NULL DEFAULT ''")
+        fcols = {r["name"] for r in self.conn.execute("PRAGMA table_info(facts)")}
+        if "kind" not in fcols:
+            self.conn.execute("ALTER TABLE facts ADD COLUMN kind TEXT NOT NULL DEFAULT 'fact'")
+        if "weight" not in fcols:
+            self.conn.execute("ALTER TABLE facts ADD COLUMN weight INTEGER NOT NULL DEFAULT 1")
 
     def execute(self, sql, params=()):
         with self.lock:
@@ -186,13 +201,54 @@ class DB:
         )
 
     # ---- memory ----
-    def add_fact(self, uid, text):
+    FACT_KINDS = ("fact", "preference", "person", "event", "goal", "emotion")
+
+    @staticmethod
+    def _words(text):
+        import re
+
+        return set(re.findall(r"\w+", str(text).lower()))
+
+    def add_fact(self, uid, text, kind="fact", important=False):
+        """Save a memory. A near-duplicate (80% same words) is merged into the old one instead of piling up."""
+        text = text.strip()
+        kind = kind if kind in self.FACT_KINDS else "fact"
+        new = self._words(text)
+        for r in self.all("SELECT id, text, weight FROM facts WHERE user_id = ?", (uid,)):
+            old = self._words(r["text"])
+            if new and old and len(new & old) / len(new | old) >= 0.8:
+                self.execute(
+                    "UPDATE facts SET text = ?, kind = ?, weight = ?, created = ? WHERE id = ? AND user_id = ?",
+                    (text, kind, min(5, max(r["weight"] + 1, 3 if important else 1)), time.time(), r["id"], uid),
+                )
+                return r["id"]
         return self.execute(
-            "INSERT INTO facts (user_id, text, created) VALUES (?, ?, ?)", (uid, text.strip(), time.time())
+            "INSERT INTO facts (user_id, text, created, kind, weight) VALUES (?, ?, ?, ?, ?)",
+            (uid, text, time.time(), kind, 3 if important else 1),
         ).lastrowid
 
     def facts(self, uid):
-        return self.all("SELECT id, text, created FROM facts WHERE user_id = ? ORDER BY id DESC", (uid,))
+        return self.all("SELECT id, text, created, kind, weight FROM facts WHERE user_id = ? ORDER BY id DESC", (uid,))
+
+    # ---- moods (how the user felt; only the mood name, never their words) ----
+    def add_mood(self, uid, mood, intensity=1, note="", source="auto"):
+        return self.execute(
+            "INSERT INTO moods (user_id, mood, intensity, note, source, created) VALUES (?, ?, ?, ?, ?, ?)",
+            (uid, mood, max(1, min(3, int(intensity))), str(note or "").strip()[:200], source, time.time()),
+        ).lastrowid
+
+    def moods(self, uid, since=0.0, limit=500):
+        """Newest first."""
+        return [
+            dict(r)
+            for r in self.all(
+                "SELECT id, mood, intensity, note, source, created FROM moods WHERE user_id = ? AND created >= ? ORDER BY id DESC LIMIT ?",
+                (uid, since, limit),
+            )
+        ]
+
+    def clear_moods(self, uid):
+        return self.execute("DELETE FROM moods WHERE user_id = ?", (uid,)).rowcount
 
     def delete_fact(self, uid, fact_id):
         return self.execute("DELETE FROM facts WHERE id = ? AND user_id = ?", (fact_id, uid)).rowcount

@@ -1,6 +1,6 @@
 # Aegis v8: its own name, every language, real feelings, more abilities
 
-Goal: Aegis is its own assistant (not "Jarvis-like"), speaks and feels in any language, and does more of what a full personal assistant does.
+Goal: Aegis is its own assistant (its own character, not a copy of another assistant), speaks and feels in any language, and does more of what a full personal assistant does.
 
 ## 1. The name is Aegis everywhere
 - Persona, voice prompts, wake word, UI labels, landing page, docs, tests: no other assistant name is left (a test enforces it).
