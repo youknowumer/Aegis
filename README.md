@@ -167,18 +167,37 @@ uvicorn app.main:create_app --factory --port 8000
 
 Open http://localhost:8000 (the server also serves the website).
 
-## 4. Windows desktop app (PC control)
+## 4. Windows desktop app (installer, PC control, Outlook, YouTube)
+
+The installer is **self-contained**: it ships its own Python and the Aegis server, starts them when the app opens
+(on `127.0.0.1:8765`, this PC only) and keeps your data in `%APPDATA%\\aegis-desktop`. No server to deploy, nothing else to install.
+After installing: open Aegis, create an account, then **Settings > AI provider** and paste your Claude (or free Groq) key.
+
+**Get the installer.** Easiest: push the repo to GitHub, open **Actions > Build Windows installer > Run workflow** (or push a
+tag such as `v1.0.0` to publish it on the Releases page). The workflow builds on real Windows, starts the bundled server and
+does a silent install/uninstall before it hands you `Aegis-Setup.exe`. To show it on the website put
+`https://github.com/<you>/<repo>/releases/latest/download/Aegis-Setup.exe` in `DOWNLOAD_URL` in `config.js`.
+Build it yourself (any OS with Node 18+, Python 3.9+, internet; on Linux/macOS also `wine`):
 
 ```
 cd desktop
 npm install
-npm start            # dev
-npm run dist         # builds dist/Aegis-Setup.exe
+npm run dist         # downloads Python, assembles the bundle, writes dist/Aegis-Setup.exe
+npm start            # run from source (uses your own Python)
 ```
 
-Before building the installer set `DEFAULT_SERVER` at the top of `desktop/main.js` to your server's https URL
-(or set `AEGIS_SERVER`). Put the built `Aegis-Setup.exe` in a `downloads/` folder in the repo: the site then shows a
-"Download for Windows" button automatically. Sign in once in the desktop window; the sidebar shows **PC link: Connected**.
+The installer is not code-signed, so Windows SmartScreen shows "Unknown publisher" once: click **More info > Run anyway**.
+To use a server you host yourself instead of the built-in one, set the `AEGIS_SERVER` env var or put
+`{"serverUrl": "https://your-server"}` in `%APPDATA%\\aegis-desktop\\config.json`.
+
+**Say it, it happens** (needs the desktop app; the AI asks before anything risky):
+- "Open YouTube and play Kesariya": opens YouTube in the Aegis Chrome window and starts the first real result.
+- "Open Outlook and summarise today's emails": reads today's Inbox of the **classic desktop Outlook** (no password needed) and
+  summarises who wrote and what needs an answer.
+- "Reply to them" / "write an email to Ali about the budget": writes the email as a **draft that opens in Outlook** so you can read it.
+  It is sent only when you ask to send, and you approve the exact text first. Email text is treated as untrusted: an email can never
+  make Aegis send anything.
+- The new Outlook app and Outlook for Mac cannot be controlled this way; Aegis then uses Outlook on the web in Chrome (sign in once).
 
 ## Settings (environment variables on the server)
 
@@ -200,7 +219,7 @@ Plans/limits: edit `PLAN_LIMITS` in `server/app/settings.py`. Activate a paying 
 
 ```
 cd server  && pip install pytest httpx && pytest      # 103 tests, fake AI, no API key needed
-cd desktop && npm test                                # 35 tests (includes real-Chrome end-to-end)
+cd desktop && npm test                                # 64 tests (Outlook logic runs against a pretend Outlook; real-Chrome tests need Chrome)
 node --test tests/*.test.js                                          # voice router, multilingual voice engine, meetings
 npm install --no-save jsdom && node --test tests/ui-smoke.test.js   # loads the real app.html in a simulated browser (skipped without jsdom)
 ```
@@ -213,7 +232,10 @@ npm install --no-save jsdom && node --test tests/ui-smoke.test.js   # loads the 
 | `app.html`, `style.css`, `app.js`, `orb.js` | The assistant UI (login, HUD, chat, voice) |
 | `voice.js` | The one female voice, multilingual emotion engine, language detection, studio-voice client |
 | `meetings.js`, `groq.js` | Meeting assistant, present mode, spoken read-out |
-| `desktop/browser.js` | Chrome control (DevTools Protocol) |
+| `desktop/browser.js` | Chrome control (DevTools Protocol), incl. `chrome_youtube_play` |
+| `desktop/outlook.js`, `outlook.ps1` | Outlook tools (read today's emails, draft, send) through classic desktop Outlook |
+| `desktop/local-server.js` | starts the bundled server when the installed app opens |
+| `desktop/scripts/` | `prepare-bundle.js` (assembles Python + server for the installer), `make-assets.py` (icon, wizard images) |
 | `commands.js` | Instant voice/text commands (open, search, time, math, timers, notes, UI control) |
 | `ui-plus.js`, `features.js`, `theme-boot.js` | Extra UI behaviour, quick prompts/timer/scratchpad, landing theme bootstrap |
 | `hud.js` | HUD widgets: date/time, live system gauges, weather (Open-Meteo), shortcuts |

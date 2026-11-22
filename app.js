@@ -744,6 +744,8 @@
 
   async function checkDownload() {
     if (desktop) return; // already inside the desktop app
+    const dlUrl = (window.AEGIS_CONFIG && window.AEGIS_CONFIG.DOWNLOAD_URL) || "";
+    if (/^https:\/\//.test(dlUrl)) { $("download-link").setAttribute("href", dlUrl); $("download-link").classList.remove("hidden"); return; }
     try {
       const r = await fetch("downloads/Aegis-Setup.exe", { method: "HEAD" });
       if (r.ok) $("download-link").classList.remove("hidden");

@@ -489,11 +489,11 @@
     m = t.match(/^(?:youtube|yt) (?:search|for) (.+)$/);
     if (m) return { q: m[1], site: "youtube" };
     m = t.match(/^(?:play|watch) (.+?)(?: on (?:youtube|yt))?$/);
-    if (m && !/\b(?:spotify|netflix)\b/.test(t)) return { q: m[1], site: "youtube" };
+    if (m && !/\b(?:spotify|netflix)\b/.test(t)) return { q: m[1], site: "youtube", play: true };
     m = t.match(/^(.+?) (?:chalao|chala do|laga do|lagao|bajao|baja do)$/);
-    if (m && !/\b(?:timer|alarm|voice|mode|stopwatch|focus)\b/.test(m[1])) return { q: m[1], site: "youtube" };
+    if (m && !/\b(?:timer|alarm|voice|mode|stopwatch|focus)\b/.test(m[1])) return { q: m[1], site: "youtube", play: true };
     m = t.match(/^(?:play|watch) (.+) (?:on youtube|youtube par|youtube pe)$/);
-    if (m) return { q: m[1], site: "youtube" };
+    if (m) return { q: m[1], site: "youtube", play: true };
     m = t.match(/^(.+?) (?:google karo|google kar do|google search karo|search karo|search kar do|dhoondo|dhundo|سرچ کرو|گوگل کرو)$/);
     if (m) return { q: m[1], site: "google" };
     m = t.match(/^(?:directions?|route|rasta|raasta)(?: from)? (.+?) (?:to|se) (.+)$/) || t.match(/^(.+?) (?:to|se) (.+?) (?:directions?|ka rasta|ka raasta|ka route|tak ka rasta)$/);
@@ -504,6 +504,12 @@
   }, (m, c) => {
     const q = m.q.trim();
     if (!q) return c.say("What should I search for?");
+    // Desktop app: "play X" really starts the song in Chrome (the preload exposes playYoutube). In a plain browser it opens the results.
+    const dk = window.aegisDesktop;
+    if (m.site === "youtube" && m.play && dk && typeof dk.playYoutube === "function") {
+      dk.playYoutube(q).then((r) => { if (r && r.ok === false) c.say(r.message || "I could not play that."); }).catch(() => {});
+      return c.say("Playing " + q + " on YouTube.");
+    }
     c.open(SEARCH[m.site](q));
     return c.say((m.site === "maps" ? "Showing " : "Searching ") + (m.site === "google" ? "Google" : cap(m.site)) + " for " + q + ".");
   });

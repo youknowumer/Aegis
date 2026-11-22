@@ -74,7 +74,7 @@ async function ensureChrome() {
     fs.mkdirSync(dir, { recursive: true });
     const args = [
       `--remote-debugging-port=${port()}`, `--remote-debugging-address=${HOST}`, `--user-data-dir=${dir}`,
-      "--no-first-run", "--no-default-browser-check", "--disable-features=Translate", "--restore-last-session",
+      "--no-first-run", "--no-default-browser-check", "--disable-features=Translate", "--restore-last-session", "--autoplay-policy=no-user-gesture-required",
     ];
     if (process.env.AEGIS_CHROME_HEADLESS === "1") args.push("--headless=new");
     if (process.env.AEGIS_CHROME_ARGS) args.push(...process.env.AEGIS_CHROME_ARGS.split(/\s+/).filter(Boolean));
@@ -350,6 +350,36 @@ async function describeTab(c) {
   return `${p.t || "(untitled)"} — ${p.u}`;
 }
 
+// ------------------------------------------------------------------ YouTube helpers
+function youtubeSearchUrl(query) {
+  const q = String(query || "").replace(/\s+/g, " ").trim();
+  if (!q) throw new Error("say which song or video to play");
+  if (q.length > 200) throw new Error("that search is too long");
+  return "https://www.youtube.com/results?search_query=" + encodeURIComponent(q);
+}
+// first real video of a results list; ads, Shorts, channels and playlists have no plain /watch?v= link
+function pickYoutubeResult(list) {
+  for (const r of Array.isArray(list) ? list : []) {
+    if (r && typeof r.href === "string" && /^\/watch\?v=[\w-]{6,20}(?:&|$)/.test(r.href)) return { title: String(r.title || "").trim(), url: "https://www.youtube.com" + r.href };
+  }
+  return null;
+}
+function pageYoutubeResults() {
+  const out = [];
+  for (const a of document.querySelectorAll("ytd-video-renderer a#video-title")) {
+    if (a.closest("ytd-ad-slot-renderer, ytd-promoted-sparkles-web-renderer")) continue;
+    out.push({ href: a.getAttribute("href") || "", title: a.getAttribute("title") || a.textContent || "" });
+    if (out.length >= 8) break;
+  }
+  return { host: location.hostname, results: out };
+}
+function pagePlayVideo() {
+  const v = document.querySelector("video");
+  if (!v) return null;
+  if (v.paused) { try { v.play(); } catch (e) {} }
+  return { paused: v.paused, ad: !!document.querySelector(".ad-showing"), title: document.title.replace(/ - YouTube$/, "") };
+}
+
 // ------------------------------------------------------------------ the tools
 const tools = {
   async chrome_tabs() {
@@ -517,6 +547,42 @@ const tools = {
     return `Screenshot of "${await describeTab(c)}" saved to ${out}`;
   },
 
+  async chrome_youtube_play({ query }) {
+    const searchUrl = youtubeSearchUrl(query);
+    const list = await pages();
+    let t = list.find((p) => /^https?:\/\/(?:www\.)?youtube\.com\//i.test(p.url || ""));   // reuse the YouTube tab: no pile of tabs
+    if (!t) t = await httpJson("PUT", "/json/new?about:blank", 10000);
+    activeId = t.id;
+    const c = await connect(t);
+    await httpJson("GET", "/json/activate/" + t.id).catch(() => {});
+    const go = async (url) => {
+      const r = await c.send("Page.navigate", { url });
+      if (r.errorText) throw new Error(`could not reach YouTube (${r.errorText})`);
+      await waitLoaded(c);
+    };
+    await go(searchUrl);
+    let found = null;
+    for (let i = 0; i < 40 && !found; i++) {
+      const r = await c.run(pageYoutubeResults);
+      if (/^consent\./.test(r.host)) return "YouTube is showing its cookie notice in the Aegis Chrome window. Click Accept or Reject there once, then ask me again.";
+      found = pickYoutubeResult(r.results);
+      if (!found) await sleep(300);
+    }
+    if (!found) return `YouTube showed no playable video for "${String(query).trim()}". Try different words.`;
+    await go(found.url);
+    let state = null;
+    for (let i = 0; i < 40 && !state; i++) {
+      state = await c.run(pagePlayVideo);
+      if (!state) await sleep(250);
+    }
+    if (!state) return `Opened "${found.title}" (${found.url}) but the video player did not appear. Press play in the Chrome window.`;
+    await sleep(1200);
+    state = (await c.run(pagePlayVideo)) || state;
+    return state.paused
+      ? `Opened "${found.title}" on YouTube (${found.url}) but it is paused: the browser blocked autoplay. Press play in the Chrome window.`
+      : `Playing "${found.title}" on YouTube.${state.ad ? " An ad is playing first; the song starts right after it." : ""}`;
+  },
+
   async chrome_eval({ js, tab }) {
     if (!String(js || "").trim()) throw new Error("no JavaScript given");
     const c = await conn(tab);
@@ -529,4 +595,4 @@ const tools = {
 
 function shutdown() { for (const c of conns.values()) c.close(); conns.clear(); activeId = null; }
 
-module.exports = { tools, allowedUrl, parseKeys, chromePath, profileDir, shutdown, SENSITIVE, _port: port };
+module.exports = { tools, allowedUrl, parseKeys, chromePath, profileDir, shutdown, SENSITIVE, youtubeSearchUrl, pickYoutubeResult, _port: port };

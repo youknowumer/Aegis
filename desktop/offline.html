@@ -15,12 +15,20 @@
 <body>
   <div>
     <div class="orb"></div>
-    <h2>Can't reach Aegis</h2>
-    <p>Check your internet connection. Looking for <code id="srv"></code></p>
+    <h2 id="title">Can't reach Aegis</h2>
+    <p id="msg">Check your internet connection. Looking for <code id="srv"></code></p>
     <button id="retry">Try again</button>
   </div>
   <script>
-    document.getElementById("srv").textContent = new URLSearchParams(location.search).get("server") || "";
+    var q = new URLSearchParams(location.search), err = q.get("error"), srv = q.get("server");
+    if (err) {            // the built-in server could not start: say why instead of blaming the internet
+      document.getElementById("title").textContent = "Aegis could not start";
+      document.getElementById("msg").textContent = err;
+    } else if (srv) {
+      document.getElementById("srv").textContent = srv;
+    } else {
+      document.getElementById("msg").textContent = "Starting the Aegis server again…";
+    }
     document.getElementById("retry").onclick = () => window.aegisDesktop && window.aegisDesktop.retry();
     setTimeout(function loop() { window.aegisDesktop && window.aegisDesktop.retry(); setTimeout(loop, 8000); }, 8000);
   </script>

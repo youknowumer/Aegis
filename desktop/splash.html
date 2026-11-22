@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+  <title>Aegis</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #070b12; color: #e8eef9; font: 15px system-ui, "Segoe UI", sans-serif; }
+    body { display: grid; place-items: center; text-align: center; }
+    .orb { position: relative; width: 84px; height: 84px; margin: 0 auto 26px; }
+    .orb i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid transparent; border-top-color: #38d6f2; border-right-color: #9b8cff; animation: spin 1.1s linear infinite; }
+    .orb i:nth-child(2) { inset: 12px; animation-duration: 1.7s; animation-direction: reverse; border-top-color: #9b8cff; border-right-color: #38d6f2; }
+    .orb b { position: absolute; inset: 30px; border-radius: 50%; background: linear-gradient(135deg, #38d6f2, #9b8cff); box-shadow: 0 0 34px rgba(56,214,242,.6); animation: pulse 1.6s ease-in-out infinite; }
+    h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: .14em; font-weight: 600; }
+    p { margin: 0; color: #8a99b5; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 50% { transform: scale(.82); opacity: .75; } }
+    @media (prefers-reduced-motion: reduce) { .orb i, .orb b { animation: none; } }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="orb"><i></i><i></i><b></b></div>
+    <h1>AEGIS</h1>
+    <p>Starting up…</p>
+  </div>
+</body>
+</html>

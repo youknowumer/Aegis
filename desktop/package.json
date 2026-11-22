@@ -1,15 +1,17 @@
 {
   "name": "aegis-desktop",
   "version": "1.0.0",
-  "description": "Aegis desktop app: the window plus the PC-control tools",
+  "description": "Aegis",
   "main": "main.js",
-  "author": "Your Name",
+  "author": "Aegis",
   "license": "UNLICENSED",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/tools.test.js test/documents.test.js test/browser.test.js",
-    "dist": "electron-builder --win nsis"
+    "test": "node --test test/tools.test.js test/documents.test.js test/browser.test.js test/outlook.test.js test/outlook-ps.test.js test/youtube.test.js test/local-server.test.js",
+    "bundle": "node scripts/prepare-bundle.js",
+    "assets": "python scripts/make-assets.py",
+    "dist": "npm run bundle && node scripts/build-installer.js"
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
@@ -21,23 +23,70 @@
     "electron-builder": "^26.18.0"
   },
   "build": {
-    "appId": "com.yourcompany.aegis",
+    "appId": "com.aegis.assistant",
     "productName": "Aegis",
+    "copyright": "Aegis",
     "artifactName": "Aegis-Setup.${ext}",
+    "directories": {
+      "buildResources": "assets",
+      "output": "dist"
+    },
     "files": [
       "main.js",
       "preload.js",
       "tools.js",
       "browser.js",
+      "outlook.js",
+      "local-server.js",
       "offline.html",
+      "splash.html",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "build/runtime",
+        "to": "runtime"
+      },
+      {
+        "from": "build/server",
+        "to": "server"
+      },
+      {
+        "from": "build/web",
+        "to": "web"
+      },
+      {
+        "from": "outlook.ps1",
+        "to": "scripts/outlook.ps1"
+      }
+    ],
+    "compression": "maximum",
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Aegis",
+      "uninstallDisplayName": "Aegis",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "installerSidebar": "assets/installerSidebar.bmp",
+      "uninstallerSidebar": "assets/uninstallerSidebar.bmp"
     }
   }
 }

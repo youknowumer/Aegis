@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld("aegisDesktop", {
   isDesktop: true,
   setToken: (token) => ipcRenderer.invoke("aegis:set-token", token),
   retry: () => ipcRenderer.invoke("aegis:retry"),
+  playYoutube: (query) => ipcRenderer.invoke("aegis:play-youtube", query),
 });

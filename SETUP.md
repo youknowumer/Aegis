@@ -42,7 +42,7 @@ If the website is served by the Render server itself it connects automatically. 
 Optional: to make it permanent for every visitor, put the same address in `config.js` (`API_BASE`) and push to git.
 
 ## 4. Windows PC control (optional)
-`cd desktop && npm install && npm run dist`, install `Aegis-Setup.exe`, sign in once. See README.
+Install `Aegis-Setup.exe` (build it with the GitHub Actions workflow or `cd desktop && npm install && npm run dist`), open Aegis, sign in once. The installer includes its own server. See README section 4.
 
 ## 5. Email (optional)
 Without this, "email Ali ..." opens a ready draft in your mail app (desktop app needed) and you press Send.

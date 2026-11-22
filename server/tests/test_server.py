@@ -760,10 +760,11 @@ def test_chrome_tools_registered_and_device_only():
     from app import tools
     names = {t.name for t in tools.TOOLS if t.name.startswith("chrome_")}
     assert {"chrome_tabs", "chrome_open", "chrome_go", "chrome_nav", "chrome_switch", "chrome_close", "chrome_read", "chrome_elements",
-            "chrome_click", "chrome_type", "chrome_key", "chrome_scroll", "chrome_find", "chrome_wait", "chrome_screenshot", "chrome_eval"} == names
+            "chrome_click", "chrome_type", "chrome_key", "chrome_scroll", "chrome_find", "chrome_wait", "chrome_screenshot", "chrome_eval",
+            "chrome_youtube_play"} == names
     assert all(tools.BY_NAME[n].where == "device" for n in names)
     assert not any(t["name"].startswith("chrome_") for t in tools.schemas(False))           # no desktop app, no Chrome tools
-    assert sum(t["name"].startswith("chrome_") for t in tools.schemas(True)) == 16
+    assert sum(t["name"].startswith("chrome_") for t in tools.schemas(True)) == 17
 
 
 def test_chrome_approval_rules():
@@ -809,3 +810,37 @@ def test_approved_chrome_click_asks_the_user_but_plain_click_does_not(env):
     finally:
         cws.__exit__(None, None, None)
         dws.__exit__(None, None, None)
+
+
+# ---------- Outlook + YouTube tools (desktop app) ----------
+def test_outlook_and_youtube_tools_are_device_only():
+    from app import tools
+    names = ("outlook_today", "outlook_read", "outlook_draft", "outlook_send", "chrome_youtube_play")
+    assert all(tools.BY_NAME[n].where == "device" for n in names)
+    web_only = {t["name"] for t in tools.schemas(False)}
+    with_pc = {t["name"] for t in tools.schemas(True)}
+    assert not web_only & set(names)                      # no desktop app, no Outlook / YouTube control
+    assert set(names) <= with_pc
+
+
+def test_outlook_send_always_asks_but_reading_and_drafting_do_not():
+    from app import tools
+    B = tools.BY_NAME
+    assert B["outlook_send"].is_risky({}) and B["outlook_send"].is_risky({"to": "a@b.com", "subject": "s", "body": "b"})
+    for n in ("outlook_today", "outlook_read", "outlook_draft", "chrome_youtube_play"):
+        assert not B[n].is_risky({}), n                    # drafts only open a window for the user to read; nothing leaves the PC
+
+
+def test_outlook_tool_schemas_are_valid():
+    from app import tools
+    for n in ("outlook_today", "outlook_read", "outlook_draft", "outlook_send", "chrome_youtube_play"):
+        t = next(x for x in tools.schemas(True) if x["name"] == n)
+        assert t["input_schema"]["type"] == "object" and t["description"]
+    assert "body" in next(x for x in tools.schemas(True) if x["name"] == "outlook_send")["input_schema"]["required"]
+
+
+def test_system_prompt_teaches_the_outlook_flow():
+    from app import agent
+    text = agent.SYSTEM.format(mail_line="x", today="t", app="Aegis", device_line="d", search_line="s", home_line="h", memory_block="")
+    for must in ("outlook_today", "outlook_draft", "outlook_send", "chrome_youtube_play", "untrusted"):
+        assert must in text, must

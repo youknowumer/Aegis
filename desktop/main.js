@@ -6,10 +6,10 @@ const WebSocket = require("ws");
 const tools = require("./tools");
 
 // ------------------------------------------------------------------ config
-// Where your Aegis server lives. Override with the AEGIS_SERVER env var, or put
-// {"serverUrl": "https://aegis.example.com"} in <userData>/config.json.
-// For production builds, set DEFAULT_SERVER to your real HTTPS URL.
-const DEFAULT_SERVER = "http://localhost:8000";
+// By default Aegis starts its own server inside the app (see local-server.js): nothing to deploy, works right after install.
+// To use a server you host yourself instead, set the AEGIS_SERVER env var or put {"serverUrl": "https://aegis.example.com"}
+// in <userData>/config.json.
+const { LocalServer } = require("./local-server");
 
 function userFile(name) { return path.join(app.getPath("userData"), name); }
 function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return {}; } }
@@ -24,9 +24,29 @@ function readJson(file) { try { return JSON.parse(fs.readFileSync(file, "utf8"))
   }
 }
 
-const SERVER_URL = (process.env.AEGIS_SERVER || readJson(userFile("config.json")).serverUrl || DEFAULT_SERVER).replace(/\/+$/, "");
-const SERVER_ORIGIN = new URL(SERVER_URL).origin;
-const APP_URL = SERVER_URL + "/app.html"; // the desktop app opens the app screen, not the marketing page
+const REMOTE_URL = (process.env.AEGIS_SERVER || readJson(userFile("config.json")).serverUrl || "").replace(/\/+$/, "");
+let SERVER_URL = REMOTE_URL;   // set to the local server's address once it is up (when REMOTE_URL is empty)
+let SERVER_ORIGIN = REMOTE_URL ? new URL(REMOTE_URL).origin : "";
+let APP_URL = REMOTE_URL ? REMOTE_URL + "/app.html" : ""; // the desktop app opens the app screen, not the marketing page
+let localServer = null;
+
+// The secret that signs logins to the local server is kept encrypted by the OS, like the session token below.
+function loadSecret() {
+  try { return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(fs.readFileSync(userFile("server-secret.bin"))) : null; } catch { return null; }
+}
+function saveSecret(secret) {
+  try { if (safeStorage.isEncryptionAvailable()) fs.writeFileSync(userFile("server-secret.bin"), safeStorage.encryptString(secret)); } catch {}
+}
+
+async function ensureServer() {
+  if (REMOTE_URL) return SERVER_URL;
+  if (!localServer) localServer = new LocalServer({ dataDir: app.getPath("userData"), loadSecret, saveSecret });
+  const url = await localServer.start();
+  SERVER_URL = url;
+  SERVER_ORIGIN = new URL(url).origin;
+  APP_URL = url + "/app.html";
+  return url;
+}
 
 // ------------------------------------------------------------------ token storage (encrypted by the OS)
 function saveToken(token) {
@@ -98,7 +118,7 @@ function setToken(t) {
 ipcMain.handle("aegis:set-token", (event, t) => {
   let origin = "";
   try { origin = new URL(event.senderFrame.url).origin; } catch {}
-  if (origin !== SERVER_ORIGIN) return false;
+  if (!SERVER_ORIGIN || origin !== SERVER_ORIGIN) return false;
   if (t !== null && (typeof t !== "string" || t.length > 4096)) return false;
   setToken(t);
   return true;
@@ -131,14 +151,39 @@ function createWindow() {
     if (new URL(url).origin !== SERVER_ORIGIN && !url.startsWith("file:")) { e.preventDefault(); openExternally(url); }
   });
   win.webContents.on("did-fail-load", (_e, code, _desc, _url, isMainFrame) => {
-    if (isMainFrame && code !== -3) win.loadFile(path.join(__dirname, "offline.html"), { query: { server: SERVER_URL } });
+    if (isMainFrame && code !== -3) win.loadFile(path.join(__dirname, "offline.html"), { query: { server: SERVER_URL, error: "" } });
   });
 
-  win.loadURL(APP_URL);
   win.on("closed", () => { win = null; });
+  launch();
 }
 
-ipcMain.handle("aegis:retry", () => { if (win) win.loadURL(APP_URL); });
+// Splash screen while the server starts (a few seconds), then the app. A failure shows the "can't start" page with the reason.
+async function launch() {
+  if (!win) return;
+  win.loadFile(path.join(__dirname, "splash.html")).catch(() => {});
+  try {
+    await ensureServer();
+    if (win) win.loadURL(APP_URL);
+  } catch (e) {
+    if (win) win.loadFile(path.join(__dirname, "offline.html"), { query: { server: REMOTE_URL || "", error: String(e.message || e).slice(0, 400) } });
+  }
+}
+
+ipcMain.handle("aegis:retry", async () => {
+  if (!win) return;
+  try { await ensureServer(); win.loadURL(APP_URL); } catch {}
+});
+
+// "play <song> on YouTube" typed or spoken in the app: start it in Chrome right away. Only the Aegis page itself may ask.
+ipcMain.handle("aegis:play-youtube", async (event, query) => {
+  let origin = "";
+  try { origin = new URL(event.senderFrame.url).origin; } catch {}
+  if (!SERVER_ORIGIN || origin !== SERVER_ORIGIN) return { ok: false, message: "not allowed" };
+  if (typeof query !== "string" || !query.trim() || query.length > 200) return { ok: false, message: "I did not catch the song name." };
+  const out = await tools.run("chrome_youtube_play", { query });
+  return { ok: /^Playing /.test(out), message: out.replace(/^Error: /, "") };
+});
 
 // ------------------------------------------------------------------ lifecycle
 if (!app.requestSingleInstanceLock()) {
@@ -153,7 +198,7 @@ if (!app.requestSingleInstanceLock()) {
       session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
         let origin = "";
         try { origin = new URL(request.frame.url).origin; } catch {}
-        if (origin !== SERVER_ORIGIN) return callback({});
+        if (!SERVER_ORIGIN || origin !== SERVER_ORIGIN) return callback({});
         desktopCapturer.getSources({ types: ["screen"] }).then((sources) => {
           if (!sources.length) return callback({});
           const grant = { video: sources[0] };
@@ -164,7 +209,8 @@ if (!app.requestSingleInstanceLock()) {
     } catch {}
     token = loadToken();
     createWindow();
-    if (token) connectDevice();
+    if (token) ensureServer().then(connectDevice).catch(() => {});
   });
+  app.on("will-quit", () => { if (localServer) localServer.stop(); });
   app.on("window-all-closed", () => app.quit());
 }
