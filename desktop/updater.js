@@ -34,7 +34,7 @@ function startAutoUpdate(getWindow) {
     };
     try {
       const { response } = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
-      if (response === 0) autoUpdater.quitAndInstall(false, true);
+      if (response === 0) autoUpdater.quitAndInstall(true, true);
     } catch {}
   });
   autoUpdater.on("error", () => {}); // offline / rate limited: just try again at the next check
