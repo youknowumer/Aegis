@@ -11,6 +11,6 @@
     API_BASE: local ? "" : "https://YOUR-AEGIS-SERVER.onrender.com",
     // Where the "Download for Windows" button points. Leave empty to use downloads/Aegis-Setup.exe on this site, or paste the
     // GitHub Releases link, e.g. https://github.com/YOUR-NAME/Aegis/releases/latest/download/Aegis-Setup.exe
-    DOWNLOAD_URL: "",
+    DOWNLOAD_URL: "https://github.com/youknowumer/Aegis/releases/latest/download/Aegis-Setup.exe",
   };
 })();

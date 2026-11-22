@@ -186,6 +186,19 @@ npm run dist         # downloads Python, assembles the bundle, writes dist/Aegis
 npm start            # run from source (uses your own Python)
 ```
 
+**Releasing and auto-update (installer is never committed to git).** The installer is ~138 MB and GitHub blocks files over 100 MB
+in git, so it lives on the Releases page. To publish a new version:
+
+```
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+The workflow builds on Windows and attaches `Aegis-Setup.exe`, `latest.yml` and `Aegis-Setup.exe.blockmap` to the release
+(the tag number becomes the app version). The website's Download button (`DOWNLOAD_URL` in `config.js`) always points to the
+newest release. Installed apps check GitHub every 4 hours, download updates in the background and offer "Restart now / Later"
+(`desktop/updater.js`). The repo must be **public** for updates to work without a token.
+
 The installer is not code-signed, so Windows SmartScreen shows "Unknown publisher" once: click **More info > Run anyway**.
 To use a server you host yourself instead of the built-in one, set the `AEGIS_SERVER` env var or put
 `{"serverUrl": "https://your-server"}` in `%APPDATA%\\aegis-desktop\\config.json`.

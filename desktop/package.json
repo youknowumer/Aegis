@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
+    "electron-updater": "^6.6.2",
     "pdf-parse": "^1.1.1",
     "ws": "^8.23.0"
   },
@@ -38,6 +39,7 @@
       "browser.js",
       "outlook.js",
       "local-server.js",
+      "updater.js",
       "offline.html",
       "splash.html",
       "package.json"
@@ -87,6 +89,14 @@
       "installerHeaderIcon": "assets/icon.ico",
       "installerSidebar": "assets/installerSidebar.bmp",
       "uninstallerSidebar": "assets/uninstallerSidebar.bmp"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "youknowumer",
+        "repo": "Aegis",
+        "releaseType": "release"
+      }
+    ]
   }
 }

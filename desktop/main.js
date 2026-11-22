@@ -209,6 +209,7 @@ if (!app.requestSingleInstanceLock()) {
     } catch {}
     token = loadToken();
     createWindow();
+    require("./updater").startAutoUpdate(() => win);
     if (token) ensureServer().then(connectDevice).catch(() => {});
   });
   app.on("will-quit", () => { if (localServer) localServer.stop(); });
