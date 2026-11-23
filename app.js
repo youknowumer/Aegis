@@ -662,6 +662,7 @@
         const s = document.createElement("span"); s.dir = "auto"; s.textContent = f.text;
         if (f.kind && f.kind !== "fact") { const k = document.createElement("em"); k.className = "mem-kind"; k.textContent = f.kind; li.appendChild(k); }
         if (f.important) li.classList.add("mem-important");
+        li.title = [f.when, f.mood && f.mood_level >= 2 ? "felt " + f.mood : "", f.source === "auto" ? "picked up automatically" : ""].filter(Boolean).join(" \u00b7 ");
         const b = document.createElement("button");
         b.type = "button"; b.textContent = "\u00d7"; b.title = "Forget this"; b.setAttribute("aria-label", "Forget this");
         b.addEventListener("click", async () => { try { await api("/api/memory/" + f.id, { method: "DELETE" }); loadMemory(); } catch {} });
@@ -765,7 +766,7 @@
     } catch {}
   }
   // Welcome line once per browser session: part of the day plus what is waiting. Spoken only when replies are read aloud.
-  function greetOnce(b) {
+  function greetOnce(b, bond) {
     if (!b || safeSessionGet("aegis_greeted")) return;
     try { sessionStorage.setItem("aegis_greeted", "1"); } catch {}
     const part = { morning: "Good morning", afternoon: "Good afternoon", evening: "Good evening", night: "Welcome back" }[b.part] || "Hello";
@@ -774,7 +775,18 @@
     else if (b.events_left === 0) bits.push("your calendar is clear for the rest of today");
     if (b.tasks_open) bits.push(b.tasks_open + " open task" + (b.tasks_open === 1 ? "" : "s"));
     if (b.habits_open && (b.part === "evening" || b.part === "night")) bits.push(b.habits_open + " habit" + (b.habits_open === 1 ? "" : "s") + " still to tick");
-    const text = "All systems online. " + part + "." + (bits.length ? " Here is where things stand: " + bits.join(", ") + "." : "");
+    let text = "All systems online. " + part + ".";
+    if (b.away_days >= 3) text += " I missed you, it has been " + b.away_days + " days.";
+    if (bits.length) text += " Here is where things stand: " + bits.join(", ") + ".";
+    if (b.callback && b.callback.text) text += " I have been thinking about what you told me: " + String(b.callback.text).replace(/[.!?\s]+$/, "") + ". How is that going?";
+    // closer bond: a small celebration the first time a new level is reached
+    try {
+      if (bond && bond.level) {
+        const old = Number(localStorage.getItem("aegis_bond_level") || 0);
+        if (old && bond.level > old) text += " We have grown closer: we are now " + bond.name + ".";
+        localStorage.setItem("aegis_bond_level", String(bond.level));
+      }
+    } catch {}
     addMsg("ai", text);
     try { if ($("speak").checked) speak(text, false); } catch {}
   }
@@ -843,9 +855,9 @@
         loadMemory(); loadMood(); loadTasks(); loadReminders();
         refreshState();
         syncVoice();
-        greetOnce(m.brief);
+        greetOnce(m.brief, m.bond);
         break;
-      case "mood": showMood(m.mood, m.feeling); break;
+      case "mood": window.AegisFeel = { intensity: Math.max(1, Math.min(5, m.intensity || 3)), at: Date.now() }; showMood(m.mood, m.feeling); break;
       case "status": setDevice(m.device); break;
       case "delta": onDelta(m.text || ""); break;
       case "delta_end": endStream(); break;

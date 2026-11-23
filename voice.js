@@ -477,7 +477,7 @@
         const r = await fetch(api() + "/api/tts", {
           method: "POST", signal,
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + token() },
-          body: JSON.stringify({ text: group.text, emotion: group.emotion, lang: group.tts }),
+          body: JSON.stringify({ text: group.text, emotion: group.emotion, lang: group.tts, intensity: (window.AegisFeel && Date.now() - window.AegisFeel.at < 600000) ? window.AegisFeel.intensity : 3 }),
         });
         if (!r.ok) { fails = [429, 503, 413].includes(r.status) ? 2 : fails + 1; if (info && r.status === 429) info.chars_left = 0; emit(); return null; }
         const blob = await r.blob();

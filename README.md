@@ -101,6 +101,12 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 - **For many users**: admin API + `/metrics` + `/readyz`, plan limits from an env var, closed-beta switches, automatic housekeeping and backups, non-root Docker image, `docker-compose.yml` with automatic HTTPS.
 - **New abilities**: spending tracker (PKR default), habits with streaks, prayer times, search across everything you saved, edit tasks/events, delete notes/contacts.
 
+## What's new in v13 (a deeper heart). Details in `CHANGES-v13.md`
+
+- **Feelings on a scale of 5**, 11 new feelings (grief, hopeful, relieved, loving...), emoji and "sooo!!!" understood, and the voice moves more the stronger the feeling.
+- **Memory like a person's**: remembers names, people, birthdays, plans and losses by itself, keeps how you felt, recalls what matters, follows up ("how did the interview go?"), says it missed you.
+- **A bond that grows** from just met to trusted confidant, which sets how personal Aegis may be. `AEGIS_AUTO_MEMORY=0` turns automatic memory off.
+
 ## What's new in v12 (a proactive chief-of-staff). Details in `CHANGES-v12.md`
 
 - **Proactive**: warns you before a meeting, nudges open habits in the evening, flags unusual spending, greets you with where things stand. `AEGIS_PROACTIVE=0` turns it off.
