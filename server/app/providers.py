@@ -43,7 +43,7 @@ PROVIDERS = [
     Provider("gemini", "Google Gemini", "openai", "https://generativelanguage.googleapis.com/v1beta/openai", "GEMINI_API_KEY",
              ["gemini-2.5-pro", "gemini-2.5-flash"], "AIza...", "https://aistudio.google.com/apikey"),
     Provider("groq", "Groq (fast, free tier)", "openai", "https://api.groq.com/openai/v1", "GROQ_API_KEY",
-             ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.1-8b-instant"], "gsk_...", "https://console.groq.com/keys"),
+             ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "qwen/qwen3-32b", "moonshotai/kimi-k2-instruct", "meta-llama/llama-4-scout-17b-16e-instruct", "llama-3.1-8b-instant"], "gsk_...", "https://console.groq.com/keys"),
     Provider("openrouter", "OpenRouter (many models)", "openai", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY",
              ["anthropic/claude-sonnet-4.5", "openai/gpt-4o-mini", "google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct"], "sk-or-...", "https://openrouter.ai/keys"),
     Provider("mistral", "Mistral", "openai", "https://api.mistral.ai/v1", "MISTRAL_API_KEY",
@@ -51,7 +51,7 @@ PROVIDERS = [
     Provider("deepseek", "DeepSeek", "openai", "https://api.deepseek.com/v1", "DEEPSEEK_API_KEY",
              ["deepseek-chat", "deepseek-reasoner"], "sk-...", "https://platform.deepseek.com/api_keys"),
     Provider("xai", "Grok (xAI)", "openai", "https://api.x.ai/v1", "XAI_API_KEY",
-             ["grok-4", "grok-3", "grok-3-mini"], "xai-...", "https://console.x.ai"),
+             ["grok-4", "grok-4-fast", "grok-3", "grok-3-mini", "grok-code-fast-1"], "xai-...", "https://console.x.ai"),
     Provider("custom", "Custom / Local (OpenAI-compatible)", "openai", "", "CUSTOM_AI_API_KEY",
              [], "optional for local servers", "", needs_key=False, custom_url=True),
 ]
