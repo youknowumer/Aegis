@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import emotion, extras, chief, meeting, providers, settings, smarthome, tts
+from . import chief, emotion, extras, heart, meeting, providers, settings, smarthome, tts
 from .agent import Agent, Session
 from .auth import EMAIL_RE, hash_password, make_token, read_token_full, verify_password
 from .db import DB
@@ -33,6 +33,12 @@ log = logging.getLogger("aegis")
 if not logging.getLogger().handlers:  # under uvicorn the app's own logger would otherwise stay silent below WARNING
     logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log.setLevel(getattr(logging, settings.LOG_LEVEL, logging.INFO))
+
+
+class MemoryIn(BaseModel):
+    text: str
+    kind: str = "fact"
+    important: bool = False
 
 
 class TaskIn(BaseModel):
@@ -62,6 +68,7 @@ class TTSIn(BaseModel):
     text: str
     emotion: str = "calm"
     lang: str = ""
+    intensity: int = 3
 
 
 class MeetingIn(BaseModel):
@@ -208,6 +215,13 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     def run_maintenance():
         """Old rows out, stale counters out, optional database copy. Safe to call any time."""
         removed = db.purge_old(keep_messages=settings.KEEP_MESSAGES)
+        for u in db.all("SELECT id FROM users"):
+            try:
+                c = heart.consolidate(db, u["id"])
+                removed["memories_merged"] = removed.get("memories_merged", 0) + c["merged"]
+                removed["memories_faded"] = removed.get("memories_faded", 0) + c["faded"]
+            except Exception:
+                log.exception("memory consolidation")
         today = time.strftime("%Y-%m-%d")
         for k in [k for k in server_use if k[1] != today]:
             del server_use[k]
@@ -455,7 +469,22 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
 
     @app.get("/api/memory")
     def list_memory(user=Depends(current_user)):
-        return [{"id": r["id"], "text": r["text"], "kind": r["kind"], "important": r["weight"] >= 3} for r in db.facts(user["id"])]
+        now = time.time()
+        return [{"id": r["id"], "text": r["text"], "kind": r["kind"], "important": r["weight"] >= 3, "weight": r["weight"], "mood": r["mood"],
+                 "mood_level": r["mood_level"], "source": r["source"], "uses": r["uses"], "when": heart.ago(r["created"], now)} for r in db.facts(user["id"])]
+
+    @app.post("/api/memory")
+    def add_memory(m: MemoryIn, user=Depends(current_user)):
+        text = m.text.strip()[:500]
+        if len(text) < 2:
+            raise HTTPException(400, "Write what to remember")
+        fid = db.add_fact(user["id"], text, m.kind, m.important, source="user", when_md=heart.parse_month_day(text) if m.kind == "event" else "")
+        return {"id": fid}
+
+    @app.get("/api/bond")
+    def get_bond(user=Depends(current_user)):
+        b = heart.bond_level(db.bond_row(user["id"]), len(db.facts(user["id"])))
+        return {k: v for k, v in b.items() if k != "tone"}
 
     @app.delete("/api/memory/{fact_id}")
     def delete_memory(fact_id: int, user=Depends(current_user)):
@@ -552,7 +581,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         if not tts_quota.take(user["id"], len(text)):
             raise HTTPException(429, "Today's studio-voice allowance is used up. The built-in voice takes over.")
         try:
-            audio = await asyncio.to_thread(tts.synthesize, text, body.emotion, body.lang)
+            audio = await asyncio.to_thread(tts.synthesize, text, body.emotion, body.lang, body.intensity)
         except tts.TTSError as e:
             tts_quota.refund(user["id"], len(text))
             raise HTTPException(502, str(e))
@@ -914,6 +943,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     "device": hub.device_connected(uid),
                     "history": db.recent_messages(uid, 30),
                     "brief": chief.brief(db, uid, tz),
+                    "bond": {k: v for k, v in heart.bond_level(db.bond_row(uid), len(db.facts(uid))).items() if k != "tone"},
                 }
             )
             await deliver_reminders(uid)  # anything that came due while the user was away

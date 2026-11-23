@@ -79,3 +79,6 @@ CONFIRM_TIMEOUT = 60  # seconds to wait for the user to approve a risky action
 
 # v12: proactive heads-ups (meeting starting, habits still open, unusual spending). Set AEGIS_PROACTIVE=0 to turn off.
 PROACTIVE = os.environ.get("AEGIS_PROACTIVE", "1").strip().lower() not in ("0", "false", "no", "off")
+
+# v13: pick up names, people, dates, plans and losses from what the user says and remember them (AEGIS_AUTO_MEMORY=0 turns it off).
+AUTO_MEMORY = os.environ.get("AEGIS_AUTO_MEMORY", "1").strip().lower() not in ("0", "false", "no", "off")

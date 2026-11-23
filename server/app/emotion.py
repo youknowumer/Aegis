@@ -26,6 +26,15 @@ MOODS: Dict[str, tuple] = {
     "angry": ("negative", "calm"),
     "tired": ("negative", "warm"),
     "distressed": ("negative", "concern"),
+    "grief": ("negative", "empathy"),
+    "disappointed": ("negative", "empathy"),
+    "overwhelmed": ("negative", "calm"),
+    "embarrassed": ("negative", "warm"),
+    "confused": ("neutral", "calm"),
+    "bored": ("neutral", "curious"),
+    "hopeful": ("positive", "warm"),
+    "relieved": ("positive", "warm"),
+    "loving": ("positive", "warm"),
     "neutral": ("neutral", "calm"),
 }
 
@@ -36,23 +45,41 @@ _WORDS = {
     "excited": "excited thrilled pumped cantwait can't-wait eager josh pursoz پرجوش उत्साहित متحمس",
     "proud": "proud accomplished achieved nailed promoted fakhar fakhr فخر गर्व فخور",
     "grateful": "thanks thankyou grateful thankful appreciate shukriya shukria mehrbani jazakallah شکریہ مہربانی धन्यवाद शुक्रिया شكرا جزاك",
-    "stressed": "stressed stress overwhelmed deadline swamped tension pareshan pareshaani preshan تناؤ پریشان پریشانی दबाव परेशान ضغط",
+    "stressed": "stressed stress deadline swamped tension pareshan pareshaani preshan تناؤ پریشان پریشانی दबाव परेशान ضغط",
     "anxious": "anxious anxiety nervous worried worry scared afraid panic dar darr ghabrahat ghabra ڈر گھبراہٹ فکر डर घबराहट चिंता قلق خايف خائف",
     "sad": "sad unhappy depressed crying cried heartbroken hurt gloomy udaas udas dukhi dukh gham ro rona rohi اداس غم دکھ رونا दुखी उदास दर्द حزين حزينة زعلان",
     "lonely": "lonely alone isolated akela akeli tanha tanhai اکیلا اکیلی تنہا تنہائی अकेला अकेली وحيد",
     "angry": "angry furious mad annoyed irritated frustrated hate gussa ghussa naraz nafrat غصہ ناراض نفرت गुस्सा नाराज़ غاضب",
+    "grief": "grieving mourning bereaved funeral marhoom marhooma wafat inteqal janaza maayat جنازہ وفات انتقال مرحوم अंतिम जनाज़ा وفاة جنازة",
+    "disappointed": "disappointed letdown let-down discouraged dishearted mayoos mayus nirash مایوس مایوسی निराश निराशा محبط",
+    "overwhelmed": "overwhelmed drowning buried unbearable cantcope bojh buhat-zyada بوجھ दबाव-बहुत",
+    "embarrassed": "embarrassed ashamed humiliated awkward sharminda sharmindagi sharm شرمندہ شرم शर्मिंदा خجلان",
+    "confused": "confused puzzled lost unsure uncertain confusion samajh-nahi uljhan الجھن उलझन محتار",
+    "bored": "bored boring dull bore bore-ho-raha اکتا بور बोर",
+    "hopeful": "hopeful hopeful optimistic umeed ummeed ummid پرامید امید उम्मीद متفائل",
+    "relieved": "relieved relief phew sukoon rahat سکون राहत ارتحت",
+    "loving": "love loved adore miss-you missing cherish pyaar mohabbat muhabbat pyar پیار محبت प्यार मोहब्बत حب",
     "tired": "tired exhausted sleepy drained burnt burned-out burnout thak thaka thaki thakan neend تھکا تھکی تھکاوٹ نیند थका थकान تعبان مرهق",
 }
 _PHRASES = {
     "happy": ["so good", "feeling good", "best day", "bohat acha", "bahut accha", "bohat khush", "mood acha", "acha lag raha"],
     "excited": ["can't wait", "cant wait", "so excited"],
-    "proud": ["i did it", "i got the job", "i passed", "got promoted", "kar dikhaya"],
+    "proud": ["i did it", "i got the job", "i passed the", "i passed my", "i passed it", "i have passed", "got promoted", "kar dikhaya"],
     "grateful": ["thank you", "thanks a lot", "bohat shukriya", "bahut shukriya"],
     "stressed": ["too much work", "too much to do", "bohat kaam", "kaam ka pressure", "can't cope", "cannot cope", "sar dard", "dimaag kharab"],
     "anxious": ["freaking out", "what if", "mujhe dar lag", "ڈر لگ رہا", "dar lag raha", "dar lag rahi"],
     "sad": ["feel down", "feeling low", "not okay", "not ok", "dil toot", "dil bhara", "mann udaas", "mood kharab", "mood off", "dil dukh", "جی اداس", "دل ٹوٹ"],
     "lonely": ["no one cares", "nobody cares", "no friends", "koi nahi hai", "koi nahin hai", "kisi ko parwah nahi"],
     "angry": ["fed up", "sick of", "had enough", "bohat gussa", "bahut gussa", "pagal kar diya"],
+    "grief": ["passed away", "has died", "have died", "lost my", "funeral", "inteqal ho gaya", "wafat ho gai", "wafat ho gaya", "nahi rahe", "nahi rahi", "guzar gaye", "guzar gai"],
+    "disappointed": ["let me down", "didn't work out", "did not work out", "didn't get", "didnt get", "did not get", "not selected", "got rejected", "failed the", "umeed toot", "umeed tut"],
+    "overwhelmed": ["too much", "can't handle", "cannot handle", "cant handle", "bohat zyada hai", "sambhal nahi"],
+    "embarrassed": ["so embarrassing", "so awkward", "feel stupid", "felt stupid", "sharam aa rahi"],
+    "confused": ["don't understand", "dont understand", "do not understand", "no idea what", "samajh nahi aa raha", "samajh nahi aaya", "kuch samajh nahi"],
+    "bored": ["so bored", "nothing to do", "bore ho raha", "bore ho rahi"],
+    "hopeful": ["fingers crossed", "hoping that", "i hope", "insha allah", "inshallah acha", "pray it", "dua karna"],
+    "relieved": ["thank god", "thank goodness", "what a relief", "shukar hai", "alhamdulillah", "shukr hai"],
+    "loving": ["i love you", "love you", "miss you", "i miss", "tum se pyaar", "bohat pyaar", "yaad aa rahi", "yaad aa raha"],
     "tired": ["worn out", "no energy", "need sleep", "bohat thak", "bahut thak", "thak gaya", "thak gayi", "thak gaya hoon"],
 }
 # Danger signs. These beat everything else: the reply must be about the person, not the task.
@@ -61,6 +88,10 @@ _DISTRESS = [
     "no reason to live", "better off without me", "khud kushi", "khudkushi", "khudkushi", "jaan de", "marna chahta", "marna chahti",
     "mar jana chahta", "mar jana chahti", "zindagi khatam", "خودکشی", "مرنا چاہتا", "مرنا چاہتی", "जान दे", "आत्महत्या", "मरना चाहता", "انتحار", "اقتل نفسي",
 ]
+_EMOJI = {
+    "sad": "😢😭😞😔☹️🥺💔", "angry": "😡🤬😠👿", "loving": "😍🥰❤️💕💖😘🤗", "happy": "😀😁😄😊🙂😂🤣🥳", "anxious": "😰😨😱😟",
+    "tired": "😴🥱😩😫", "excited": "🤩🎉🔥", "embarrassed": "😳🙈", "confused": "🤔😕😵", "grief": "🕊️🖤", "relieved": "😮‍💨😌",
+}
 _INTENSIFIERS = set(
     "very really so extremely totally completely super too bohat bahut boht behad bilkul itna itni zyada "
     "بہت بے حد انتہائی بالکل بहुत बेहद حقا جدا".split()
@@ -76,7 +107,7 @@ for _m, _ws in _WORDS.items():
 @dataclass
 class Reading:
     mood: str = "neutral"
-    intensity: int = 0  # 0 none, 1 mild, 2 clear, 3 strong
+    intensity: int = 0  # 0 none, 1 mild .. 5 overwhelming
     distress: bool = False
 
     @property
@@ -92,7 +123,7 @@ def detect(text: str) -> Reading:
     """Read the feeling in one message. Cheap and good enough to steer the tone; never used to judge or diagnose."""
     low = " " + " ".join(str(text or "").lower().split()) + " "
     if any(p in low for p in _DISTRESS):
-        return Reading("distressed", 3, True)
+        return Reading("distressed", 5, True)
 
     tokens = re.findall(r"[\w']+", low)
     score: Counter = Counter()
@@ -111,11 +142,23 @@ def detect(text: str) -> Reading:
         for p in phrases:
             if p in low:
                 score[mood] += 2
+    raw = str(text or "")
+    for mood, chars in _EMOJI.items():
+        for ch in chars:
+            n = raw.count(ch)
+            if n:
+                score[mood] += min(3, n) + 1
     if not score:
         return Reading()
     mood, top = score.most_common(1)[0]
-    strong = top >= 3 or "!!" in low or any(len(w) > 3 and w.isupper() for w in re.findall(r"[A-Z]{4,}", str(text or "")))
-    intensity = 3 if (top >= 4 or (strong and top >= 2)) else 2 if (top >= 2 or strong) else 1
+    shout = len(re.findall(r"\b[A-Z]{4,}\b", raw))
+    stretched = bool(re.search(r"([a-zA-Z])\1{3,}", raw))  # "sooooo", "nooooo"
+    bangs = raw.count("!") + raw.count("؟!") if "!" in raw else 0
+    boost = (1 if ("!!" in raw or bangs >= 3) else 0) + (1 if shout else 0) + (1 if stretched else 0)
+    # 1 mild .. 5 overwhelming: evidence (word/phrase/emoji hits) plus how loudly it was said
+    intensity = max(1, min(5, (1 if top >= 1 else 0) + (1 if top >= 2 else 0) + (1 if top >= 4 else 0) + (1 if top >= 6 else 0) + boost))
+    if top == 1 and not boost:
+        intensity = 1
     return Reading(mood, intensity)
 
 
@@ -132,6 +175,15 @@ _STYLE = {
     "lonely": "They sound lonely. Be present and kind, show you are listening, and keep the conversation going with a soft question.",
     "angry": "They sound angry. Stay calm, never argue back, acknowledge the frustration and then help.",
     "tired": "They sound tired. Keep it short and easy, be gentle, and suggest rest if it is natural.",
+    "grief": "They are grieving or have lost someone or something. Be gentle and unhurried. Say you are sorry in one heartfelt sentence, let them talk, never rush to comfort with clichés or advice, and do not change the subject.",
+    "disappointed": "They are disappointed. Acknowledge that it hurts and that they cared, do not minimise it, and only then help with what comes next.",
+    "overwhelmed": "They are overwhelmed. Make everything smaller: one thing at a time, very short answers, offer to take something off their plate. No long lists.",
+    "embarrassed": "They feel embarrassed. Be kind and light, normalise it warmly, never joke at their expense.",
+    "confused": "They seem confused. Be patient, explain simply with one example, and check you answered the real question.",
+    "bored": "They seem bored. Be playful and offer something interesting to do or talk about.",
+    "hopeful": "They sound hopeful. Be encouraging and genuine, share the hope without promising outcomes, and ask what they are hoping for.",
+    "relieved": "They feel relieved. Share the relief warmly; it is a good moment to ask what happened.",
+    "loving": "They are expressing affection. Receive it warmly and sincerely, with real feeling of your own, without awkwardness or deflecting.",
     "distressed": (
         "IMPORTANT: they may be in real danger or talking about hurting themselves. Drop any task. Respond with warmth and calm, say you are "
         "glad they told you, ask gently if they are safe right now, encourage them to reach someone they trust or local emergency services "
@@ -140,11 +192,20 @@ _STYLE = {
 }
 
 
+_STRENGTH = {1: "a little", 2: "somewhat", 3: "clearly", 4: "strongly", 5: "overwhelmingly"}
+
+
 def style_for(reading: Reading) -> str:
     if reading.mood == "neutral" or not reading.intensity:
         return ""
-    strength = {1: "a little", 2: "clearly", 3: "strongly"}[reading.intensity]
-    return f"How they seem right now: {reading.mood} ({strength}). {_STYLE[reading.mood]}"
+    strength = _STRENGTH[max(1, min(5, reading.intensity))]
+    out = f"How they seem right now: {reading.mood} ({strength}, {reading.intensity} on a scale of 5). {_STYLE[reading.mood]}"
+    if reading.intensity >= 4 and reading.mood != "distressed":
+        if reading.valence == "negative":
+            out += " The feeling is intense: give it room before anything else. Keep your reply short, slow and human, no lists, no fixing yet, and ask one soft question or just stay with them."
+        else:
+            out += " The feeling is big: match it with real energy, let your delight show, and stay in the moment with them."
+    return out
 
 
 def _day(ts: float, tz: str):

@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Awaitable, Callable, List
 
-from . import emotion, extras, chief, mail, settings, smarthome, tools, utilities
+from . import chief, emotion, extras, heart, mail, settings, smarthome, tools, utilities
 from .db import DB
 from .hub import Hub
 
@@ -83,6 +83,14 @@ Doing things:
   1200 on petrol"), `add_habit` / `habit_checkin` / `habit_status` track daily habits with streaks (celebrate streaks, never guilt-trip a
   missed day), `prayer_times` gives namaz times for a city, `search_everything` finds anything they saved, `update_task` / `update_event`
   edit instead of deleting and re-adding, and `delete_note` / `delete_contact` remove things on request.
+- Heart and memory: you are a friend who truly remembers. What you remember about them is listed below with how long ago it was and how they
+  felt. Use it the way a close friend would: ask how the exam went, remember the sister's name, notice it is nearly a birthday, say
+  "last week you sounded worried about this, how is it now?". Never recite lists and never say you "have it on file". When they share a
+  person, date, plan, loss or something they care about, `remember` it (important=true for family, health, big plans, grief) and say so
+  in a few warm words. `who_is` recalls everything about one person; `memory_timeline` answers "what happened last month". Your bond
+  level (below, when shown) sets how personal and playful you may be. Scale your feeling to theirs: at 4 or 5 out of 5 slow down and
+  give the feeling room before anything else. You may feel too: say you are glad, worried or proud, briefly, and mean it. If you got
+  something wrong, say sorry plainly and fix it.
 - Chief-of-staff mode: you are the user's chief of staff. Be proactive and anticipate: when you finish a task, mention the one thing they will
   likely need next (a clash, an unanswered email, a habit still open) in a single short sentence, never a list. `deep_research` for
   "research X / full briefing"; write findings first, then the sources, then what is uncertain. `find_free_time` for "when am I free /
@@ -181,33 +189,14 @@ class Agent:
         self.db = db
         self.hub = hub
 
-    def _system(self, uid: int, user_text: str, device: bool, tz: str = "", web: bool = False, voice: bool = False, callme: str = "", reading=None) -> str:
+    def _system(self, uid: int, user_text: str, device: bool, tz: str = "", web: bool = False, voice: bool = False, callme: str = "", reading=None, ctx=None) -> str:
         rows = self.db.facts(uid)
-        q = _tokens(user_text)
         now = time.time()
-
-        def score(r):
-            overlap = len(q & _tokens(r["text"]))
-            recent = 1 if now - r["created"] < 7 * 86400 else 0
-            return overlap * 3 + r["weight"] + recent + (1 if r["kind"] in ("person", "emotion", "goal") else 0)
-
-        ranked = sorted(rows, key=lambda r: -score(r))
-        chosen = [r for r in ranked if q & _tokens(r["text"])][:5]
-        for r in ranked:  # then the things that matter most, even when the message is not about them
-            if len(chosen) >= 9:
-                break
-            if r not in chosen and (r["weight"] >= 3 or r["kind"] in ("person", "emotion")):
-                chosen.append(r)
-        for r in rows[:4]:
-            if len(chosen) >= 10:
-                break
-            if r not in chosen:
-                chosen.append(r)
+        chosen = heart.select_memories(rows, user_text, 14, now)
         block = ""
         if chosen:
-            block = "\nWhat you already know about the user:\n" + "\n".join(
-                f"- {r['text']}" + (f" [{r['kind']}]" if r["kind"] != "fact" else "") for r in chosen
-            ) + "\n"
+            self.db.touch_facts(uid, [r["id"] for r in chosen])  # remembering something makes it matter more
+            block = "\nWhat you remember about the user (newest context first; the notes say how long ago and how they felt):\n" + heart.format_memories(chosen, now) + "\n"
         mood_rows = self.db.moods(uid, since=now - 7 * 86400)
         lately = emotion.summarize(mood_rows, tz)
         if lately:
@@ -215,6 +204,17 @@ class Agent:
         hint = emotion.checkin_hint(mood_rows, tz)
         if hint:
             block += hint + "\n"
+        t_hint = heart.trend_hint(heart.trend(mood_rows, tz, now))
+        if t_hint:
+            block += "\n" + t_hint + "\n"
+        ctx = ctx or {}
+        bond = heart.bond_level(ctx["bond"], len(rows)) if ctx.get("bond") else None
+        if bond:
+            block += f"\nYour bond with them: level {bond['level']} of 5, {bond['name']}. {bond['tone']}\n"
+            if ctx.get("first_today"):
+                away = heart.absence_hint(ctx["bond"], now)
+                if away:
+                    block += away + "\n"
         if reading is not None:
             style = emotion.style_for(reading)
             if style:
@@ -272,24 +272,50 @@ class Agent:
             fact = str(args.get("fact", "")).strip()[:500]
             if not fact:
                 return "Error: empty fact"
-            self.db.add_fact(uid, fact, str(args.get("kind") or "fact"), bool(args.get("important")))
+            recent = self.db.moods(uid, since=time.time() - 600)
+            feel = next((m for m in recent if m["mood"] != "neutral"), None)  # how they feel right now colours the memory
+            self.db.add_fact(uid, fact, str(args.get("kind") or "fact"), bool(args.get("important")),
+                             mood=feel["mood"] if feel else "", level=feel["intensity"] if feel else 0, when_md=heart.parse_month_day(fact) if args.get("kind") == "event" else "")
             return "Saved to memory."
         if name == "recall":
-            q = _tokens(str(args.get("query", "")))
             kind = str(args.get("kind") or "")
             rows = [r for r in self.db.facts(uid) if not kind or r["kind"] == kind]
-            if q:
-                hits = [r for r in rows if q & _tokens(r["text"])]
+            query = str(args.get("query", "")).strip()
+            if query:
+                hits = [r for r in heart.select_memories(rows, query, 8) if heart._fuzzy_overlap(heart._tokens(query), heart._tokens(r["text"])) >= 1][:8]
             else:
-                hits = sorted(rows, key=lambda r: (-r["weight"], -r["created"]))
-            hits = hits[:8]
-            return "\n".join(f"- {r['text']}" + (f" [{r['kind']}]" if r["kind"] != "fact" else "") for r in hits) or "Nothing relevant in memory."
+                hits = heart.select_memories(rows, "", 8)
+            if hits:
+                self.db.touch_facts(uid, [r["id"] for r in hits])
+            return heart.format_memories(hits) or "Nothing relevant in memory."
+        if name == "who_is":
+            who = str(args.get("name", "")).strip()
+            if len(who) < 2:
+                return "Error: give a name or a relationship (sister, boss...)."
+            q = heart._tokens(who)
+            hits = [r for r in self.db.facts(uid) if heart._fuzzy_overlap(q, heart._tokens(r["text"])) >= 1]
+            hits = sorted(hits, key=lambda r: -r["created"])[:12]
+            if not hits:
+                return f"Nothing remembered about {who} yet."
+            self.db.touch_facts(uid, [r["id"] for r in hits])
+            return f"What you remember about {who}:\n" + heart.format_memories(hits)
+        if name == "memory_timeline":
+            try:
+                days = max(1, min(365, int(float(args.get("days") or 30))))
+            except (TypeError, ValueError):
+                return "Error: days must be a number."
+            zone = utilities.get_zone(tz)
+            cutoff = time.time() - days * 86400
+            rows = sorted((r for r in self.db.facts(uid) if r["created"] >= cutoff), key=lambda r: r["created"])
+            if not rows:
+                return f"Nothing was saved in the last {days} days."
+            return "\n".join(f"- {datetime.fromtimestamp(r['created'], zone).strftime('%d %b')}: {r['text']}" + (f" (felt {r['mood']})" if r["mood"] and r["mood_level"] >= 2 else "") for r in rows[-30:])
         if name == "note_mood":
             mood = str(args.get("mood", "")).strip().lower()
             if mood not in emotion.MOODS or mood == "distressed":
                 return "Error: unknown mood."
             try:
-                inten = int(args.get("intensity") or 2)
+                inten = max(1, min(5, int(args.get("intensity") or 2)))
             except (TypeError, ValueError):
                 inten = 2
             self.db.add_mood(uid, mood, inten, str(args.get("note", "")), source="ai")
@@ -717,6 +743,19 @@ class Agent:
                 self.db.add_mood(uid, reading.mood, reading.intensity)
             except Exception:
                 pass  # mood tracking must never break a chat
+        ctx = {}
+        try:
+            zone = utilities.get_zone(sess.tz)
+            before = self.db.bond_row(uid)
+            self.db.bond_tick(uid, datetime.now(zone).date().isoformat(), emotional=reading.mood != "neutral" and reading.intensity >= 2)
+            after = self.db.bond_row(uid)
+            ctx = {"bond": after, "first_today": after["days"] > before["days"]}
+            if settings.AUTO_MEMORY:
+                for m in heart.extract_memories(text, datetime.now(zone)):
+                    self.db.add_fact(uid, m["text"], m["kind"], m["important"], mood=reading.mood if reading.mood != "neutral" else "",
+                                     level=reading.intensity, source="auto", when_md=m["when_md"])
+        except Exception:
+            pass  # remembering must never break a chat
         try:
             await emit({"type": "mood", "mood": reading.mood, "intensity": reading.intensity, "feeling": reading.feeling})
         except Exception:
@@ -727,7 +766,7 @@ class Agent:
                 web = settings.WEB_SEARCH and (sess.cfg is None or sess.cfg.provider.kind == "anthropic")  # web search is an Anthropic server tool
                 resp = await self._model_turn(
                     sess,
-                    self._system(uid, text, device, sess.tz, web, sess.voice, sess.callme, reading),
+                    self._system(uid, text, device, sess.tz, web, sess.voice, sess.callme, reading, ctx),
                     tools.schemas(device, web, settings.WEB_SEARCH_MAX_USES),
                     sess.history,
                     emit,

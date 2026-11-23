@@ -131,6 +131,16 @@ CREATE TABLE IF NOT EXISTS habit_log (
   day TEXT NOT NULL,
   PRIMARY KEY (habit_id, day)
 );
+CREATE TABLE IF NOT EXISTS bond (
+  user_id INTEGER PRIMARY KEY,
+  turns INTEGER NOT NULL DEFAULT 0,
+  days INTEGER NOT NULL DEFAULT 0,
+  shared INTEGER NOT NULL DEFAULT 0,
+  last_day TEXT NOT NULL DEFAULT '',
+  first REAL NOT NULL DEFAULT 0,
+  last REAL NOT NULL DEFAULT 0,
+  prev_last REAL NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS usage (
   user_id INTEGER NOT NULL,
   day TEXT NOT NULL,
@@ -174,6 +184,11 @@ class DB:
             self.conn.execute("ALTER TABLE facts ADD COLUMN kind TEXT NOT NULL DEFAULT 'fact'")
         if "weight" not in fcols:
             self.conn.execute("ALTER TABLE facts ADD COLUMN weight INTEGER NOT NULL DEFAULT 1")
+        # v13: memories remember how the user felt, how often they mattered, where they came from, and yearly dates
+        for col, ddl in (("last_used", "REAL NOT NULL DEFAULT 0"), ("uses", "INTEGER NOT NULL DEFAULT 0"), ("mood", "TEXT NOT NULL DEFAULT ''"),
+                         ("mood_level", "INTEGER NOT NULL DEFAULT 0"), ("source", "TEXT NOT NULL DEFAULT 'ai'"), ("when_md", "TEXT NOT NULL DEFAULT ''")):
+            if col not in fcols:
+                self.conn.execute(f"ALTER TABLE facts ADD COLUMN {col} {ddl}")
 
     def execute(self, sql, params=()):
         with self.lock:
@@ -237,7 +252,7 @@ class DB:
         return [dict(r) for r in self.all(sql, (*params, limit, offset))]
 
     # tables that hold one user's data, and how each is keyed to the user
-    USER_TABLES = ("facts", "messages", "tasks", "reminders", "notes", "contacts", "events", "routines", "email_log", "meetings", "moods", "usage", "expenses", "habits", "habit_log")
+    USER_TABLES = ("facts", "messages", "tasks", "reminders", "notes", "contacts", "events", "routines", "email_log", "meetings", "moods", "usage", "expenses", "habits", "habit_log", "bond")
 
     def delete_user(self, uid):
         """Erase the account and every row that belongs to it (right to be forgotten)."""
@@ -256,6 +271,7 @@ class DB:
         data = {"account": {"email": u["email"], "plan": u["plan"], "created": u["created"]}}
         for t in ("facts", "messages", "tasks", "reminders", "notes", "contacts", "events", "routines", "meetings", "moods", "expenses", "habits"):
             data[t] = [{k: r[k] for k in r.keys() if k != "user_id"} for r in self.all(f"SELECT * FROM {t} WHERE user_id = ? ORDER BY id", (uid,))]
+        data["bond"] = [{k: r[k] for k in r.keys() if k != "user_id"} for r in self.all("SELECT * FROM bond WHERE user_id = ?", (uid,))]
         data["habit_log"] = [dict(day=r["day"], habit_id=r["habit_id"]) for r in self.all("SELECT habit_id, day FROM habit_log WHERE user_id = ?", (uid,))]
         data["usage"] = [dict(day=r["day"], count=r["count"]) for r in self.all("SELECT day, count FROM usage WHERE user_id = ? ORDER BY day", (uid,))]
         return data
@@ -353,32 +369,70 @@ class DB:
 
         return set(re.findall(r"\w+", str(text).lower()))
 
-    def add_fact(self, uid, text, kind="fact", important=False):
-        """Save a memory. A near-duplicate (80% same words) is merged into the old one instead of piling up."""
+    def add_fact(self, uid, text, kind="fact", important=False, mood="", level=0, source="ai", when_md=""):
+        """Save a memory. A near-duplicate (80% same words) is merged into the old one instead of piling up.
+        mood/level: how the user felt when it was shared (so strong moments are remembered more strongly)."""
         text = text.strip()
         kind = kind if kind in self.FACT_KINDS else "fact"
+        level = max(0, min(5, int(level or 0)))
         new = self._words(text)
-        for r in self.all("SELECT id, text, weight FROM facts WHERE user_id = ?", (uid,)):
+        for r in self.all("SELECT id, text, weight, mood, mood_level, when_md FROM facts WHERE user_id = ?", (uid,)):
             old = self._words(r["text"])
             if new and old and len(new & old) / len(new | old) >= 0.8:
+                keep_mood = (mood, level) if (mood and level >= r["mood_level"]) else (r["mood"], r["mood_level"])
                 self.execute(
-                    "UPDATE facts SET text = ?, kind = ?, weight = ?, created = ? WHERE id = ? AND user_id = ?",
-                    (text, kind, min(5, max(r["weight"] + 1, 3 if important else 1)), time.time(), r["id"], uid),
+                    "UPDATE facts SET text = ?, kind = ?, weight = ?, created = ?, mood = ?, mood_level = ?, when_md = ? WHERE id = ? AND user_id = ?",
+                    (text, kind, min(5, max(r["weight"] + 1, 3 if important else 1)), time.time(), keep_mood[0], keep_mood[1], when_md or r["when_md"], r["id"], uid),
                 )
                 return r["id"]
+        weight = 3 if important else 1
+        if level >= 4:
+            weight = max(weight, 3)  # something they felt strongly about matters
         return self.execute(
-            "INSERT INTO facts (user_id, text, created, kind, weight) VALUES (?, ?, ?, ?, ?)",
-            (uid, text, time.time(), kind, 3 if important else 1),
+            "INSERT INTO facts (user_id, text, created, kind, weight, mood, mood_level, source, when_md) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (uid, text, time.time(), kind, weight, mood or "", level, source if source in ("ai", "auto", "user") else "ai", when_md or ""),
         ).lastrowid
 
     def facts(self, uid):
-        return self.all("SELECT id, text, created, kind, weight FROM facts WHERE user_id = ? ORDER BY id DESC", (uid,))
+        return self.all("SELECT id, text, created, kind, weight, last_used, uses, mood, mood_level, source, when_md FROM facts WHERE user_id = ? ORDER BY id DESC", (uid,))
+
+    def touch_facts(self, uid, ids):
+        """A memory that gets used again matters more: remember when and how often."""
+        ids = [int(i) for i in ids]
+        if not ids:
+            return 0
+        marks = ",".join("?" * len(ids))
+        return self.execute(f"UPDATE facts SET uses = uses + 1, last_used = ? WHERE user_id = ? AND id IN ({marks})", (time.time(), uid, *ids)).rowcount
+
+    def update_fact_text(self, uid, fact_id, text, weight=None):
+        if weight is None:
+            return self.execute("UPDATE facts SET text = ? WHERE id = ? AND user_id = ?", (text, fact_id, uid)).rowcount
+        return self.execute("UPDATE facts SET text = ?, weight = ? WHERE id = ? AND user_id = ?", (text, int(weight), fact_id, uid)).rowcount
+
+    # ---- the bond between Aegis and the user (how well they know each other) ----
+    def bond_tick(self, uid, day, emotional=False, now=None):
+        """Count one chat turn. `day` is the user's local date (YYYY-MM-DD); `emotional` = they shared a real feeling."""
+        now = now or time.time()
+        row = self.one("SELECT * FROM bond WHERE user_id = ?", (uid,))
+        if not row:
+            self.execute("INSERT INTO bond (user_id, turns, days, shared, last_day, first, last, prev_last) VALUES (?, 1, 1, ?, ?, ?, ?, 0)",
+                         (uid, 1 if emotional else 0, day, now, now))
+            return
+        new_day = row["last_day"] != day
+        self.execute(
+            "UPDATE bond SET turns = turns + 1, days = days + ?, shared = shared + ?, last_day = ?, prev_last = CASE WHEN ? THEN last ELSE prev_last END, last = ? WHERE user_id = ?",
+            (1 if new_day else 0, 1 if emotional else 0, day, 1 if new_day else 0, now, uid),
+        )
+
+    def bond_row(self, uid):
+        r = self.one("SELECT turns, days, shared, first, last, prev_last FROM bond WHERE user_id = ?", (uid,))
+        return dict(r) if r else {"turns": 0, "days": 0, "shared": 0, "first": 0.0, "last": 0.0, "prev_last": 0.0}
 
     # ---- moods (how the user felt; only the mood name, never their words) ----
     def add_mood(self, uid, mood, intensity=1, note="", source="auto"):
         return self.execute(
             "INSERT INTO moods (user_id, mood, intensity, note, source, created) VALUES (?, ?, ?, ?, ?, ?)",
-            (uid, mood, max(1, min(3, int(intensity))), str(note or "").strip()[:200], source, time.time()),
+            (uid, mood, max(1, min(5, int(intensity))), str(note or "").strip()[:200], source, time.time()),
         ).lastrowid
 
     def moods(self, uid, since=0.0, limit=500):

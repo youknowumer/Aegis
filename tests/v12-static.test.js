@@ -15,7 +15,7 @@ test("new slash commands exist", () => {
 test("app.js shows proactive alerts and greets once per session", () => {
   const js = read("app.js");
   assert.match(js, /case "alert": alertUser\(m\.text\)/);
-  assert.match(js, /greetOnce\(m\.brief\)/);
+  assert.match(js, /greetOnce\(m\.brief, m\.bond\)/);
   assert.match(js, /aegis_greeted/);
 });
 

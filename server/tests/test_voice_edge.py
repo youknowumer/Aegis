@@ -21,7 +21,7 @@ def edge_env(monkeypatch):
     monkeypatch.setattr(tts, "_edge_installed", lambda: True)
     monkeypatch.setattr(tts, "_list_edge_voices", lambda: VOICES)
     calls = []
-    monkeypatch.setattr(tts, "_edge_audio", lambda text, voice, emotion: (calls.append((text, voice, emotion)) or b"ID3edge"))
+    monkeypatch.setattr(tts, "_edge_audio", lambda text, voice, emotion, intensity=3: (calls.append((text, voice, emotion)) or b"ID3edge"))
     return calls
 
 
@@ -86,7 +86,7 @@ def test_failure_costs_nothing(env, edge_env, monkeypatch):
     c = env.client
     token = register(c)
 
-    def boom(text, voice, emotion):
+    def boom(text, voice, emotion, intensity=3):
         raise tts.TTSError("The voice service is not reachable right now.")
 
     monkeypatch.setattr(tts, "_edge_audio", boom)

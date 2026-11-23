@@ -47,7 +47,7 @@ TOOLS: List[Tool] = [
     Tool("recall", "Search long-term memory for what is known about the user. Give a topic or name; an empty query returns the most important memories. Optionally filter by kind.", "server",
          {"query": S, "kind": {"type": "string", "enum": ["fact", "preference", "person", "event", "goal", "emotion"]}}, []),
     Tool("note_mood", "Quietly record how the user seems to feel right now (use when you sense a feeling the app did not catch, in any language). Never mention that you recorded it.", "server",
-         {"mood": {"type": "string", "enum": ["happy", "excited", "proud", "grateful", "stressed", "anxious", "sad", "lonely", "angry", "tired", "neutral"]}, "intensity": {"type": "number", "description": "1 mild, 2 clear, 3 strong"}, "note": {"type": "string", "description": "optional: the cause in a few words, e.g. 'exam tomorrow'"}}, ["mood"]),
+         {"mood": {"type": "string", "enum": ["happy", "excited", "proud", "grateful", "stressed", "anxious", "sad", "lonely", "angry", "tired", "grief", "disappointed", "overwhelmed", "embarrassed", "confused", "bored", "hopeful", "relieved", "loving", "neutral"]}, "intensity": {"type": "number", "description": "1 mild, 2 somewhat, 3 clear, 4 strong, 5 overwhelming"}, "note": {"type": "string", "description": "optional: the cause in a few words, e.g. 'exam tomorrow'"}}, ["mood"]),
     Tool("mood_history", "How the user has been feeling lately (days: how many days back, default 7). Use when they ask how they have been, or to be a better friend.", "server", {"days": N}),
     Tool("forget", "Delete memories that contain the given text.", "server", {"contains": S}, ["contains"], risky=True),
     Tool("current_time", "Get the current date and time, optionally in a given IANA timezone such as Asia/Karachi or America/New_York.", "server", {"timezone": S}),
@@ -103,6 +103,9 @@ TOOLS: List[Tool] = [
          {"contains": S, "start": S, "title": S, "location": S, "duration_minutes": N}, ["contains"]),
     Tool("delete_note", "Delete the newest saved note whose title or text contains the given words.", "server", {"contains": S}, ["contains"], risky=True),
     Tool("delete_contact", "Delete the saved contact whose name contains the given text.", "server", {"contains": S}, ["contains"], risky=True),
+    # ---- v13: heart (memory of people and moments) ----
+    Tool("who_is", "Everything you remember about one person in the user's life (a name or a relationship such as sister, boss, friend), with when it was said and how they felt. Use it before talking about that person.", "server", {"name": S}, ["name"]),
+    Tool("memory_timeline", "What the user told you over the last N days (default 30), oldest first, with how they felt. Use for 'what happened last month', 'what did I tell you about last week'.", "server", {"days": N}),
     # ---- v12: chief-of-staff layer ----
     Tool("deep_research", "Research a topic properly: searches the web from several angles, reads the best pages and returns source material. Use it for 'research X', 'give me a full briefing on Y', 'compare A and B in depth'. Then write a clear briefing and name the sources. depth 1-5 (default 3).", "server", {"topic": S, "depth": N}, ["topic"]),
     Tool("find_free_time", "Find free gaps in the user's calendar. date 'YYYY-MM-DD' (default today), minutes needed (default 30), start_hour and end_hour of the working window (default 9 to 18). Use for 'when am I free', 'find 1 hour for the dentist this week'.", "server", {"date": S, "minutes": N, "start_hour": N, "end_hour": N}),

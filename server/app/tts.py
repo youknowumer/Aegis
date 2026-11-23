@@ -118,6 +118,17 @@ _EDGE_PROSODY = {
     "concern": ("-6%", "-2Hz", "+0%"), "urgent": ("+10%", "+2Hz", "+10%"), "confident": ("+0%", "-1Hz", "+0%"),
 }
 
+def scale_prosody(rate: str, pitch: str, volume: str, intensity: int = 3):
+    """Feel it more or less: intensity 1 (barely) .. 3 (normal) .. 5 (overwhelming) scales how far rate, pitch and volume move from neutral."""
+    k = {1: 0.5, 2: 0.75, 3: 1.0, 4: 1.35, 5: 1.7}[max(1, min(5, int(intensity or 3)))]
+
+    def f(v: str, unit: str, cap: int) -> str:
+        n = int(re.match(r"[+-]?\d+", v).group(0))
+        n = max(-cap, min(cap, round(n * k)))
+        return f"{n:+d}{unit}"
+    return f(rate, "%", 40), f(pitch, "Hz", 30), f(volume, "%", 30)
+
+
 _voice_cache = {"at": 0.0, "voices": []}
 
 
@@ -164,10 +175,10 @@ def edge_voice(text: str, lang: str, voices=None) -> str:
     return _AVA if _AVA in names else (prefs[0] if prefs else "en-US-JennyNeural")
 
 
-def _edge_audio(text: str, voice: str, emotion: str) -> bytes:
+def _edge_audio(text: str, voice: str, emotion: str, intensity: int = 3) -> bytes:
     import edge_tts
 
-    rate, pitch, volume = _EDGE_PROSODY.get(emotion, _EDGE_PROSODY["calm"])
+    rate, pitch, volume = scale_prosody(*_EDGE_PROSODY.get(emotion, _EDGE_PROSODY["calm"]), intensity)
 
     async def go():
         out = bytearray()
@@ -221,7 +232,7 @@ def _post(url: str, headers: dict, body: dict) -> bytes:
         raise TTSError("The voice service is not reachable right now.")
 
 
-def synthesize(text: str, emotion: str = "calm", lang: str = "") -> bytes:
+def synthesize(text: str, emotion: str = "calm", lang: str = "", intensity: int = 3) -> bytes:
     """Speak `text` (mp3 bytes). Raises TTSError with a message that is safe to show the user."""
     text = " ".join(str(text or "").split())
     if not text:
@@ -230,11 +241,16 @@ def synthesize(text: str, emotion: str = "calm", lang: str = "") -> bytes:
         raise TTSError(f"Too long: send at most {MAX_CHARS} characters at a time.")
     emo = emotion if emotion in EMOTIONS else "calm"
     style, stability, style_amt = EMOTIONS[emo]
+    try:
+        intensity = max(1, min(5, int(intensity)))
+    except (TypeError, ValueError):
+        intensity = 3
+    style_amt = max(0.0, min(1.0, style_amt * (0.5 + intensity / 6)))  # stronger feeling -> more expressive
     base = str(lang or "").split("-")[0].lower()
     which = provider()
     if which == "openai":
         language = LANG_NAMES.get(base)
-        instructions = "You are Aegis, a warm, expressive female voice assistant. " + (f"Speak {language} like a native speaker. " if language else "Speak in the language of the text, like a native speaker. ") + f"Tone: {style} Sound human: natural pauses and real feeling, never robotic or flat."
+        instructions = "You are Aegis, a warm, expressive female voice assistant. " + (f"Speak {language} like a native speaker. " if language else "Speak in the language of the text, like a native speaker. ") + f"Tone: {style} Feeling strength {intensity} out of 5. Sound human: natural pauses and real feeling, never robotic or flat."
         data = _post(
             "https://api.openai.com/v1/audio/speech",
             {"Authorization": "Bearer " + os.environ["OPENAI_API_KEY"].strip()},
@@ -250,7 +266,7 @@ def synthesize(text: str, emotion: str = "calm", lang: str = "") -> bytes:
             {"text": text, "model_id": os.environ.get("AEGIS_TTS_MODEL", "eleven_multilingual_v2"), "voice_settings": {"stability": stability, "similarity_boost": 0.8, "style": style_amt, "use_speaker_boost": True}},
         )
     elif which == "edge":
-        data = _edge_audio(text, edge_voice(text, lang), emo)
+        data = _edge_audio(text, edge_voice(text, lang), emo, intensity)
     else:
         raise TTSError("Studio voice is not set up on this server.")
     if not data or len(data) > MAX_AUDIO_BYTES:

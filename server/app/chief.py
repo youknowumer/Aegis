@@ -9,7 +9,7 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
-from . import extras, mail, settings, smarthome, tts, utilities
+from . import extras, heart, mail, settings, smarthome, tts, utilities
 
 ALERT_LEAD_MIN = 15          # "your meeting starts in 15 minutes"
 HABIT_NUDGE_HOUR = 20        # open habits are mentioned once, after 8 pm local time
@@ -50,6 +50,10 @@ def proactive_alerts(db, uid: int, tz: str = "", now: datetime = None) -> list:
             risky = [h for h in open_h if h["streak"] >= 3]
             tail = f" Your {risky[0]['streak']}-day streak on {risky[0]['name']} is on the line." if risky else ""
             out.append({"key": f"habits:{now.date().isoformat()}", "level": "info", "text": f"Still open today: {names}.{tail}"})
+
+    # 2b) birthdays and anniversaries they told us about
+    for sd in heart.special_days(db, uid, tz, now):
+        out.append({"key": sd["key"], "level": "info", "text": f"A date to remember: {sd['text']} ({sd['when']}). Want me to set a reminder or help you write something?"})
 
     # 3) unusually high spending today (same currency only, needs some history)
     day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -245,4 +249,12 @@ def brief(db, uid: int, tz: str = "", now: datetime = None) -> dict:
         "events_left": len(left),
         "next_event": ({"title": nxt["title"], "at": datetime.fromtimestamp(nxt["start"], zone).strftime("%H:%M")} if nxt else None),
         "habits_open": len([x for x in extras.habit_report(db, uid, tz, now) if not x["done_today"]]),
+        "callback": heart.callback(db, uid, now.timestamp()),
+        "away_days": _away_days(db.bond_row(uid), now.timestamp()),
     }
+
+
+def _away_days(row: dict, now_ts: float) -> int:
+    """Whole days since they last talked to Aegis (0 for a brand-new user)."""
+    last = row.get("last") or 0
+    return int((now_ts - last) // 86400) if last else 0
