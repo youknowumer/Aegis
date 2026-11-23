@@ -101,6 +101,12 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 - **For many users**: admin API + `/metrics` + `/readyz`, plan limits from an env var, closed-beta switches, automatic housekeeping and backups, non-root Docker image, `docker-compose.yml` with automatic HTTPS.
 - **New abilities**: spending tracker (PKR default), habits with streaks, prayer times, search across everything you saved, edit tasks/events, delete notes/contacts.
 
+## What's new in v12 (a proactive chief-of-staff). Details in `CHANGES-v12.md`
+
+- **Proactive**: warns you before a meeting, nudges open habits in the evening, flags unusual spending, greets you with where things stand. `AEGIS_PROACTIVE=0` turns it off.
+- **New abilities**: `deep_research` (multi-source briefings), `find_free_time`, `evening_review`, `systems_check`; slash commands `/review /research /free /status /pc`.
+- **More PC control** (desktop app): full system report, window and virtual-desktop control, brightness, network check, sleep / restart / shutdown (always asks, 60 s to cancel).
+
 ## Voice and instant commands
 
 Typed or spoken (English, Roman Urdu, Urdu, Hindi), answered in the browser in milliseconds, free, no AI quota, and they

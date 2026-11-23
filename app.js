@@ -764,6 +764,21 @@
       emptyToggle("remind-list", "remind-empty", "remind-count", rows.length);
     } catch {}
   }
+  // Welcome line once per browser session: part of the day plus what is waiting. Spoken only when replies are read aloud.
+  function greetOnce(b) {
+    if (!b || safeSessionGet("aegis_greeted")) return;
+    try { sessionStorage.setItem("aegis_greeted", "1"); } catch {}
+    const part = { morning: "Good morning", afternoon: "Good afternoon", evening: "Good evening", night: "Welcome back" }[b.part] || "Hello";
+    const bits = [];
+    if (b.next_event) bits.push("your next event is " + b.next_event.title + " at " + b.next_event.at);
+    else if (b.events_left === 0) bits.push("your calendar is clear for the rest of today");
+    if (b.tasks_open) bits.push(b.tasks_open + " open task" + (b.tasks_open === 1 ? "" : "s"));
+    if (b.habits_open && (b.part === "evening" || b.part === "night")) bits.push(b.habits_open + " habit" + (b.habits_open === 1 ? "" : "s") + " still to tick");
+    const text = "All systems online. " + part + "." + (bits.length ? " Here is where things stand: " + bits.join(", ") + "." : "");
+    addMsg("ai", text);
+    try { if ($("speak").checked) speak(text, false); } catch {}
+  }
+
   function onReminder(m) {
     const text = "Reminder: " + m.text;
     alertUser(text);
@@ -828,6 +843,7 @@
         loadMemory(); loadMood(); loadTasks(); loadReminders();
         refreshState();
         syncVoice();
+        greetOnce(m.brief);
         break;
       case "mood": showMood(m.mood, m.feeling); break;
       case "status": setDevice(m.device); break;
@@ -835,6 +851,7 @@
       case "delta_end": endStream(); break;
       case "stopped": endStream(); setBusy(false); toast("Stopped."); break;
       case "reminder": onReminder(m); break;
+      case "alert": alertUser(m.text); break;   // proactive heads-up from the server (meeting soon, habits open, spending)
       case "tool": addTool(m); break;
       case "tool_done": doneTool(m); break;
       case "confirm": confirmQueue.push(m); showConfirm(); break;
