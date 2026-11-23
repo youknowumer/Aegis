@@ -76,3 +76,6 @@ HSTS = os.environ.get("AEGIS_HSTS", "0") == "1"
 
 DEVICE_CALL_TIMEOUT = 60  # seconds to wait for the desktop app to finish a tool
 CONFIRM_TIMEOUT = 60  # seconds to wait for the user to approve a risky action
+
+# v12: proactive heads-ups (meeting starting, habits still open, unusual spending). Set AEGIS_PROACTIVE=0 to turn off.
+PROACTIVE = os.environ.get("AEGIS_PROACTIVE", "1").strip().lower() not in ("0", "false", "no", "off")

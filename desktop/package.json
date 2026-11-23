@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "test": "node --test test/tools.test.js test/documents.test.js test/browser.test.js test/outlook.test.js test/outlook-ps.test.js test/youtube.test.js test/local-server.test.js",
+    "test": "node --test test/tools.test.js test/documents.test.js test/browser.test.js test/outlook.test.js test/pcpro.test.js test/outlook-ps.test.js test/youtube.test.js test/local-server.test.js",
     "bundle": "node scripts/prepare-bundle.js",
     "assets": "python scripts/make-assets.py",
     "dist": "npm run bundle && node scripts/build-installer.js"
@@ -38,6 +38,7 @@
       "tools.js",
       "browser.js",
       "outlook.js",
+      "pcpro.js",
       "local-server.js",
       "updater.js",
       "offline.html",

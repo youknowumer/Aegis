@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Awaitable, Callable, List
 
-from . import emotion, extras, mail, settings, smarthome, tools, utilities
+from . import emotion, extras, chief, mail, settings, smarthome, tools, utilities
 from .db import DB
 from .hub import Hub
 
@@ -83,6 +83,15 @@ Doing things:
   1200 on petrol"), `add_habit` / `habit_checkin` / `habit_status` track daily habits with streaks (celebrate streaks, never guilt-trip a
   missed day), `prayer_times` gives namaz times for a city, `search_everything` finds anything they saved, `update_task` / `update_event`
   edit instead of deleting and re-adding, and `delete_note` / `delete_contact` remove things on request.
+- Chief-of-staff mode: you are the user's chief of staff. Be proactive and anticipate: when you finish a task, mention the one thing they will
+  likely need next (a clash, an unanswered email, a habit still open) in a single short sentence, never a list. `deep_research` for
+  "research X / full briefing"; write findings first, then the sources, then what is uncertain. `find_free_time` for "when am I free /
+  find an hour"; `evening_review` for "how did my day go / wrap up / good night" (summarise warmly, celebrate wins, offer to plan
+  tomorrow); `systems_check` for "status report / are you online" (and `system_report` when the PC is linked). A "protocol" is just a
+  saved routine: "initiate the work protocol" -> `run_routine`. When the user asks for several things at once, do them all in one go.
+  PC power and window control (`window_control`, `set_brightness`, `power_action`, `network_check`, `system_report`) need the desktop app.
+  Proactive alerts (meeting about to start, open habits, unusual spending) arrive from the server by themselves; never claim you cannot
+  warn them ahead of time.
 - Meetings: the user can record or upload meetings in the app; Aegis writes notes with important points, decisions, action items and
   enhancement ideas. When they ask what happened, what was decided or what they must do after a meeting, use `get_meeting`
   (`list_meetings` to see them) and answer from those notes; `meeting_actions_to_tasks` puts the action items on their to-do list.
@@ -255,8 +264,10 @@ class Agent:
     async def _run_server_tool(self, uid: int, name: str, args: dict, tz: str = "") -> str:
         import asyncio
 
-        if name in ("fetch_url", "wikipedia", "convert_currency", "daily_briefing", "send_email", "check_inbox", "search_web", "news_headlines", "market_price", "home_list", "home_control", "prayer_times"):
+        if name in ("fetch_url", "wikipedia", "convert_currency", "daily_briefing", "send_email", "check_inbox", "search_web", "news_headlines", "market_price", "home_list", "home_control", "prayer_times", "deep_research"):
             return await asyncio.to_thread(self._blocking_tool, uid, name, args, tz)
+        if name in ("find_free_time", "evening_review", "systems_check"):
+            return self._chief_tool(uid, name, args, tz)
         if name == "remember":
             fact = str(args.get("fact", "")).strip()[:500]
             if not fact:
@@ -411,6 +422,14 @@ class Agent:
             import asyncio
             return await asyncio.to_thread(utilities.weather_for, str(args.get("city", "")))
         return f"Error: unknown tool {name}"
+
+    def _chief_tool(self, uid: int, name: str, args: dict, tz: str) -> str:
+        """v12 quick database tools."""
+        if name == "find_free_time":
+            return chief.free_slots(self.db, uid, tz, str(args.get("date", "") or ""), args.get("minutes", 30), args.get("start_hour", 9), args.get("end_hour", 18))
+        if name == "evening_review":
+            return chief.evening_review(self.db, uid, tz)
+        return chief.systems_report(self.db, uid, self.hub.device_connected(uid), tz=tz)
 
     def _v11_tool(self, uid: int, name: str, args: dict, tz: str) -> str:
         """Money, habits, search and the edit/delete tools added in v11 (all quick database work)."""
@@ -637,6 +656,9 @@ class Agent:
         if name == "news_headlines":
             out = utilities.news_headlines(str(args.get("topic", "")), str(args.get("country", "") or "PK"))
             return out if out.startswith(("Error", "No ")) else UNTRUSTED + out
+        if name == "deep_research":
+            out = chief.deep_research(str(args.get("topic", "")), args.get("depth", 3))
+            return out if out.startswith("Error") else UNTRUSTED + out
         if name == "wikipedia":
             return utilities.wikipedia_summary(str(args.get("topic", "")), str(args.get("lang", "en") or "en"))
         if name == "convert_currency":

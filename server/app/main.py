@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import emotion, extras, meeting, providers, settings, smarthome, tts
+from . import emotion, extras, chief, meeting, providers, settings, smarthome, tts
 from .agent import Agent, Session
 from .auth import EMAIL_RE, hash_password, make_token, read_token_full, verify_password
 from .db import DB
@@ -168,6 +168,43 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                 log.exception("reminder loop")
             await asyncio.sleep(5)
 
+    alerted = {}   # (user id, alert key) -> when it was sent, so each alert goes out once
+    chat_tz = {}   # user id -> time zone of their open chat
+
+    async def deliver_alerts(uid=None):
+        """proactive proactive heads-ups (meeting in 15 minutes, habits still open, unusual spending)."""
+        now = time.time()
+        for k in [k for k, t in alerted.items() if now - t > 2 * 86400]:
+            del alerted[k]
+        for u in list(hub.chats):
+            if uid is not None and u != uid:
+                continue
+            try:
+                found = await asyncio.to_thread(chief.proactive_alerts, db, u, chat_tz.get(u, ""))
+            except Exception:
+                log.exception("alerts for user %s", u)
+                continue
+            for a in found:
+                if (u, a["key"]) in alerted:
+                    continue
+                sent = False
+                for sock in list(hub.chats.get(u, ())):
+                    try:
+                        await sock.send_json({"type": "alert", "key": a["key"], "level": a["level"], "text": a["text"]})
+                        sent = True
+                    except Exception:
+                        pass
+                if sent:
+                    alerted[(u, a["key"])] = now
+
+    async def alert_loop():
+        while settings.PROACTIVE:
+            try:
+                await deliver_alerts()
+            except Exception:
+                log.exception("alert loop")
+            await asyncio.sleep(30)
+
     def run_maintenance():
         """Old rows out, stale counters out, optional database copy. Safe to call any time."""
         removed = db.purge_old(keep_messages=settings.KEEP_MESSAGES)
@@ -191,7 +228,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
 
     @contextlib.asynccontextmanager
     async def lifespan(_app):
-        tasks = [asyncio.create_task(reminder_loop()), asyncio.create_task(maintenance_loop())]
+        tasks = [asyncio.create_task(reminder_loop()), asyncio.create_task(maintenance_loop()), asyncio.create_task(alert_loop())]
         try:
             yield
         finally:
@@ -209,6 +246,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.db = db
     app.state.deliver_reminders = deliver_reminders
+    app.state.deliver_alerts = deliver_alerts
     app.state.run_maintenance = run_maintenance
     metrics = defaultdict(int)  # simple in-process counters, exposed at /metrics
     limiter = LoginLimiter()
@@ -660,6 +698,15 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             raise HTTPException(400, "Type at least 2 characters")
         return db.search_all(user["id"], q)
 
+    @app.get("/api/alerts")
+    def api_alerts(user=Depends(current_user)):
+        """What Aegis would warn this user about right now (not de-duplicated)."""
+        return chief.proactive_alerts(db, user["id"], chat_tz.get(user["id"], ""))
+
+    @app.get("/api/review")
+    def api_review(tz: str = "", user=Depends(current_user)):
+        return {"text": chief.evening_review(db, user["id"], tz[:64])}
+
     @app.get("/api/expenses")
     def list_expenses(period: str = "month", tz: str = "", user=Depends(current_user)):
         lo, hi, label = extras.period_bounds(period, tz)
@@ -806,6 +853,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             history.pop(0)
         sess = Session(uid, ws, history, tz)
         hub.add_chat(uid, ws)
+        chat_tz[uid] = tz
         metrics["ws_chat_connections_total"] += 1
         tasks = set()
 
@@ -865,9 +913,11 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     "limit": limit_for(user),
                     "device": hub.device_connected(uid),
                     "history": db.recent_messages(uid, 30),
+                    "brief": chief.brief(db, uid, tz),
                 }
             )
             await deliver_reminders(uid)  # anything that came due while the user was away
+            await deliver_alerts(uid)
             while True:
                 msg = await ws.receive_json()
                 if not isinstance(msg, dict):
@@ -882,7 +932,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                         continue
                     sess.busy = True
                     if msg.get("tz"):
-                        sess.tz = str(msg["tz"])[:64]
+                        sess.tz = chat_tz[uid] = str(msg["tz"])[:64]
                     sess.voice = bool(msg.get("voice"))
                     sess.callme = " ".join(str(msg.get("callme", "")).split())[:30]
                     t = asyncio.create_task(handle_chat(text))
@@ -921,6 +971,8 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             for t in tasks:
                 t.cancel()
             hub.drop_chat(uid, ws)
+            if uid not in hub.chats:
+                chat_tz.pop(uid, None)
 
     @app.get("/app", include_in_schema=False)
     def app_shortcut():

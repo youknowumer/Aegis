@@ -766,6 +766,8 @@ const impl = {
 Object.assign(impl, require("./browser").tools);
 // Outlook (desktop app, no mail password needed) lives in outlook.js: outlook_today / outlook_read / outlook_draft / outlook_send
 Object.assign(impl, require("./outlook").tools);
+// v12: system_report, window_control, set_brightness, power_action, network_check live in pcpro.js
+Object.assign(impl, require("./pcpro").tools);
 
 async function runTool(name, args) {
   if (!Object.prototype.hasOwnProperty.call(impl, name)) return `Error: unknown tool ${name}`;
