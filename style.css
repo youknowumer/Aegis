@@ -523,8 +523,9 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 
 /* portrait phones: ask for landscape (can be dismissed) */
 .rotate-hint { display: none; }
+/* v11: portrait phones use the phone layout directly. The old full-screen "rotate" wall only shows when opted in (body.want-rotate). */
 @media (orientation: portrait) and (max-width: 760px) {
-  body:not(.no-rotate) .rotate-hint { position: fixed; inset: 0; z-index: 95; display: grid; place-items: center; padding: 24px; background: rgba(7, 11, 19, .94); backdrop-filter: blur(6px); }
+  body.want-rotate:not(.no-rotate) .rotate-hint { position: fixed; inset: 0; z-index: 95; display: grid; place-items: center; padding: 24px; background: rgba(7, 11, 19, .94); backdrop-filter: blur(6px); }
   .rh-box { display: grid; gap: 10px; justify-items: center; text-align: center; color: var(--accent); max-width: 280px; }
   .rh-box h3 { color: var(--text); font-size: 20px; }
   .rh-box p { margin: 0; }
@@ -929,3 +930,12 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .mood-actions { margin: 6px 0 0; }
 .linkish { background: none; border: 0; padding: 0; color: inherit; opacity: .7; text-decoration: underline; cursor: pointer; font: inherit; }
 .linkish:hover { opacity: 1; }
+
+
+/* ================= v11: account & data ================= */
+.acct-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.acct-form { display: grid; gap: 8px; margin: 10px 0; }
+.acct-danger { margin-top: 10px; border: 1px solid rgba(248, 113, 113, .3); border-radius: 12px; padding: 8px 12px; }
+.acct-danger summary { cursor: pointer; color: var(--bad); font-weight: 600; }
+.btn.danger { color: #fff; background: rgba(248, 113, 113, .85); border-color: transparent; }
+.btn.danger:hover { background: rgb(248, 113, 113); }

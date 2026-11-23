@@ -525,6 +525,24 @@
     <p class="muted small">Get reminders and timers even when this tab is in the background.</p>
     <button id="notif-btn" class="btn ghost small-btn" type="button">Allow notifications</button>
   </div>
+  <div class="set-group" id="account-group">
+    <h4>Account &amp; data</h4>
+    <p class="muted small">Your data is yours: download everything Aegis stores about you, change your password, sign out of every device, or delete your account for good.</p>
+    <div class="acct-actions">
+      <button id="acct-export" class="btn ghost small-btn" type="button">Download my data</button>
+      <button id="acct-logout-all" class="btn ghost small-btn" type="button">Sign out everywhere</button>
+    </div>
+    <form id="acct-pw-form" class="acct-form" autocomplete="off">
+      <label class="field">Current password<input id="acct-pw-cur" type="password" autocomplete="current-password" minlength="8" maxlength="200"></label>
+      <label class="field">New password (8+ characters)<input id="acct-pw-new" type="password" autocomplete="new-password" minlength="8" maxlength="200"></label>
+      <button class="btn ghost small-btn" type="submit">Change password</button>
+    </form>
+    <details class="acct-danger"><summary>Delete my account</summary>
+      <p class="muted small">This erases your account, memory, notes, tasks, meetings and chats. It cannot be undone.</p>
+      <label class="field">Type your password to confirm<input id="acct-del-pw" type="password" autocomplete="current-password"></label>
+      <button id="acct-del" class="btn danger small-btn" type="button">Delete everything</button>
+    </details>
+  </div>
 </dialog>
 
 <!-- ============ MEETINGS ============ -->
@@ -719,5 +737,6 @@
 <script src="tabs.js"></script>
 <script src="dock.js"></script>
 <script src="app-fx.js"></script>
+<script src="account.js"></script>
 </body>
 </html>

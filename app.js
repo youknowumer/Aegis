@@ -1975,7 +1975,13 @@
   tick();
   setInterval(tick, 20000);
   mountOrbs();
-  window.AegisApp = { toast, submitText: (t) => submitText(t), loadTasks: () => loadTasks(), speakScript, stopSpeaking, setVoiceMode: (on) => cmdCtx.setVoiceMode(on), isVoiceMode: () => convo }; // used by meetings.js
+  window.AegisApp = {
+    toast, submitText: (t) => submitText(t), loadTasks: () => loadTasks(), speakScript, stopSpeaking, setVoiceMode: (on) => cmdCtx.setVoiceMode(on), isVoiceMode: () => convo,
+    // used by account.js: after a password change the server hands out a fresh token (older ones stop working)
+    getToken: () => token,
+    setToken(t) { token = t; safeSet(TOKEN_KEY, t); if (desktop) desktop.setToken(t); },
+    logout: () => logout(),
+  }; // used by meetings.js and account.js
   if (window.__AEGIS_TEST__) window.__aegis = { extractWake, rich, labelFor };
   start();
 })();

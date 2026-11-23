@@ -94,6 +94,13 @@ website (Pages) and the server (Render etc.) are two separate deployments. `conf
 - **Smart home** (optional, Home Assistant): lights, fans, AC, scenes by voice. Locks, doors and alarms always ask first.
 - **Emotional intelligence**: Aegis answers your mood first (sad, stressed, happy, angry), then the task.
 
+## What's new in v11 (fixes, account safety, ready for more users, new abilities). Details in `CHANGES-v11.md` and `SCALING.md`
+
+- **Fixes**: sign-up race (500 error), memory leaks in rate limiters, half-saved chat turns, SQLite locking, phones in portrait no longer blocked.
+- **Account & data** (Settings): change password, sign out everywhere, download all my data, delete my account.
+- **For many users**: admin API + `/metrics` + `/readyz`, plan limits from an env var, closed-beta switches, automatic housekeeping and backups, non-root Docker image, `docker-compose.yml` with automatic HTTPS.
+- **New abilities**: spending tracker (PKR default), habits with streaks, prayer times, search across everything you saved, edit tasks/events, delete notes/contacts.
+
 ## Voice and instant commands
 
 Typed or spoken (English, Roman Urdu, Urdu, Hindi), answered in the browser in milliseconds, free, no AI quota, and they
@@ -267,7 +274,7 @@ npm install --no-save jsdom && node --test tests/ui-smoke.test.js   # loads the 
 | `server/app/utilities.py` | Safe helpers: calculator, weather, web page reader, Wikipedia, currency, reminder times |
 | `server/app/main.py` | Accounts, memory API, websocket, CORS, static hosting |
 | `desktop/` | Electron app + the PC tools |
-| `render.yaml`, `Dockerfile`, `.env.example` | Deployment |
+| `render.yaml`, `Dockerfile`, `docker-compose.yml`, `Caddyfile`, `.env.example` | Deployment (see `SCALING.md`) |
 
 ## Honest limits
 

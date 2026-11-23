@@ -1,0 +1,28 @@
+# Self-host Aegis with automatic HTTPS:   cp .env.example .env   (fill it in)   then   docker compose up -d
+# Point your domain's DNS A record at this machine and put the domain in Caddyfile (replace aegis.example.com).
+services:
+  aegis:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8000"
+    volumes:
+      - aegis-data:/data
+    expose:
+      - "8000"
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [aegis]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+volumes:
+  aegis-data:
+  caddy-data:
+  caddy-config:
