@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Awaitable, Callable, List
 
-from . import emotion, mail, settings, smarthome, tools, utilities
+from . import emotion, extras, mail, settings, smarthome, tools, utilities
 from .db import DB
 from .hub import Hub
 
@@ -79,6 +79,10 @@ Doing things:
 - Messaging: for a WhatsApp message use `find_contact` for the phone number, then `open_url` with https://wa.me/<digits only, with
   country code>?text=<url-encoded message>; the user reads it and presses send themselves.
 {home_line}
+- Money, habits and more: `log_expense` / `expense_summary` track spending (default currency PKR; the user can say "500 ka khana" or "spent
+  1200 on petrol"), `add_habit` / `habit_checkin` / `habit_status` track daily habits with streaks (celebrate streaks, never guilt-trip a
+  missed day), `prayer_times` gives namaz times for a city, `search_everything` finds anything they saved, `update_task` / `update_event`
+  edit instead of deleting and re-adding, and `delete_note` / `delete_contact` remove things on request.
 - Meetings: the user can record or upload meetings in the app; Aegis writes notes with important points, decisions, action items and
   enhancement ideas. When they ask what happened, what was decided or what they must do after a meeting, use `get_meeting`
   (`list_meetings` to see them) and answer from those notes; `meeting_actions_to_tasks` puts the action items on their to-do list.
@@ -251,7 +255,7 @@ class Agent:
     async def _run_server_tool(self, uid: int, name: str, args: dict, tz: str = "") -> str:
         import asyncio
 
-        if name in ("fetch_url", "wikipedia", "convert_currency", "daily_briefing", "send_email", "check_inbox", "search_web", "news_headlines", "market_price", "home_list", "home_control"):
+        if name in ("fetch_url", "wikipedia", "convert_currency", "daily_briefing", "send_email", "check_inbox", "search_web", "news_headlines", "market_price", "home_list", "home_control", "prayer_times"):
             return await asyncio.to_thread(self._blocking_tool, uid, name, args, tz)
         if name == "remember":
             fact = str(args.get("fact", "")).strip()[:500]
@@ -398,11 +402,132 @@ class Agent:
                 return "Error: say which event."
             n = self.db.delete_events_matching(uid, text)
             return f"Deleted {n} event(s)." if n else "No upcoming event matches that."
+        if name in ("log_expense", "expense_summary", "delete_last_expense", "add_habit", "habit_checkin", "habit_status", "delete_habit",
+                    "search_everything", "update_task", "update_event", "delete_note", "delete_contact"):
+            return self._v11_tool(uid, name, args, tz)
         if name == "calculate":
             return utilities.safe_calc(str(args.get("expression", "")))
         if name == "get_weather":
             import asyncio
             return await asyncio.to_thread(utilities.weather_for, str(args.get("city", "")))
+        return f"Error: unknown tool {name}"
+
+    def _v11_tool(self, uid: int, name: str, args: dict, tz: str) -> str:
+        """Money, habits, search and the edit/delete tools added in v11 (all quick database work)."""
+        zone = utilities.get_zone(tz)
+        if name == "log_expense":
+            try:
+                amount = float(args.get("amount"))
+            except (TypeError, ValueError):
+                return "Error: amount must be a number."
+            try:
+                self.db.add_expense(uid, amount, str(args.get("currency") or "PKR"), str(args.get("category") or "other"), str(args.get("note") or ""))
+            except ValueError as e:
+                return f"Error: {e}."
+            cur = str(args.get("currency") or "PKR").strip().upper()[:6] or "PKR"
+            lo, hi, _ = extras.period_bounds("today", tz)
+            today = [r for r in self.db.expenses_between(uid, lo, hi) if r["currency"] == cur]
+            return f"Logged {cur} {extras.money(amount)} for {str(args.get('category') or 'other').strip().lower()}. Today so far: {cur} {extras.money(sum(r['amount'] for r in today))}."
+        if name == "expense_summary":
+            lo, hi, label = extras.period_bounds(str(args.get("period") or "month"), tz)
+            return extras.describe_expenses(self.db.expenses_between(uid, lo, hi), label)
+        if name == "delete_last_expense":
+            gone = self.db.delete_last_expense(uid)
+            return f"Deleted the last expense: {gone['currency']} {extras.money(gone['amount'])} ({gone['category']})." if gone else "There are no expenses to delete."
+        if name == "add_habit":
+            hname = str(args.get("name", "")).strip()
+            if not hname:
+                return "Error: name the habit."
+            self.db.add_habit(uid, hname)
+            return f"Now tracking: {hname[:60]}."
+        if name == "habit_checkin":
+            hname = str(args.get("name", "")).strip()
+            if not hname:
+                return "Error: which habit?"
+            h = self.db.find_habit(uid, hname)
+            if not h:
+                names = ", ".join(x["name"] for x in self.db.habits(uid)) or "none yet"
+                return f"No habit called '{hname}'. Habits: {names}. Use add_habit first if it is new."
+            done = args.get("done") is not False
+            self.db.habit_check(uid, h["id"], extras.today_in(tz).isoformat(), done)
+            rep = next(r for r in extras.habit_report(self.db, uid, tz) if r["id"] == h["id"])
+            if not done:
+                return f"Unticked {h['name']} for today. Streak: {rep['streak']}."
+            return f"{h['name']} done for today. Streak: {rep['streak']} day(s), best {rep['best']}."
+        if name == "habit_status":
+            rows = extras.habit_report(self.db, uid, tz)
+            if not rows:
+                return "No habits yet. The user can say 'track a habit: gym'."
+            return "\n".join(f"- {r['name']}: {'done today' if r['done_today'] else 'not done yet today'}, streak {r['streak']}, best {r['best']}, {r['last7']}/7 this week" for r in rows)
+        if name == "delete_habit":
+            h = self.db.find_habit(uid, str(args.get("name", "")))
+            if not h:
+                return "No habit matches that."
+            self.db.delete_habit(uid, h["id"])
+            return f"Stopped tracking {h['name']}."
+        if name == "search_everything":
+            q = str(args.get("query", "")).strip()
+            if len(q) < 2:
+                return "Error: give a word or two to search for."
+            res = self.db.search_all(uid, q)
+            lines = []
+            for k in ("tasks", "notes", "memory", "meetings", "contacts"):
+                if res[k]:
+                    lines.append(f"{k}: " + "; ".join(str(x)[:100] for x in res[k]))
+            if res["events"]:
+                lines.append("events: " + "; ".join(f"{e['title']} ({datetime.fromtimestamp(e['start'], zone).strftime('%d %b %H:%M')})" for e in res["events"]))
+            return "\n".join(lines) or f"Nothing saved matches '{q}'."
+        if name == "update_task":
+            text = str(args.get("contains", "")).strip()
+            if len(text) < 2:
+                return "Error: say which task."
+            new_text = str(args.get("new_text", "")).strip()
+            due = args.get("due")
+            if not new_text and due in (None, ""):
+                return "Error: give a new_text and/or a due date."
+            hit = self.db.update_task_matching(uid, text, new_text, None if due in (None, "") else str(due))
+            return f"Updated task: {hit}" + (f" -> {new_text}" if new_text else "") if hit else "No open task matches that."
+        if name == "update_event":
+            text = str(args.get("contains", "")).strip()
+            if len(text) < 2:
+                return "Error: say which event."
+            start_ts = None
+            human = ""
+            if args.get("start"):
+                try:
+                    start_ts, human = utilities.resolve_due({"at": args.get("start")}, tz)
+                except ValueError as e:
+                    return f"Error: {e}."
+            end_ts = None
+            if args.get("duration_minutes") not in (None, ""):
+                try:
+                    mins = float(args.get("duration_minutes"))
+                except (TypeError, ValueError):
+                    return "Error: duration_minutes must be a number."
+                if not 5 <= mins <= 60 * 24 * 14:
+                    return "Error: the duration must be between 5 minutes and 14 days."
+                base = start_ts
+                if base is None:
+                    cur = self.db.update_event_matching(uid, text)  # no change, just look it up
+                    base = cur["start"] if cur else None
+                end_ts = base + mins * 60 if base is not None else None
+            got = self.db.update_event_matching(uid, text, start_ts, end_ts, str(args.get("title", "")), args.get("location"))
+            if not got:
+                return "No upcoming event matches that."
+            when = human or datetime.fromtimestamp(got["start"], zone).strftime("%A %d %B, %H:%M")
+            return f"Updated: {got['title']}, now {when}."
+        if name == "delete_note":
+            text = str(args.get("contains", "")).strip()
+            if len(text) < 2:
+                return "Error: say which note."
+            hit = self.db.delete_note_matching(uid, text)
+            return f"Deleted note: {hit}" if hit else "No note matches that."
+        if name == "delete_contact":
+            text = str(args.get("contains", "")).strip()
+            if len(text) < 2:
+                return "Error: say which contact."
+            hit = self.db.delete_contact_matching(uid, text)
+            return f"Deleted contact: {hit}" if hit else "No contact matches that."
         return f"Error: unknown tool {name}"
 
     def _add_event(self, uid: int, args: dict, tz: str) -> str:
@@ -516,6 +641,8 @@ class Agent:
             return utilities.wikipedia_summary(str(args.get("topic", "")), str(args.get("lang", "en") or "en"))
         if name == "convert_currency":
             return utilities.convert_currency(args.get("amount"), args.get("from_currency", ""), args.get("to_currency", ""))
+        if name == "prayer_times":
+            return extras.prayer_times(str(args.get("city", "")), str(args.get("method", "") or "karachi"), str(args.get("date", "") or ""))
         if name == "market_price":
             return utilities.market_price(str(args.get("symbol", "")), str(args.get("kind", "") or "auto"), str(args.get("currency", "") or "USD"))
         if name == "home_list":
@@ -534,6 +661,9 @@ class Agent:
             today0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
             ev = self.db.events_between(uid, max(now.timestamp() - 3600, today0.timestamp()), (today0 + timedelta(days=1)).timestamp())
             parts.append("Today's calendar:\n" + ("\n".join(f"- {datetime.fromtimestamp(e['start'], zone).strftime('%H:%M')}: {e['title']}" + (f" @ {e['location']}" if e["location"] else "") for e in ev[:10]) if ev else "nothing scheduled"))
+            hab = [h for h in extras.habit_report(self.db, uid, tz, now) if not h["done_today"]]
+            if hab:
+                parts.append("Habits still open today:\n" + "\n".join(f"- {h['name']} (streak {h['streak']})" for h in hab[:8]))
             city = str(args.get("city", "")).strip()
             if city:
                 parts.append("Weather:\n" + utilities.weather_for(city))

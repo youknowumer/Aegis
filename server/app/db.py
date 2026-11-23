@@ -1,7 +1,7 @@
 import sqlite3
 import threading
 import time
-from datetime import date
+from datetime import date, timedelta
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -107,6 +107,30 @@ CREATE TABLE IF NOT EXISTS moods (
   created REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_moods_user ON moods(user_id, created);
+CREATE TABLE IF NOT EXISTS expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  amount REAL NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'PKR',
+  category TEXT NOT NULL DEFAULT 'other',
+  note TEXT NOT NULL DEFAULT '',
+  spent REAL NOT NULL,
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_expenses_user ON expenses(user_id, spent);
+CREATE TABLE IF NOT EXISTS habits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  created REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_habits_user ON habits(user_id);
+CREATE TABLE IF NOT EXISTS habit_log (
+  habit_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  PRIMARY KEY (habit_id, day)
+);
 CREATE TABLE IF NOT EXISTS usage (
   user_id INTEGER NOT NULL,
   day TEXT NOT NULL,
@@ -118,10 +142,17 @@ CREATE TABLE IF NOT EXISTS usage (
 
 class DB:
     def __init__(self, path: str):
-        self.conn = sqlite3.connect(path, check_same_thread=False)
+        self.conn = sqlite3.connect(path, check_same_thread=False, timeout=15)
         self.conn.row_factory = sqlite3.Row
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         with self.lock:
+            # WAL lets readers and the writer work at the same time and survives a crash mid-write; busy_timeout stops
+            # "database is locked" errors when another process (backup script, admin tool) touches the file.
+            for pragma in ("journal_mode=WAL", "synchronous=NORMAL", "busy_timeout=15000", "temp_store=MEMORY"):
+                try:
+                    self.conn.execute("PRAGMA " + pragma)
+                except sqlite3.DatabaseError:
+                    pass  # e.g. :memory: databases do not support WAL
             self.conn.executescript(SCHEMA)
             self._migrate()
             self.conn.commit()
@@ -133,6 +164,11 @@ class DB:
             self.conn.execute("ALTER TABLE reminders ADD COLUMN repeat TEXT NOT NULL DEFAULT ''")
         if "tz" not in cols:
             self.conn.execute("ALTER TABLE reminders ADD COLUMN tz TEXT NOT NULL DEFAULT ''")
+        ucols = {r["name"] for r in self.conn.execute("PRAGMA table_info(users)")}
+        if "token_ver" not in ucols:
+            self.conn.execute("ALTER TABLE users ADD COLUMN token_ver INTEGER NOT NULL DEFAULT 0")
+        if "last_seen" not in ucols:
+            self.conn.execute("ALTER TABLE users ADD COLUMN last_seen REAL NOT NULL DEFAULT 0")
         fcols = {r["name"] for r in self.conn.execute("PRAGMA table_info(facts)")}
         if "kind" not in fcols:
             self.conn.execute("ALTER TABLE facts ADD COLUMN kind TEXT NOT NULL DEFAULT 'fact'")
@@ -169,6 +205,114 @@ class DB:
 
     def set_plan(self, email, plan):
         return self.execute("UPDATE users SET plan = ? WHERE email = ?", (plan, email)).rowcount
+
+    def set_password(self, uid, pw_hash, salt):
+        """Change a password. Bumps token_ver so every token issued before this moment stops working."""
+        return self.execute("UPDATE users SET pw_hash = ?, salt = ?, token_ver = token_ver + 1 WHERE id = ?", (pw_hash, salt, uid)).rowcount
+
+    def revoke_tokens(self, uid):
+        """Sign the user out everywhere (all previously issued tokens become invalid)."""
+        self.execute("UPDATE users SET token_ver = token_ver + 1 WHERE id = ?", (uid,))
+        row = self.one("SELECT token_ver FROM users WHERE id = ?", (uid,))
+        return row["token_ver"] if row else 0
+
+    def touch_user(self, uid, now=None, every=300):
+        """Remember when the user was last active (written at most every few minutes, so it costs almost nothing)."""
+        now = now if now is not None else time.time()
+        self.execute("UPDATE users SET last_seen = ? WHERE id = ? AND last_seen < ?", (now, uid, now - every))
+
+    def count_users(self, q=""):
+        if q:
+            return self.one("SELECT COUNT(*) AS n FROM users WHERE email LIKE ?", (f"%{q}%",))["n"]
+        return self.one("SELECT COUNT(*) AS n FROM users")["n"]
+
+    def list_users(self, limit=50, offset=0, q=""):
+        limit, offset = max(1, min(200, int(limit))), max(0, int(offset))
+        sql = "SELECT id, email, plan, created, last_seen FROM users"
+        params = []
+        if q:
+            sql += " WHERE email LIKE ?"
+            params.append(f"%{q}%")
+        sql += " ORDER BY id DESC LIMIT ? OFFSET ?"
+        return [dict(r) for r in self.all(sql, (*params, limit, offset))]
+
+    # tables that hold one user's data, and how each is keyed to the user
+    USER_TABLES = ("facts", "messages", "tasks", "reminders", "notes", "contacts", "events", "routines", "email_log", "meetings", "moods", "usage", "expenses", "habits", "habit_log")
+
+    def delete_user(self, uid):
+        """Erase the account and every row that belongs to it (right to be forgotten)."""
+        with self.lock:
+            for t in self.USER_TABLES:
+                self.conn.execute(f"DELETE FROM {t} WHERE user_id = ?", (uid,))
+            n = self.conn.execute("DELETE FROM users WHERE id = ?", (uid,)).rowcount
+            self.conn.commit()
+            return n
+
+    def export_user(self, uid):
+        """Everything stored about one user, as plain data (for the 'download my data' button)."""
+        u = self.user_by_id(uid)
+        if not u:
+            return None
+        data = {"account": {"email": u["email"], "plan": u["plan"], "created": u["created"]}}
+        for t in ("facts", "messages", "tasks", "reminders", "notes", "contacts", "events", "routines", "meetings", "moods", "expenses", "habits"):
+            data[t] = [{k: r[k] for k in r.keys() if k != "user_id"} for r in self.all(f"SELECT * FROM {t} WHERE user_id = ? ORDER BY id", (uid,))]
+        data["habit_log"] = [dict(day=r["day"], habit_id=r["habit_id"]) for r in self.all("SELECT habit_id, day FROM habit_log WHERE user_id = ?", (uid,))]
+        data["usage"] = [dict(day=r["day"], count=r["count"]) for r in self.all("SELECT day, count FROM usage WHERE user_id = ? ORDER BY day", (uid,))]
+        return data
+
+    def stats(self):
+        """Counts for the admin dashboard / metrics endpoint."""
+        day = date.today().isoformat()
+        one = lambda sql, p=(): self.one(sql, p)["n"]  # noqa: E731
+        return {
+            "users": one("SELECT COUNT(*) AS n FROM users"),
+            "users_by_plan": {r["plan"]: r["n"] for r in self.all("SELECT plan, COUNT(*) AS n FROM users GROUP BY plan")},
+            "active_today": one("SELECT COUNT(*) AS n FROM usage WHERE day = ? AND count > 0", (day,)),
+            "messages_today": one("SELECT COALESCE(SUM(count), 0) AS n FROM usage WHERE day = ?", (day,)),
+            "new_users_7d": one("SELECT COUNT(*) AS n FROM users WHERE created >= ?", (time.time() - 7 * 86400,)),
+            "reminders_pending": one("SELECT COUNT(*) AS n FROM reminders WHERE fired = 0"),
+            "tasks_open": one("SELECT COUNT(*) AS n FROM tasks WHERE done = 0"),
+            "meetings": one("SELECT COUNT(*) AS n FROM meetings"),
+        }
+
+    def purge_old(self, now=None, keep_messages=500, usage_days=60, fired_days=7, mood_days=180):
+        """Housekeeping so the database does not grow forever. Returns how many rows were removed per table."""
+        now = now if now is not None else time.time()
+        out = {}
+        with self.lock:
+            cur = self.conn.execute("DELETE FROM usage WHERE day < ?", ((date.fromtimestamp(now) - timedelta(days=usage_days)).isoformat(),))
+            out["usage"] = cur.rowcount
+            cur = self.conn.execute("DELETE FROM email_log WHERE created < ?", (now - usage_days * 86400,))
+            out["email_log"] = cur.rowcount
+            cur = self.conn.execute("DELETE FROM reminders WHERE fired = 1 AND created < ? AND due < ?", (now - fired_days * 86400, now - fired_days * 86400))
+            out["reminders"] = cur.rowcount
+            cur = self.conn.execute("DELETE FROM moods WHERE created < ?", (now - mood_days * 86400,))
+            out["moods"] = cur.rowcount
+            # keep only the newest N chat messages per user
+            cur = self.conn.execute(
+                "DELETE FROM messages WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY id DESC) AS rn FROM messages) WHERE rn > ?)",
+                (keep_messages,),
+            )
+            out["messages"] = cur.rowcount
+            self.conn.commit()
+        return out
+
+    def backup_to(self, dest_path):
+        """Consistent online copy of the whole database (safe while the server is running)."""
+        import sqlite3 as _s
+
+        dest = _s.connect(dest_path)
+        try:
+            with self.lock:
+                self.conn.backup(dest)
+        finally:
+            dest.close()
+
+    def healthy(self):
+        try:
+            return self.one("SELECT 1 AS ok")["ok"] == 1
+        except Exception:
+            return False
 
     # ---- usage / quota ----
     def used_today(self, uid) -> int:
@@ -424,6 +568,115 @@ class DB:
 
     def delete_routine(self, uid, name):
         return self.execute("DELETE FROM routines WHERE user_id = ? AND lower(name) = lower(?)", (uid, name.strip())).rowcount
+
+    # ---- expenses ----
+    def add_expense(self, uid, amount, currency="PKR", category="other", note="", spent_ts=None):
+        amount = round(float(amount), 2)
+        if not amount > 0 or amount > 1e12:
+            raise ValueError("amount must be a positive number")
+        return self.execute(
+            "INSERT INTO expenses (user_id, amount, currency, category, note, spent, created) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (uid, amount, str(currency or "PKR").strip().upper()[:6] or "PKR", str(category or "other").strip().lower()[:30] or "other",
+             str(note or "").strip()[:200], float(spent_ts if spent_ts is not None else time.time()), time.time()),
+        ).lastrowid
+
+    def expenses_between(self, uid, start_ts, end_ts):
+        return [dict(r) for r in self.all(
+            "SELECT id, amount, currency, category, note, spent FROM expenses WHERE user_id = ? AND spent >= ? AND spent < ? ORDER BY spent DESC LIMIT 2000",
+            (uid, float(start_ts), float(end_ts)))]
+
+    def delete_expense(self, uid, eid):
+        return self.execute("DELETE FROM expenses WHERE id = ? AND user_id = ?", (int(eid), uid)).rowcount
+
+    def delete_last_expense(self, uid):
+        row = self.one("SELECT id, amount, currency, category, note FROM expenses WHERE user_id = ? ORDER BY id DESC LIMIT 1", (uid,))
+        if not row:
+            return None
+        self.delete_expense(uid, row["id"])
+        return dict(row)
+
+    # ---- habits (daily check-ins with streaks) ----
+    def add_habit(self, uid, name):
+        name = str(name).strip()[:60]
+        row = self.one("SELECT id FROM habits WHERE user_id = ? AND lower(name) = lower(?)", (uid, name))
+        if row:
+            return row["id"]
+        return self.execute("INSERT INTO habits (user_id, name, created) VALUES (?, ?, ?)", (uid, name, time.time())).lastrowid
+
+    def habits(self, uid):
+        return [dict(r) for r in self.all("SELECT id, name FROM habits WHERE user_id = ? ORDER BY name LIMIT 50", (uid,))]
+
+    def find_habit(self, uid, name):
+        name = str(name).strip()
+        row = self.one("SELECT id, name FROM habits WHERE user_id = ? AND lower(name) = lower(?)", (uid, name))
+        if not row:
+            row = self.one("SELECT id, name FROM habits WHERE user_id = ? AND instr(lower(name), lower(?)) > 0 ORDER BY id DESC LIMIT 1", (uid, name))
+        return dict(row) if row else None
+
+    def habit_check(self, uid, habit_id, day, done=True):
+        if not self.one("SELECT 1 AS x FROM habits WHERE id = ? AND user_id = ?", (habit_id, uid)):
+            return False
+        if done:
+            self.execute("INSERT OR IGNORE INTO habit_log (habit_id, user_id, day) VALUES (?, ?, ?)", (habit_id, uid, day))
+        else:
+            self.execute("DELETE FROM habit_log WHERE habit_id = ? AND user_id = ? AND day = ?", (habit_id, uid, day))
+        return True
+
+    def habit_days(self, uid, habit_id, limit=400):
+        return [r["day"] for r in self.all("SELECT day FROM habit_log WHERE habit_id = ? AND user_id = ? ORDER BY day DESC LIMIT ?", (habit_id, uid, limit))]
+
+    def delete_habit(self, uid, habit_id):
+        self.execute("DELETE FROM habit_log WHERE habit_id = ? AND user_id = ?", (habit_id, uid))
+        return self.execute("DELETE FROM habits WHERE id = ? AND user_id = ?", (habit_id, uid)).rowcount
+
+    # ---- notes / contacts / tasks / events: delete + edit helpers used by the AI ----
+    def delete_note_matching(self, uid, text):
+        row = self.one("SELECT id, title FROM notes WHERE user_id = ? AND (title LIKE ? OR body LIKE ?) ORDER BY id DESC LIMIT 1", (uid, f"%{text}%", f"%{text}%"))
+        if not row:
+            return None
+        self.delete_note(uid, row["id"])
+        return row["title"]
+
+    def delete_contact_matching(self, uid, text):
+        row = self.one("SELECT id, name FROM contacts WHERE user_id = ? AND name LIKE ? ORDER BY id DESC LIMIT 1", (uid, f"%{text}%"))
+        if not row:
+            return None
+        self.delete_contact(uid, row["id"])
+        return row["name"]
+
+    def update_task_matching(self, uid, text, new_text="", due=None):
+        row = self.one("SELECT id, text, due FROM tasks WHERE user_id = ? AND done = 0 AND text LIKE ? ORDER BY id DESC LIMIT 1", (uid, f"%{text}%"))
+        if not row:
+            return None
+        self.execute("UPDATE tasks SET text = ?, due = ? WHERE id = ? AND user_id = ?",
+                     ((new_text or row["text"]).strip()[:300], row["due"] if due is None else str(due)[:40], row["id"], uid))
+        return row["text"]
+
+    def update_event_matching(self, uid, text, start_ts=None, end_ts=None, title="", location=None):
+        """Change the next upcoming event whose title contains `text`. Returns the updated row or None."""
+        now = time.time()
+        row = self.one("SELECT id, title, start, end, location FROM events WHERE user_id = ? AND instr(lower(title), lower(?)) > 0 AND (start >= ? OR end >= ?) ORDER BY start LIMIT 1",
+                       (uid, str(text).strip(), now - 3600, now))
+        if not row:
+            return None
+        new_start = float(start_ts) if start_ts is not None else row["start"]
+        dur = (row["end"] - row["start"]) if row["end"] and row["end"] > row["start"] else 3600
+        new_end = float(end_ts) if end_ts is not None else new_start + dur
+        self.execute("UPDATE events SET title = ?, start = ?, end = ?, location = ? WHERE id = ? AND user_id = ?",
+                     ((title or row["title"]).strip()[:200], new_start, new_end, row["location"] if location is None else str(location).strip()[:200], row["id"], uid))
+        return {"id": row["id"], "title": (title or row["title"]).strip()[:200], "start": new_start, "end": new_end}
+
+    # ---- search across everything the user has saved ----
+    def search_all(self, uid, query, limit=5):
+        q = f"%{str(query).strip()}%"
+        out = {}
+        out["tasks"] = [r["text"] for r in self.all("SELECT text FROM tasks WHERE user_id = ? AND text LIKE ? ORDER BY id DESC LIMIT ?", (uid, q, limit))]
+        out["notes"] = [r["title"] for r in self.all("SELECT title FROM notes WHERE user_id = ? AND (title LIKE ? OR body LIKE ?) ORDER BY id DESC LIMIT ?", (uid, q, q, limit))]
+        out["memory"] = [r["text"] for r in self.all("SELECT text FROM facts WHERE user_id = ? AND text LIKE ? ORDER BY id DESC LIMIT ?", (uid, q, limit))]
+        out["events"] = [dict(r) for r in self.all("SELECT title, start FROM events WHERE user_id = ? AND (title LIKE ? OR location LIKE ?) ORDER BY start DESC LIMIT ?", (uid, q, q, limit))]
+        out["meetings"] = [r["title"] for r in self.all("SELECT title FROM meetings WHERE user_id = ? AND (title LIKE ? OR notes LIKE ?) ORDER BY id DESC LIMIT ?", (uid, q, q, limit))]
+        out["contacts"] = [r["name"] for r in self.all("SELECT name FROM contacts WHERE user_id = ? AND (name LIKE ? OR email LIKE ?) ORDER BY name LIMIT ?", (uid, q, q, limit))]
+        return out
 
     # ---- outgoing email quota ----
     def emails_sent_today(self, uid) -> int:

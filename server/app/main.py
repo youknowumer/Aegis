@@ -4,29 +4,35 @@ Run:  uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000
 """
 import asyncio
 import contextlib
+import hmac
 import json
 import logging
 import os
 import re
+import sqlite3
 import sys
 import time
+import uuid
 from collections import defaultdict, deque
 
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import emotion, meeting, providers, settings, smarthome, tts
+from . import emotion, extras, meeting, providers, settings, smarthome, tts
 from .agent import Agent, Session
-from .auth import EMAIL_RE, hash_password, make_token, read_token, verify_password
+from .auth import EMAIL_RE, hash_password, make_token, read_token_full, verify_password
 from .db import DB
 from .hub import Hub
 
 log = logging.getLogger("aegis")
+if not logging.getLogger().handlers:  # under uvicorn the app's own logger would otherwise stay silent below WARNING
+    logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log.setLevel(getattr(logging, settings.LOG_LEVEL, logging.INFO))
 
 
 class TaskIn(BaseModel):
@@ -72,21 +78,66 @@ class Credentials(BaseModel):
     password: str
 
 
+class PasswordChange(BaseModel):
+    current: str
+    new: str
+
+
+class PasswordOnly(BaseModel):
+    password: str
+
+
+class PlanIn(BaseModel):
+    plan: str
+
+
+class ExpenseIn(BaseModel):
+    amount: float
+    currency: str = "PKR"
+    category: str = "other"
+    note: str = ""
+
+
+class HabitIn(BaseModel):
+    name: str
+
+
+class HabitCheck(BaseModel):
+    done: bool = True
+    tz: str = ""
+
+
 class LoginLimiter:
     """Tiny in-memory throttle: 10 attempts / 5 min per (ip, email). Use a real one behind multiple workers."""
 
     def __init__(self, max_attempts=10, window=300):
         self.max, self.window = max_attempts, window
         self.hits = defaultdict(deque)
+        self._sweep_at = 0.0
+
+    def _sweep(self, now):
+        """Forget keys whose attempts have all expired, so the table cannot grow without bound."""
+        for k in list(self.hits):
+            q = self.hits[k]
+            while q and now - q[0] > self.window:
+                q.popleft()
+            if not q:
+                del self.hits[k]
+        self._sweep_at = now + 30
 
     def check(self, key):
         now = time.time()
+        if len(self.hits) > 2000 and now >= self._sweep_at:
+            self._sweep(now)
         q = self.hits[key]
         while q and now - q[0] > self.window:
             q.popleft()
         if len(q) >= self.max:
             raise HTTPException(429, "Too many attempts. Try again in a few minutes.")
         q.append(now)
+
+
+_DUMMY_HASH = hash_password("not-a-real-password")
 
 
 def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
@@ -117,19 +168,49 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                 log.exception("reminder loop")
             await asyncio.sleep(5)
 
+    def run_maintenance():
+        """Old rows out, stale counters out, optional database copy. Safe to call any time."""
+        removed = db.purge_old(keep_messages=settings.KEEP_MESSAGES)
+        today = time.strftime("%Y-%m-%d")
+        for k in [k for k in server_use if k[1] != today]:
+            del server_use[k]
+        backup = ""
+        if settings.BACKUP_DIR:
+            backup = extras.make_backup(db, settings.BACKUP_DIR, settings.BACKUP_KEEP)
+        log.info("maintenance: removed %s%s", removed, f", backup {backup}" if backup else "")
+        return {"removed": removed, "backup": backup}
+
+    async def maintenance_loop():
+        await asyncio.sleep(30)
+        while True:
+            try:
+                await asyncio.to_thread(run_maintenance)
+            except Exception:
+                log.exception("maintenance loop")
+            await asyncio.sleep(max(60, settings.MAINTENANCE_EVERY))
+
     @contextlib.asynccontextmanager
     async def lifespan(_app):
-        task = asyncio.create_task(reminder_loop())
+        tasks = [asyncio.create_task(reminder_loop()), asyncio.create_task(maintenance_loop())]
         try:
             yield
         finally:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+            for task in tasks:
+                task.cancel()
+            for task in tasks:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+            # graceful shutdown: tell open chats to reconnect instead of just dropping them
+            for socks in list(hub.chats.values()):
+                for sock in list(socks):
+                    with contextlib.suppress(Exception):
+                        await sock.close(code=1012)
 
     app = FastAPI(title=settings.APP_NAME, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.db = db
     app.state.deliver_reminders = deliver_reminders
+    app.state.run_maintenance = run_maintenance
+    metrics = defaultdict(int)  # simple in-process counters, exposed at /metrics
     limiter = LoginLimiter()
     state = {"client": client}
     origins = [o.rstrip("/") for o in (settings.ALLOWED_ORIGINS if allowed_origins is None else allowed_origins)]
@@ -149,7 +230,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             allow_origins=exact,
             allow_origin_regex="|".join(w.pattern for w in wild) or None,
             allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type", "X-Groq-Key"],
+            allow_headers=["Authorization", "Content-Type", "X-Groq-Key", "X-Admin-Token"],
             max_age=600,
         )
 
@@ -186,7 +267,22 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     # ---------- security headers ----------
     @app.middleware("http")
     async def headers(request: Request, call_next):
-        resp = await call_next(request)
+        rid = request.headers.get("x-request-id", "")[:40] or uuid.uuid4().hex[:12]
+        t0 = time.perf_counter()
+        try:
+            resp = await call_next(request)
+        except Exception:
+            metrics["http_errors_total"] += 1
+            log.exception("unhandled error rid=%s %s %s", rid, request.method, request.url.path)
+            resp = Response("Internal server error", status_code=500)
+        ms = (time.perf_counter() - t0) * 1000
+        metrics["http_requests_total"] += 1
+        metrics[f"http_responses_{resp.status_code // 100}xx_total"] += 1
+        if resp.status_code >= 500 or ms > 2000:
+            log.warning("rid=%s %s %s -> %s in %.0f ms", rid, request.method, request.url.path, resp.status_code, ms)
+        resp.headers["X-Request-ID"] = rid
+        if settings.HSTS:
+            resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["X-Frame-Options"] = "DENY"
         resp.headers["Referrer-Policy"] = "no-referrer"
@@ -198,13 +294,42 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         return resp
 
     # ---------- auth helpers ----------
+    def user_for_token(token: str):
+        """The user a token belongs to, or None. A token stops working when the account's token_ver moved on
+        (password changed, 'sign out everywhere') or the account was deleted."""
+        got = read_token_full(token, settings.JWT_SECRET)
+        if not got:
+            return None
+        user = db.user_by_id(got[0])
+        if not user or int(user["token_ver"]) != got[1]:
+            return None
+        if time.time() - user["last_seen"] > 300:
+            db.touch_user(user["id"])
+        return user
+
+    def new_token(uid: int) -> str:
+        row = db.user_by_id(uid)
+        return make_token(uid, settings.JWT_SECRET, ver=int(row["token_ver"]) if row else 0)
+
     def current_user(authorization: str = Header(default="")):
         token = authorization[7:] if authorization.startswith("Bearer ") else ""
-        uid = read_token(token, settings.JWT_SECRET)
-        user = db.user_by_id(uid) if uid else None
+        user = user_for_token(token)
         if not user:
             raise HTTPException(401, "Not signed in")
         return user
+
+    def client_ip(request: Request) -> str:
+        return request.client.host if request.client else "?"
+
+    admin_limiter = LoginLimiter(max_attempts=120, window=60)
+
+    def admin_only(request: Request, x_admin_token: str = Header(default="")):
+        """The admin API does not exist (404) until AEGIS_ADMIN_TOKEN is set. Compared in constant time."""
+        if not settings.ADMIN_TOKEN:
+            raise HTTPException(404, "Not found")
+        admin_limiter.check((client_ip(request), "admin"))
+        if not hmac.compare_digest(x_admin_token.encode(), settings.ADMIN_TOKEN.encode()):
+            raise HTTPException(401, "Bad admin token")
 
     def limit_for(user) -> int:
         return settings.PLAN_LIMITS.get(user["plan"], settings.PLAN_LIMITS["free"])
@@ -214,6 +339,13 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     def healthz():
         # "ai" = the server has an Anthropic key (or an injected client). Lets the website say exactly what is missing.
         return {"ok": True, "ai": bool(state["client"] or os.environ.get("ANTHROPIC_API_KEY") or meeting.server_has_key()), "groq": meeting.server_has_key()}
+
+    @app.get("/readyz")
+    def readyz():
+        """Load balancers and uptime monitors: 200 only when the database answers."""
+        if not db.healthy():
+            raise HTTPException(503, "database unavailable")
+        return {"ok": True}
 
     @app.get("/api/config")
     def config():
@@ -226,7 +358,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
 
     @app.post("/api/ai/test")
     async def test_ai(body: AIBody, request: Request, user=Depends(current_user)):
-        limiter.check((request.client.host if request.client else "?", "ai-test"))
+        limiter.check((client_ip(request), "ai-test"))
         try:
             cfg = providers.parse_config(body.model_dump(), settings.MODEL, settings.MAX_TOKENS)
             await providers.validate_base_url(cfg)
@@ -244,21 +376,32 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             raise HTTPException(400, "Enter a valid email address")
         if not (8 <= len(c.password) <= 200):
             raise HTTPException(400, "Password must be 8 to 200 characters")
-        limiter.check((request.client.host if request.client else "?", "register"))
+        limiter.check((client_ip(request), "register"))
+        if not settings.OPEN_REGISTRATION:
+            raise HTTPException(403, "Sign-ups are closed right now.")
+        if settings.MAX_USERS and db.count_users() >= settings.MAX_USERS:
+            raise HTTPException(403, "Aegis is full for now. Please try again later.")
         if db.user_by_email(email):
             raise HTTPException(409, "An account with this email already exists")
         h, salt = hash_password(c.password)
-        uid = db.create_user(email, h, salt)
-        return {"token": make_token(uid, settings.JWT_SECRET)}
+        try:
+            uid = db.create_user(email, h, salt)
+        except sqlite3.IntegrityError:  # two sign-ups with the same email at the same moment
+            raise HTTPException(409, "An account with this email already exists")
+        metrics["registrations_total"] += 1
+        return {"token": new_token(uid)}
 
     @app.post("/api/login")
     def login(c: Credentials, request: Request):
         email = c.email.strip().lower()
-        limiter.check((request.client.host if request.client else "?", email))
+        limiter.check((client_ip(request), email))
         user = db.user_by_email(email)
+        if not user:
+            verify_password(c.password, *_DUMMY_HASH)  # same work for unknown emails, so timing does not reveal who has an account
         if not user or not verify_password(c.password, user["pw_hash"], user["salt"]):
+            metrics["login_failures_total"] += 1
             raise HTTPException(401, "Invalid email or password")
-        return {"token": make_token(user["id"], settings.JWT_SECRET)}
+        return {"token": new_token(user["id"])}
 
     @app.get("/api/me")
     def me(user=Depends(current_user)):
@@ -467,9 +610,143 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             raise HTTPException(404, "Not found")
         n = 0
         for a in json.loads(row["notes"]).get("action_items", []):
-            db.add_task(user["id"], a["task"] + (f" ({a['owner']})" if a["owner"] else ""), a["due"])
+            if not isinstance(a, dict) or not str(a.get("task", "")).strip():
+                continue
+            owner = str(a.get("owner") or "").strip()
+            db.add_task(user["id"], str(a["task"]).strip() + (f" ({owner})" if owner else ""), str(a.get("due") or ""))
             n += 1
         return {"added": n}
+
+    # ---------- account: password, sign out everywhere, export, delete ----------
+    @app.post("/api/account/password")
+    async def change_password(b: PasswordChange, request: Request, user=Depends(current_user)):
+        limiter.check((client_ip(request), f"pw{user['id']}"))
+        if not await asyncio.to_thread(verify_password, b.current, user["pw_hash"], user["salt"]):
+            raise HTTPException(403, "Your current password is wrong")
+        if not (8 <= len(b.new) <= 200):
+            raise HTTPException(400, "Password must be 8 to 200 characters")
+        h, salt = await asyncio.to_thread(hash_password, b.new)
+        db.set_password(user["id"], h, salt)
+        return {"token": new_token(user["id"])}  # every other device is signed out; this one gets a fresh token
+
+    @app.post("/api/account/logout-all")
+    def logout_all(user=Depends(current_user)):
+        db.revoke_tokens(user["id"])
+        return {"token": new_token(user["id"])}
+
+    @app.get("/api/export")
+    def export_data(user=Depends(current_user)):
+        data = db.export_user(user["id"])
+        body = json.dumps(data, ensure_ascii=False, indent=1)
+        return Response(body, media_type="application/json", headers={"Content-Disposition": 'attachment; filename="aegis-data.json"', "Cache-Control": "no-store"})
+
+    @app.post("/api/account/delete")
+    async def delete_account(b: PasswordOnly, request: Request, user=Depends(current_user)):
+        limiter.check((client_ip(request), f"del{user['id']}"))
+        if not await asyncio.to_thread(verify_password, b.password, user["pw_hash"], user["salt"]):
+            raise HTTPException(403, "That password is wrong")
+        uid = user["id"]
+        db.delete_user(uid)
+        for sock in list(hub.chats.get(uid, ())):
+            with contextlib.suppress(Exception):
+                await sock.close(code=4401)
+        return {"ok": True}
+
+    # ---------- search, expenses, habits ----------
+    @app.get("/api/search")
+    def search_all(q: str = "", user=Depends(current_user)):
+        q = q.strip()[:80]
+        if len(q) < 2:
+            raise HTTPException(400, "Type at least 2 characters")
+        return db.search_all(user["id"], q)
+
+    @app.get("/api/expenses")
+    def list_expenses(period: str = "month", tz: str = "", user=Depends(current_user)):
+        lo, hi, label = extras.period_bounds(period, tz)
+        rows = db.expenses_between(user["id"], lo, hi)
+        return {"label": label, "items": rows[:200], **extras.expense_totals(rows)}
+
+    @app.post("/api/expenses")
+    def add_expense(e: ExpenseIn, user=Depends(current_user)):
+        try:
+            return {"id": db.add_expense(user["id"], e.amount, e.currency, e.category, e.note)}
+        except ValueError as err:
+            raise HTTPException(400, str(err))
+
+    @app.delete("/api/expenses/{eid}")
+    def delete_expense(eid: int, user=Depends(current_user)):
+        if not db.delete_expense(user["id"], eid):
+            raise HTTPException(404, "Not found")
+        return {"ok": True}
+
+    @app.get("/api/habits")
+    def list_habits(tz: str = "", user=Depends(current_user)):
+        return extras.habit_report(db, user["id"], tz)
+
+    @app.post("/api/habits")
+    def add_habit(h: HabitIn, user=Depends(current_user)):
+        name = h.name.strip()
+        if not name:
+            raise HTTPException(400, "Name the habit first")
+        return {"id": db.add_habit(user["id"], name)}
+
+    @app.post("/api/habits/{hid}/check")
+    def check_habit(hid: int, c: HabitCheck, user=Depends(current_user)):
+        if not db.habit_check(user["id"], hid, extras.today_in(c.tz).isoformat(), c.done):
+            raise HTTPException(404, "Not found")
+        return {"ok": True}
+
+    @app.delete("/api/habits/{hid}")
+    def delete_habit(hid: int, user=Depends(current_user)):
+        if not db.delete_habit(user["id"], hid):
+            raise HTTPException(404, "Not found")
+        return {"ok": True}
+
+    # ---------- admin + monitoring (needs AEGIS_ADMIN_TOKEN) ----------
+    @app.get("/api/admin/stats")
+    def admin_stats(_=Depends(admin_only)):
+        return {**db.stats(), "online_chats": sum(len(v) for v in hub.chats.values()), "online_devices": len(hub.devices), "counters": dict(metrics)}
+
+    @app.get("/api/admin/users")
+    def admin_users(limit: int = 50, offset: int = 0, q: str = "", _=Depends(admin_only)):
+        return {"total": db.count_users(q.strip()), "users": db.list_users(limit, offset, q.strip())}
+
+    @app.post("/api/admin/users/{uid}/plan")
+    def admin_set_plan(uid: int, p: PlanIn, _=Depends(admin_only)):
+        if p.plan not in settings.PLAN_LIMITS:
+            raise HTTPException(400, f"plan must be one of {', '.join(settings.PLAN_LIMITS)}")
+        user = db.user_by_id(uid)
+        if not user:
+            raise HTTPException(404, "No such user")
+        db.set_plan(user["email"], p.plan)
+        return {"ok": True, "email": user["email"], "plan": p.plan}
+
+    @app.post("/api/admin/users/{uid}/revoke")
+    def admin_revoke(uid: int, _=Depends(admin_only)):
+        if not db.user_by_id(uid):
+            raise HTTPException(404, "No such user")
+        db.revoke_tokens(uid)
+        return {"ok": True}
+
+    @app.post("/api/admin/maintenance")
+    async def admin_maintenance(_=Depends(admin_only)):
+        return await asyncio.to_thread(run_maintenance)
+
+    @app.get("/metrics")
+    def prometheus(_=Depends(admin_only)):
+        """Prometheus text format: scrape with the X-Admin-Token header (or put it behind your own proxy rules)."""
+        st = db.stats()
+        lines = [
+            "# TYPE aegis_users gauge", f"aegis_users {st['users']}",
+            "# TYPE aegis_active_users_today gauge", f"aegis_active_users_today {st['active_today']}",
+            "# TYPE aegis_messages_today gauge", f"aegis_messages_today {st['messages_today']}",
+            "# TYPE aegis_online_chats gauge", f"aegis_online_chats {sum(len(v) for v in hub.chats.values())}",
+            "# TYPE aegis_online_devices gauge", f"aegis_online_devices {len(hub.devices)}",
+            "# TYPE aegis_reminders_pending gauge", f"aegis_reminders_pending {st['reminders_pending']}",
+        ]
+        for k, v in sorted(metrics.items()):
+            lines += [f"# TYPE aegis_{k} counter", f"aegis_{k} {v}"]
+        return PlainTextResponse("\n".join(lines) + "\n")
 
     # ---------- websocket ----------
     agent_holder = {}
@@ -496,8 +773,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         except Exception:
             await ws.close(code=4400)
             return
-        uid = read_token(str(first.get("token", "")), settings.JWT_SECRET)
-        user = db.user_by_id(uid) if uid else None
+        user = user_for_token(str(first.get("token", "")))
         if not user:
             await ws.close(code=4401)
             return
@@ -530,6 +806,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             history.pop(0)
         sess = Session(uid, ws, history, tz)
         hub.add_chat(uid, ws)
+        metrics["ws_chat_connections_total"] += 1
         tasks = set()
 
         async def send(payload):
@@ -556,9 +833,11 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     db.refund(uid)
                     await send({"type": "error", "text": "No AI is set up yet. Open Settings > AI Provider and add your API key."})
                     return
-                db.add_message(uid, "user", text)
                 reply = await agent.run(sess, text, send)
+                # saved together and only on success, so a failed or stopped turn never leaves a lonely user message behind
+                db.add_message(uid, "user", text)
                 db.add_message(uid, "assistant", reply)
+                metrics["chat_messages_total"] += 1
                 await send({"type": "reply", "text": reply, "used": db.used_today(uid), "limit": limit})
             except asyncio.CancelledError:
                 if not sess.stopped:
@@ -569,6 +848,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                 await send({"type": "stopped"})
             except Exception:
                 log.exception("agent failure")
+                metrics["chat_errors_total"] += 1
                 if consumed:
                     db.refund(uid)
                 await send({"type": "error", "text": friendly_ai_error(sys.exc_info()[1])})

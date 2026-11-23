@@ -17,7 +17,7 @@ WEB_DIR = Path(os.environ.get("AEGIS_WEB_DIR", BASE_DIR))
 WEB_FILES = (
     "index.html", "app.html", "app.js", "orb.js", "config.js", "landing.js", "landing.css", "style.css", "hud.js", "commands.js",
     "ui-plus.js", "features.js", "theme-boot.js", "voice.js", "tabs.js", "dock.js", "auth-fx.js", "app-fx.js", "app-fx.css", "landing-fx.js", "landing-pro.css", "landing-pro.js", "landing-hero.css", "landing-hero.js",
-    "groq.js", "meetings.js", "meetings.css",
+    "groq.js", "meetings.js", "meetings.css", "account.js",
 )
 DOWNLOADS_DIR = Path(os.environ.get("AEGIS_DOWNLOADS_DIR", BASE_DIR / "downloads"))
 
@@ -46,8 +46,33 @@ GROQ_MODEL = os.environ.get("AEGIS_GROQ_MODEL", "llama-3.3-70b-versatile")
 SERVER_STT_PER_DAY = int(os.environ.get("AEGIS_SERVER_STT_PER_DAY", "300"))
 SERVER_NOTES_PER_DAY = int(os.environ.get("AEGIS_SERVER_NOTES_PER_DAY", "30"))
 
-# Messages per day for each plan. Edit freely.
+# Messages per day for each plan. Edit freely, or override without touching code:
+#   AEGIS_PLAN_LIMITS='{"free": 20, "basic": 200, "power": 1500, "team": 5000}'
 PLAN_LIMITS = {"free": 15, "basic": 150, "power": 1000}
+try:
+    import json as _json
+
+    _custom = _json.loads(os.environ.get("AEGIS_PLAN_LIMITS", "") or "{}")
+    if isinstance(_custom, dict):
+        PLAN_LIMITS.update({str(k): int(v) for k, v in _custom.items() if int(v) >= 0})
+except (ValueError, TypeError):
+    warnings.warn("AEGIS_PLAN_LIMITS is not valid JSON like {\"free\": 20}; using the defaults.")
+
+# ---- running it for many people ----
+# Admin API (/api/admin/*, /metrics): off until you set a long random token. Send it as the X-Admin-Token header.
+ADMIN_TOKEN = os.environ.get("AEGIS_ADMIN_TOKEN", "")
+# Closed beta switches: AEGIS_OPEN_REGISTRATION=0 stops new sign-ups; AEGIS_MAX_USERS=500 caps the number of accounts (0 = no cap).
+OPEN_REGISTRATION = os.environ.get("AEGIS_OPEN_REGISTRATION", "1") != "0"
+MAX_USERS = int(os.environ.get("AEGIS_MAX_USERS", "0") or 0)
+# Housekeeping: old usage rows, fired reminders and chat messages beyond this many per user are removed once a day.
+KEEP_MESSAGES = int(os.environ.get("AEGIS_KEEP_MESSAGES", "500"))
+MAINTENANCE_EVERY = int(os.environ.get("AEGIS_MAINTENANCE_EVERY", "21600"))  # seconds
+# Optional automatic database copies (a folder). Keeps the newest AEGIS_BACKUP_KEEP files.
+BACKUP_DIR = os.environ.get("AEGIS_BACKUP_DIR", "")
+BACKUP_KEEP = int(os.environ.get("AEGIS_BACKUP_KEEP", "7"))
+LOG_LEVEL = os.environ.get("AEGIS_LOG_LEVEL", "INFO").upper()
+# Set to 1 once the site is served over https, to add the HSTS header.
+HSTS = os.environ.get("AEGIS_HSTS", "0") == "1"
 
 DEVICE_CALL_TIMEOUT = 60  # seconds to wait for the desktop app to finish a tool
 CONFIRM_TIMEOUT = 60  # seconds to wait for the user to approve a risky action

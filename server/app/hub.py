@@ -50,7 +50,11 @@ class Hub:
         self.chats.setdefault(uid, set()).add(ws)
 
     def drop_chat(self, uid: int, ws: WebSocket):
-        self.chats.get(uid, set()).discard(ws)
+        socks = self.chats.get(uid)
+        if socks is not None:
+            socks.discard(ws)
+            if not socks:
+                del self.chats[uid]  # no empty sets piling up for every user who ever connected
 
     # ---- request/response plumbing ----
     def resolve(self, rid, value, uid: int):

@@ -21,14 +21,21 @@ def verify_password(password: str, pw_hash: str, salt: str) -> bool:
     return hmac.compare_digest(h, pw_hash)
 
 
-def make_token(user_id: int, secret: str, days: int = 30) -> str:
+def make_token(user_id: int, secret: str, days: int = 30, ver: int = 0) -> str:
+    """`ver` is the user's token_ver: changing a password or 'sign out everywhere' bumps it and kills older tokens."""
     now = int(time.time())
-    return jwt.encode({"sub": str(user_id), "iat": now, "exp": now + days * 86400}, secret, algorithm="HS256")
+    return jwt.encode({"sub": str(user_id), "iat": now, "exp": now + days * 86400, "tv": int(ver)}, secret, algorithm="HS256")
+
+
+def read_token_full(token: str, secret: str) -> Optional[Tuple[int, int]]:
+    """(user_id, token_ver) or None. Tokens issued before versions existed count as version 0."""
+    try:
+        data = jwt.decode(token, secret, algorithms=["HS256"])
+        return int(data["sub"]), int(data.get("tv", 0))
+    except Exception:
+        return None
 
 
 def read_token(token: str, secret: str) -> Optional[int]:
-    try:
-        data = jwt.decode(token, secret, algorithms=["HS256"])
-        return int(data["sub"])
-    except Exception:
-        return None
+    got = read_token_full(token, secret)
+    return got[0] if got else None
