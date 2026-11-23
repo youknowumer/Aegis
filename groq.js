@@ -244,12 +244,12 @@
         let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
         const rms = Math.sqrt(sum / buf.length), now = performance.now(), dt = now - last; last = now;
         if (window.__aegisOrb && window.__aegisOrb.setLevel) window.__aegisOrb.setLevel(Math.min(1, rms * 9));
-        if (now - t0 < 450) { noise += rms; nN++; return; }          // learn the room's background noise first
+        if (now - t0 < 260) { noise += rms; nN++; return; }          // learn the room's background noise first
         const thr = Math.min(0.035, Math.max(0.014, (noise / Math.max(1, nN)) * 2.6 + 0.006)); // capped: speaking right after the click must not be mistaken for room noise
         if (rms > thr) { speechMs += dt; lastSpeech = now; if (speechMs > 140) heard = true; }
-        if (heard && now - lastSpeech > (speechMs > 6000 ? 1500 : 1100)) this._finish();       // you stopped talking
+        if (heard && now - lastSpeech > (speechMs > 6000 ? 1100 : 800)) this._finish();       // you stopped talking
         else if (!heard && now - t0 > 9000) { this._noSpeech = true; this._finish(); }          // nobody spoke
-      }, 60);
+      }, 40);
       this._maxT = setTimeout(() => this._finish(), 45000);
       this._heard = () => heard;
     }

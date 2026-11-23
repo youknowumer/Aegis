@@ -337,10 +337,11 @@
 
   // Studio voice: neighbouring sentences with the same feeling and language go to the cloud voice as one request (fewer calls, smoother speech).
   function cloudGroups(pieces, maxChars) {
-    const max = maxChars || 320, out = [];
+    const max = maxChars || 320, first = 110, out = [];     // the first request stays short so the voice starts speaking sooner
     for (const p of pieces) {
       const g = out[out.length - 1];
-      if (g && g.emotion === p.emotion && g.tts === p.tts && (g.text + " " + p.text).length <= max) { g.text += " " + p.text; g.pause = p.pause; g.items.push(p); continue; }
+      const cap = out.length === 1 ? first : max;
+      if (g && g.emotion === p.emotion && g.tts === p.tts && (g.text + " " + p.text).length <= cap) { g.text += " " + p.text; g.pause = p.pause; g.items.push(p); continue; }
       out.push({ text: p.text, emotion: p.emotion, lang: p.lang, tts: p.tts, pause: p.pause, rate: p.rate, items: [p] });   // items: the sentences, for the browser voice if this group cannot be fetched
     }
     return out;

@@ -1195,7 +1195,7 @@
   // sentence ("Aegis, ..."), follow a greeting ("hey / hola / salut ..."), or close it ("... Aegis"), so a name in the middle
   // of normal talk doesn't wake me.
   const BASE_WAKE = {
-    aegis: "aegis|aegus|aegies|egis|ejis|edgis|eejis|aejis|aijis|ageis|eijis|ایجس|ایجیس|ایجز|ایگس|ايجس|إيجس|ايجيس|एजिस|एजीस|इजिस|ईजिस|এজিস|эджис|эгис|эйджис",
+    aegis: "aegis|aegus|aegies|egis|ejis|edgis|eejis|aejis|aijis|ageis|eijis|ajis|ajiz|ejiz|egiz|eegis|aigis|ægis|ayjis|aygis|agis|edgys|ejus|age is|a jis|e jis|ee jis|ay jis|ae jis|ej is|(?:ae|ee|ei|ai|ay|a|e)(?:g|j|dg)(?:i|y)(?:s|z)|ایجس|ایجیس|ایجز|ایگس|ايجس|إيجس|ايجيس|एजिस|एजीस|इजिस|ईजिस|এজিস|эджис|эгис|эйджис",
     cjk: "イージス|이지스|埃吉斯|伊吉斯|艾吉斯",
   };
   const WAKE_LEAD = "hey|hi|hello|ok|okay|yo|ae|hola|oye|salut|hallo|ciao|merhaba|hei|ola|olá|привет|эй|يا|مرحبا|اے|ہے|ارے|सुनो|सुनिए|नमस्ते|你好|ねえ|안녕";
@@ -1250,6 +1250,22 @@
 
   function setInterim(t) { $("interim").textContent = t || ""; }
 
+  let wakeDebounce = 0, wakeStartedAt = 0;
+  // Soft two-note chime the moment I wake: instant feedback, nothing to fetch, nothing for the mic to hear back.
+  function chime() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      const ac = new AC(), t = ac.currentTime;
+      [[740, 0], [988, 0.09]].forEach(([f, d]) => {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = "sine"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t + d); g.gain.exponentialRampToValueAtTime(0.06, t + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.16);
+        o.connect(g); g.connect(ac.destination); o.start(t + d); o.stop(t + d + 0.18);
+        o.onended = () => { if (d) ac.close(); };
+      });
+    } catch {}
+  }
   function beep() {
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -1300,6 +1316,7 @@
     r.onstart = () => {
       if (rec !== r) return;
       setListening(kind === "once");
+      if (kind === "wake") wakeStartedAt = Date.now();
       if (kind === "wake" && !awake) { $("interim").dataset.live = "0"; setInterim('Say \u201c' + wakeName() + '\u201d to wake me'); }
     };
     r.onresult = (e) => {
@@ -1310,14 +1327,21 @@
         if (e.results[i].isFinal) final += t; else interim += t;
       }
       if (kind === "wake") {
-        const rest = extractWake(final);
-        if (rest === null) return;
-        recGotFinal = true;
-        stopRec();
-        wakeUp();
-        if (rest.length > 2) submitText(rest, { voice: true });
-        else if (hasTTS) { speak(wakeAck(), true); }   // greet, then listen (speak() hands the mic back)
-        else { beep(); followUp = true; setTimeout(syncVoice, 250); }
+        // Check interim text too (not only finals): Chrome waits for a pause before it finalises, which made "Aegis" feel dead.
+        const heard = (final + " " + interim).trim();
+        const rest = extractWake(heard);
+        if (rest === null) { clearTimeout(wakeDebounce); return; }
+        const go = () => {
+          if (rec !== r) return;
+          recGotFinal = true;
+          stopRec();
+          wakeUp();
+          if (rest.length > 2) submitText(rest, { voice: true });
+          else { chime(); followUp = true; setTimeout(syncVoice, 30); }   // instant chime, then listen straight away (no spoken ack to wait for)
+        };
+        clearTimeout(wakeDebounce);
+        if (final || rest.length <= 2) go();                 // finished sentence, or just the name: react at once
+        else wakeDebounce = setTimeout(go, 650);             // name + start of a command: give it a moment, then take what we have
         return;
       }
       setInterim(interim || final);
@@ -1362,7 +1386,8 @@
         if (awake) sleepNow();                                   // you went quiet: back to waiting for my name
         else if (convo && !gated() && ++noSpeechStreak >= 3) { convo = false; syncToggles(); toast("Voice mode paused: I didn't hear anything."); }
       }
-      setTimeout(syncVoice, 350);
+      clearTimeout(wakeDebounce);
+      setTimeout(syncVoice, kind === "wake" ? 60 : 200);   // the wake listener must never stay deaf for long
     };
     try { r.start(); } catch { rec = null; recKind = null; }
   }
@@ -1378,6 +1403,7 @@
   }
 
   function stopRec() {
+    clearTimeout(wakeDebounce);
     if (!rec) return;
     const r = rec;
     rec = null; recKind = null;
@@ -1393,9 +1419,18 @@
     const want = manual || followUp || awake || (convo && !gated()) ? "once" : (wake || gated()) && gestured && SR ? "wake" : null;
     if (!want) return stopRec();
     if (rec && recKind === want) return;
-    if (rec) { stopRec(); return void setTimeout(syncVoice, 300); }
+    if (rec) { stopRec(); return void setTimeout(syncVoice, 80); }
     startRec(want);
   }
+
+  // Watchdog: Chrome sometimes freezes a long continuous session without any event. Recycle it every ~45s and make sure it is
+  // running again after a tab switch or a missed onend.
+  setInterval(() => {
+    if (document.hidden) return;
+    if (rec && recKind === "wake" && Date.now() - wakeStartedAt > 45000) { stopRec(); setTimeout(syncVoice, 40); return; }
+    if (!rec) syncVoice();
+  }, 2500);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { stopRec(); setTimeout(syncVoice, 60); } });
 
   // ---- speaking
   function plainSpeech(text) {
