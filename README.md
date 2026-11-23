@@ -13,6 +13,7 @@ take meeting notes, send emails, and operate your laptop. Every risky action ask
 ![AI](https://img.shields.io/badge/AI-Claude%20%7C%20Groq%20%7C%20OpenAI%20%7C%20Gemini%20%7C%20more-ff9800)
 ![Tools](https://img.shields.io/badge/agent%20tools-118-blue)
 ![Languages](https://img.shields.io/badge/voice-20%20languages-success)
+![License](https://img.shields.io/badge/license-proprietary-red)
 ![Tests](https://img.shields.io/badge/tests-307%20server%20%7C%20121%20JS-brightgreen)
 
 </div>
@@ -889,9 +890,15 @@ Honest list, so there are no surprises:
 
 ## 20. Author and license
 
-Built and maintained by **Muhammad Umer Faheem** ([@youknowumer](https://github.com/youknowumer)).
+Built and owned by **Muhammad Umer Faheem** ([@youknowumer](https://github.com/youknowumer)).
 
-License: **all rights reserved** for now (the desktop package is marked `UNLICENSED` and the repo has no `LICENSE` file). Add a license file before accepting outside contributions or redistributing.
+**Copyright © 2026 Muhammad Umer Faheem. All rights reserved.** Aegis is **proprietary software**. No license is granted: you may not use, copy, modify, deploy, distribute, or sell it, or any part of it, without the owner's prior written permission. Seeing the code on GitHub is not permission to use it. Full terms are in [`LICENSE`](LICENSE).
+
+- **Security reports:** see [`SECURITY.md`](SECURITY.md). Please do not open public issues for vulnerabilities.
+- **Contributions:** this project does not accept outside contributions or forks for reuse.
+- **Permission requests:** contact the owner through GitHub.
+
+---
 
 <div align="center">
 

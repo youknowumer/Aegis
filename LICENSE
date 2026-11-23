@@ -1,0 +1,51 @@
+Aegis - Proprietary License
+Copyright (c) 2026 Muhammad Umer Faheem (GitHub: @youknowumer). All rights reserved.
+
+1. OWNERSHIP
+   Aegis, including its source code, design, interface, animations, text, icons,
+   installer, documentation, and all related files (the "Software"), is the sole
+   and exclusive property of Muhammad Umer Faheem ("the Owner"). No ownership or
+   rights are transferred to you by viewing, downloading, or receiving the Software.
+
+2. NO LICENSE GRANTED
+   No license is granted to any person. Without the Owner's prior written
+   permission, you may NOT:
+     - use, run, or deploy the Software, in whole or in part;
+     - copy, fork, modify, translate, or create derivative works;
+     - distribute, sublicense, sell, rent, lend, or publish the Software;
+     - host it as a service or offer it to third parties;
+     - remove or alter any copyright, ownership, or licence notice;
+     - reverse engineer, decompile, or extract the source of any compiled
+       or packaged form (including the Windows installer), except where
+       applicable law allows this despite this restriction;
+     - use the name "Aegis" or the Owner's name to promote another product.
+
+3. SOURCE VISIBILITY IS NOT PERMISSION
+   If this repository is publicly visible, that is only so it can be viewed.
+   Public visibility, GitHub's own terms of service, and the availability of
+   any download do not grant you any right to use the Software.
+
+4. THIRD-PARTY COMPONENTS
+   The Software uses third-party open-source packages (for example FastAPI,
+   Electron, and others listed in server/requirements.txt and
+   desktop/package.json). Those components stay under their own licenses.
+   This license does not change them.
+
+5. USER DATA AND KEYS
+   You are responsible for any API keys, accounts, and data you enter into
+   any copy of the Software that the Owner has authorised you to use.
+
+6. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+   NON-INFRINGEMENT. THE OWNER IS NOT LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+   LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.
+
+7. TERMINATION AND ENFORCEMENT
+   Any use outside this license is unauthorised and may be reported to the
+   hosting platform (for example through a DMCA takedown) and pursued under
+   applicable law.
+
+8. PERMISSION REQUESTS
+   To ask for written permission, contact the Owner through GitHub:
+   https://github.com/youknowumer
