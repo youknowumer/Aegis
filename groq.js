@@ -270,7 +270,7 @@
         const r = await transcribe(this._blob, { lang: this.lang === "auto" ? "" : this.lang, prompt: "Aegis." });
         const text = String(r.text || "").trim();
         if (!text) return this._fail("no-speech");
-        this._fire("onresult", { resultIndex: 0, results: [Object.assign([{ transcript: text }], { isFinal: true })] });
+        this._fire("onresult", { resultIndex: 0, language: r.language || "", results: [Object.assign([{ transcript: text }], { isFinal: true })] });
         this._end();
       } catch (e) {
         if (this._dead) return;

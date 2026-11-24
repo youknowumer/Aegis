@@ -1028,7 +1028,8 @@
     manual = false;
     followUp = false;
     addMsg("user", text);
-    send({ type: "chat", text, tz: TZ, voice: spokenTurn, callme: callMe() });
+    if (spokenTurn) noteLang(text);
+    send({ type: "chat", text, tz: TZ, voice: spokenTurn, callme: callMe(), lang: spokenTurn ? spokenHint : "" });
     setBusy(true);
   }
   $("composer").addEventListener("submit", (e) => {
@@ -1224,7 +1225,8 @@
   // sentence ("Aegis, ..."), follow a greeting ("hey / hola / salut ..."), or close it ("... Aegis"), so a name in the middle
   // of normal talk doesn't wake me.
   const BASE_WAKE = {
-    aegis: "aegis|aegus|aegies|egis|ejis|edgis|eejis|aejis|aijis|ageis|eijis|ajis|ajiz|ejiz|egiz|eegis|aigis|ægis|ayjis|aygis|agis|edgys|ejus|age is|a jis|e jis|ee jis|ay jis|ae jis|ej is|(?:ae|ee|ei|ai|ay|a|e)(?:g|j|dg)(?:i|y)(?:s|z)|ایجس|ایجیس|ایجز|ایگس|ايجس|إيجس|ايجيس|एजिस|एजीस|इजिस|ईजिस|এজিস|эджис|эгис|эйджис",
+    aegis: "aegis|aegus|aegies|egis|ejis|edgis|eejis|aejis|aijis|ageis|eijis|ajis|ajiz|ejiz|egiz|eegis|aigis|ægis|ayjis|aygis|agis|edgys|ejus|age is|a jis|e jis|ee jis|ay jis|ae jis|ej is|(?:ae|ee|ei|ai|ay|a|e)(?:g|j|dg)(?:i|y)(?:s|z)|ایجس|ایجیس|ایجز|ایجیز|ایگز|ایگس|ایجِس|ايجس|إيجس|ايجيس|एजिस|एजीस|इजिस|ईजिस|এজিস|эджис|эгис|эйджис",
+    loose: "ages|edges|eages|aeges|ajes|ejes|eijes|ayjes|ajez|ejez|eijis|ayjiz|aijes|a gis|ah jis|eh jis",   // common mis-hearings: only accepted at the START of a sentence or after a greeting (never at its end, so "different ages" does not wake me)
     cjk: "イージス|이지스|埃吉斯|伊吉斯|艾吉斯",
   };
   const WAKE_LEAD = "hey|hi|hello|ok|okay|yo|ae|hola|oye|salut|hallo|ciao|merhaba|hei|ola|olá|привет|эй|يا|مرحبا|اے|ہے|ارے|सुनो|सुनिए|नमस्ते|你好|ねえ|안녕";
@@ -1237,14 +1239,27 @@
     if (wakeRx && sig === wakeSig) return wakeRx;
     const names = [BASE_WAKE.aegis].concat(c ? [c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")] : []).join("|");
     const lead = "(?:(?:" + WAKE_LEAD + ")[\\s,]+)?";
-    const named = "(?:(?:" + names + ")(?![\\p{L}])|(?:" + BASE_WAKE.cjk + "))";    // CJK names are written without a space after them
+    const named = "(?:(?:" + names + ")(?![\\p{L}])|(?:" + BASE_WAKE.cjk + "))";
+    const namedLoose = "(?:(?:" + names + "|" + BASE_WAKE.loose + ")(?![\\p{L}])|(?:" + BASE_WAKE.cjk + "))";    // CJK names are written without a space after them
     wakeRx = {
-      start: new RegExp("^[\\s,.!?-]*" + lead + named + "[\\s,.:;!?\u3001\u3002\uff0c\uff01\uff1f-]*", "iu"),
-      hey: new RegExp("(?:" + WAKE_LEAD + ")[\\s,]+" + named + "[\\s,.:;!?-]*", "iu"),
+      start: new RegExp("^[\\s,.!?-]*" + lead + namedLoose + "[\\s,.:;!?\u3001\u3002\uff0c\uff01\uff1f-]*", "iu"),
+      hey: new RegExp("(?:" + WAKE_LEAD + ")[\\s,]+" + namedLoose + "[\\s,.:;!?-]*", "iu"),
       end: new RegExp("[\\s,]+(?:" + names + ")[\\s.!?]*$", "iu"),
     };
     wakeSig = sig;
     return wakeRx;
+  }
+  // Browsers hear "Aegis" as "ages", "edges", "ajis"... After a greeting ("hey ages ...") any word shaped like that is accepted.
+  const PHON_AEGIS = /^(?:a|ae|e|ai|ay|ei|ee|i|ah|eh)(?:g|j|dg|dj|gg|zh)(?:e|i|y|u|ie|ei|a|ee)?(?:s|z|ss|es|is)$/i;
+  const LEAD_RX = new RegExp("^(?:" + WAKE_LEAD + ")$", "iu");
+  function fuzzyWake(t) {
+    const toks = t.trim().split(/\s+/);
+    for (let i = 0; i < Math.min(toks.length - 1, 2); i++) {
+      const lead = toks[i].replace(/[^\p{L}]/gu, "");
+      const name = (toks[i + 1] || "").replace(/[^\p{L}]/gu, "");
+      if (lead && LEAD_RX.test(lead) && name && PHON_AEGIS.test(name)) return (toks.slice(0, i).concat(toks.slice(i + 2))).join(" ").trim();
+    }
+    return null;
   }
   function extractWake(text) {
     const t = String(text || "").trim(), rx = wakeRegex();
@@ -1254,7 +1269,7 @@
     if (m) return (t.slice(0, m.index) + " " + t.slice(m.index + m[0].length)).trim();
     m = t.match(rx.end);
     if (m && t.slice(0, m.index).trim().split(/\s+/).length >= 2) return t.slice(0, m.index).trim();
-    return null;
+    return fuzzyWake(t);
   }
   // Short acknowledgements, spoken in the language chosen for listening.
   const ACKS = {
@@ -1278,6 +1293,31 @@
   let spokenTurn = false;      // the last thing sent came from the microphone, so answer out loud
 
   function setInterim(t) { $("interim").textContent = t || ""; }
+
+  // ---- listening language. "Auto" means: follow the person. The browser recogniser can only hear ONE language at a time, so it is
+  // pointed at the language they used last (Urdu script, Hindi, Spanish...), and the Groq Whisper engine detects it by itself.
+  const WHISPER_LANG = { urdu: "ur-PK", hindi: "hi-IN", english: "en-IN", arabic: "ar-SA", persian: "fa-IR", bengali: "bn-BD", punjabi: "pa-IN", tamil: "ta-IN", spanish: "es-ES", french: "fr-FR", german: "de-DE", portuguese: "pt-BR", italian: "it-IT", turkish: "tr-TR", indonesian: "id-ID", dutch: "nl-NL", russian: "ru-RU", chinese: "zh-CN", japanese: "ja-JP", korean: "ko-KR" };
+  const baseLocale = () => { const n = navigator.language || "en-US"; return /^en/i.test(n) ? n : "en-IN"; };
+  let lastLang = safeGet("aegis_lastlang") || baseLocale();
+  let spokenHint = "";          // what the last spoken sentence was: "ur", "roman-urdu", "es"... (sent to the AI as a hint)
+  function noteLang(text, whisper) {
+    let code = whisper ? WHISPER_LANG[String(whisper).toLowerCase()] : "";
+    const a = window.AegisVoice && AegisVoice.analyze ? AegisVoice.analyze(text, "") : null;
+    if (a) spokenHint = a.roman ? "roman-urdu" : a.base;
+    if (a && (a.base !== "en" || a.roman)) code = a.roman ? "ur-PK" : a.lang;       // the words themselves beat Whisper's label
+    else if (!code && a) code = baseLocale();
+    if (!code) return;
+    if (a && a.roman && !whisper) code = "en-IN";                                    // Roman Urdu is heard best by an Indian-English recogniser
+    if (code === lastLang) return;
+    lastLang = code; safeSet("aegis_lastlang", code);
+  }
+  function recLang(kind, useGroq) {
+    const sel = $("lang").value;
+    if (sel !== "auto") return sel;
+    if (useGroq) return "auto";
+    return kind === "wake" ? (/^en/i.test(lastLang) ? lastLang : "en-IN") : lastLang;    // the wake word is a Latin-script name: the English listener hears it best
+  }
+  let netFails = 0;
 
   let wakeDebounce = 0, wakeStartedAt = 0;
   // Soft two-note chime the moment I wake: instant feedback, nothing to fetch, nothing for the mic to hear back.
@@ -1337,7 +1377,7 @@
     const r = useGroq ? new AegisGroq.Recognizer() : new SR();
     rec = r; recKind = kind; recGotFinal = false; recErr = "";
     if (kind === "once") followUp = false;
-    r.lang = $("lang").value === "auto" ? (useGroq ? "auto" : "en-US") : $("lang").value;
+    r.lang = recLang(kind, useGroq);
     r.interimResults = true;
     r.continuous = kind === "wake";
     r.maxAlternatives = 1;
@@ -1359,7 +1399,12 @@
         // Check interim text too (not only finals): Chrome waits for a pause before it finalises, which made "Aegis" feel dead.
         const heard = (final + " " + interim).trim();
         const rest = extractWake(heard);
-        if (rest === null) { clearTimeout(wakeDebounce); return; }
+        netFails = 0;
+        if (rest === null) {
+          clearTimeout(wakeDebounce);
+          if (!awake && heard) setInterim('Say \u201c' + wakeName() + '\u201d to wake me  \u00b7  I heard: ' + heard.slice(-34));   // shows what the browser hears, so a mis-hearing is easy to spot
+          return;
+        }
         const go = () => {
           if (rec !== r) return;
           recGotFinal = true;
@@ -1373,9 +1418,10 @@
         else wakeDebounce = setTimeout(go, 650);             // name + start of a command: give it a moment, then take what we have
         return;
       }
+      netFails = 0;
       setInterim(interim || final);
       if (final) {
-        recGotFinal = true; noSpeechStreak = 0; stopRec();
+        recGotFinal = true; noSpeechStreak = 0; noteLang(final, e.language); stopRec();
         if (awake && SLEEP_RE.test(final)) {            // "thanks, that's all": go back to sleep politely
           sleepNow();
           addMsg("user", final);
@@ -1398,9 +1444,10 @@
       } else if (recErr === "groq") {
         voiceFail("Groq voice: " + (e.message || "transcription failed.") + " Switch Voice input engine to Browser in Settings to keep talking.");
       } else if (recErr === "network") {
-        voiceFail("The browser's speech service can't be reached. Chrome sends your voice to Google to transcribe it, so voice needs internet.");
+        if (++netFails >= 4) { netFails = 0; voiceFail("The browser's speech service can't be reached. Chrome sends your voice to Google to transcribe it, so voice needs internet. (Brave and some Chromium builds block it: use Chrome or Edge, or add a Groq key in Settings.)"); }
       } else if (recErr === "language-not-supported") {
-        $("lang").value = "en-US"; safeSet("aegis_lang", "en-US");
+        if ($("lang").value === "auto") { lastLang = "en-IN"; safeSet("aegis_lastlang", lastLang); }
+        else { $("lang").value = "en-US"; safeSet("aegis_lang", "en-US"); }
         voiceFail("This browser can't recognise that language, so I switched to English. Turn voice back on to retry.");
       }
     };
@@ -1416,7 +1463,7 @@
         else if (convo && !gated() && ++noSpeechStreak >= 3) { convo = false; syncToggles(); toast("Voice mode paused: I didn't hear anything."); }
       }
       clearTimeout(wakeDebounce);
-      setTimeout(syncVoice, kind === "wake" ? 60 : 200);   // the wake listener must never stay deaf for long
+      setTimeout(syncVoice, recErr === "network" ? 1500 : kind === "wake" ? 60 : 200);   // the wake listener must never stay deaf for long
     };
     try { r.start(); } catch { rec = null; recKind = null; }
   }
@@ -1515,6 +1562,7 @@
     sel.value = list.some((v) => v.name === saved) ? saved : list[0].name;
   }
   let curAudio = null, cloudCtl = null;     // studio-voice playback in progress
+  const noVoiceWarned = new Set();
   function killAudio() {
     if (cloudCtl) { try { cloudCtl.abort(); } catch {} cloudCtl = null; }
     if (curAudio) { try { curAudio.pause(); } catch {} curAudio = null; }
@@ -1549,8 +1597,24 @@
     const beat = setInterval(() => {
       if (gen !== speakGen || !speaking) return clearInterval(beat);
       if (Date.now() - lastBoundary > 380) pulse(0.3 + Math.random() * 0.35);
+      try { if (hasTTS && speechSynthesis.paused && !curAudio) speechSynthesis.resume(); } catch {}   // Chrome sometimes freezes a long reply
     }, 240);
-    const finish = () => { clearInterval(beat); speaking = false; refreshState(); syncVoice(); if (opts.onend) { try { opts.onend(); } catch {} } };
+    // If the browser never reports that speech ended, the microphone would stay off for ever: this guard hands it back.
+    let guard = 0;
+    const finish = () => {
+      clearInterval(beat); clearTimeout(guard);
+      if (!speaking) return;
+      speaking = false; refreshState();
+      setTimeout(syncVoice, 320);              // let the room go quiet first, so the mic does not hear the end of my own sentence
+      if (opts.onend) { try { opts.onend(); } catch {} }
+    };
+    guard = setTimeout(() => { if (gen === speakGen && speaking) { killAudio(); try { speechSynthesis.cancel(); } catch {} speakGen++; finish(); } }, Math.min(180000, 8000 + clean.length * 120));
+    if (V && V.hasVoice && !(V.cloud && V.cloud.ready())) {                 // a language with no installed voice would be read with the wrong accent: say so once
+      for (const pc of pieces) {
+        const code = String(pc.lang || "").split("-")[0];
+        if (code && !V.hasVoice(pc.lang) && !noVoiceWarned.has(code)) { noVoiceWarned.add(code); toast("This device has no " + pc.lang + " voice installed, so that language may sound off. Install that language's voice in your system settings, or turn on Studio voice.", 8000); }
+      }
+    }
     // Browser voices: one sentence at a time, so each gets its own tone, its own language and its own pause (emotion lives in these gaps).
     const speakPieces = (list, done) => {
       const step = (i) => {
@@ -1887,7 +1951,7 @@
   let directCtl = null;
   const directReady = () => LOCAL && aiCfg && (aiCfg.api_key || (aiCfg.provider === "custom"));
   function directSystem() {
-    return "You are Aegis, a calm, sharp, warm personal AI assistant with real feeling. Answer any question directly. Speak every language the user speaks and match their language and script exactly (Urdu script, Roman Urdu, Hindi, Arabic, Spanish, French, Chinese... any), switching when they switch. Notice how they feel and answer the feeling first, with genuine warmth. Begin every sentence with one tag from [calm] [warm] [joy] [excited] [curious] [empathy] [concern] [urgent] [confident] (the app hides the tags and uses them to shape your voice; never mention them). Keep replies short and plain (1-3 sentences) unless asked to explain in depth; no markdown tables. It is now " + new Date().toLocaleString() + " (" + (TZ || "local time") + "). You have no tools in this mode, so say so if asked to control a PC, set reminders or browse live.";
+    return "You are Aegis, a calm, sharp, warm personal AI assistant with real feeling. Answer any question directly. Speak every language the user speaks and match their language and script exactly (Urdu script, Roman Urdu, Hindi, Arabic, Spanish, French, Chinese... any), switching when they switch. Notice how they feel and answer the feeling first, with genuine warmth. Begin every sentence with one tag from [calm] [warm] [joy] [excited] [curious] [empathy] [concern] [urgent] [confident] (the app hides the tags and uses them to shape your voice; never mention them). Keep replies short and plain (1-3 sentences) unless asked to explain in depth; no markdown tables. It is now " + new Date().toLocaleString() + " (" + (TZ || "local time") + "). You have no tools in this mode, so say so if asked to control a PC, set reminders or browse live." + (spokenTurn && spokenHint && spokenHint !== "en" ? " The user just spoke in " + (spokenHint === "roman-urdu" ? "Roman Urdu (Urdu in the English alphabet)" : "language code " + spokenHint) + ": answer in that same language and script, in their tone." : "");
   }
   async function* sse(res) {
     const rd = res.body.getReader(), dec = new TextDecoder(); let buf = "";
@@ -2011,6 +2075,6 @@
     setToken(t) { token = t; safeSet(TOKEN_KEY, t); if (desktop) desktop.setToken(t); },
     logout: () => logout(),
   }; // used by meetings.js and account.js
-  if (window.__AEGIS_TEST__) window.__aegis = { extractWake, rich, labelFor };
+  if (window.__AEGIS_TEST__) window.__aegis = { extractWake, rich, labelFor, noteLang, recLang, lastLangNow: () => lastLang };
   start();
 })();

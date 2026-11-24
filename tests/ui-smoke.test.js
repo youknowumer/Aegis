@@ -81,6 +81,31 @@ T("wake word: Aegis only, mis-hearings and other scripts accepted, a stray menti
   assert.strictEqual(x("the shield of aegis was famous in myth"), null);
 }));
 
+T("wake word: common mis-hearings (ages, edges, ajis) wake it after a greeting, ordinary words do not", async () => withApp(undefined, async ({ w }) => {
+  const x = w.__aegis.extractWake;
+  assert.strictEqual(x("hey ages what time is it"), "what time is it");
+  assert.strictEqual(x("hey edges open chrome"), "open chrome");
+  assert.strictEqual(x("ok ajis mausam batao"), "mausam batao");
+  assert.strictEqual(x("hey guess what happened"), null);
+  assert.strictEqual(x("hey jess how are you"), null);
+  assert.strictEqual(x("ages open chrome"), "open chrome");                 // a mis-heard name at the start still wakes it
+  assert.strictEqual(x("people of different ages"), null);                    // ...but never at the end of an ordinary sentence
+}));
+
+T("auto language follows the person: Urdu script, Spanish and English move the listening language", async () => withApp(undefined, async ({ w }) => {
+  const a = w.__aegis;
+  w.document.getElementById("lang").value = "auto";
+  a.noteLang("آج موسم کیسا ہے");
+  assert.strictEqual(a.lastLangNow(), "ur-PK");
+  assert.strictEqual(a.recLang("once", false), "ur-PK");
+  assert.match(a.recLang("wake", false), /^en/);      // the wake word is always listened for in English
+  assert.strictEqual(a.recLang("once", true), "auto");  // Whisper detects by itself
+  a.noteLang("hola, ¿cómo estás? gracias por todo");
+  assert.strictEqual(a.lastLangNow(), "es-ES");
+  a.noteLang("what is the weather today", "english");
+  assert.match(a.lastLangNow(), /^en/);
+}));
+
 T("emotion tags never reach the screen, the clipboard text or the read-back", async () => withApp(undefined, async ({ w }) => {
   const el = w.document.createElement("div");
   w.__aegis.rich(el, "[warm] Good morning! [joy] Your report is ready.\n\n[curious] Shall I send it?");

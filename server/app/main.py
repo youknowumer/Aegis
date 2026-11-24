@@ -965,6 +965,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                         sess.tz = chat_tz[uid] = str(msg["tz"])[:64]
                     sess.voice = bool(msg.get("voice"))
                     sess.callme = " ".join(str(msg.get("callme", "")).split())[:30]
+                    sess.lang = "".join(ch for ch in str(msg.get("lang", "")).lower() if ch.isalpha() or ch == "-")[:16]
                     t = asyncio.create_task(handle_chat(text))
                     sess.task = t
                     tasks.add(t)

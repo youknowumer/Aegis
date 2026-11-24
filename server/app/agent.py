@@ -169,6 +169,7 @@ class Session:
         self.cfg = None  # providers.AIConfig for that client
         self.voice = False  # the current message was spoken aloud and the reply will be read out by text-to-speech
         self.callme = ""  # how the user likes to be addressed ("sir", "boss", a name)
+        self.lang = ""  # language the user just SPOKE ("ur", "roman-urdu", "es"...), a hint for the reply language
 
 
 def trim_history(history: List[dict], keep: int = 40, limit: int = 60):
@@ -189,7 +190,7 @@ class Agent:
         self.db = db
         self.hub = hub
 
-    def _system(self, uid: int, user_text: str, device: bool, tz: str = "", web: bool = False, voice: bool = False, callme: str = "", reading=None, ctx=None) -> str:
+    def _system(self, uid: int, user_text: str, device: bool, tz: str = "", web: bool = False, voice: bool = False, callme: str = "", reading=None, ctx=None, lang: str = "") -> str:
         rows = self.db.facts(uid)
         now = time.time()
         chosen = heart.select_memories(rows, user_text, 14, now)
@@ -259,6 +260,13 @@ class Agent:
             )
         if callme:
             extra += f"\nThe user likes to be addressed as \"{callme}\"; use it now and then, not in every sentence."
+        if voice and lang:
+            names = {"ur": "Urdu (Urdu script)", "roman-urdu": "Roman Urdu (Urdu written in the English alphabet)", "hi": "Hindi", "ar": "Arabic", "fa": "Persian",
+                     "bn": "Bengali", "pa": "Punjabi", "es": "Spanish", "fr": "French", "de": "German", "pt": "Portuguese", "it": "Italian", "tr": "Turkish",
+                     "id": "Indonesian", "ru": "Russian", "zh": "Chinese", "ja": "Japanese", "ko": "Korean", "nl": "Dutch"}
+            if lang in names:
+                extra += (f"\nThe user just SPOKE in {names[lang]}. Answer in that same language and script, matching their tone and energy, "
+                          "so the reply sounds natural when read aloud. If their next message is in another language, switch with them.")
         return SYSTEM.format(mail_line=mail_line, today=utilities.now_in(tz).strftime("%A, %d %B %Y, %H:%M") + (f" ({tz})" if tz else " UTC"), app=settings.APP_NAME, device_line=device_line, search_line=search_line, home_line=home_line, memory_block=block) + extra
 
     async def _run_server_tool(self, uid: int, name: str, args: dict, tz: str = "") -> str:
@@ -766,7 +774,7 @@ class Agent:
                 web = settings.WEB_SEARCH and (sess.cfg is None or sess.cfg.provider.kind == "anthropic")  # web search is an Anthropic server tool
                 resp = await self._model_turn(
                     sess,
-                    self._system(uid, text, device, sess.tz, web, sess.voice, sess.callme, reading, ctx),
+                    self._system(uid, text, device, sess.tz, web, sess.voice, sess.callme, reading, ctx, sess.lang),
                     tools.schemas(device, web, settings.WEB_SEARCH_MAX_USES),
                     sess.history,
                     emit,
