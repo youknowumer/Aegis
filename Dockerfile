@@ -5,6 +5,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY server/ /srv/server/
 # Website files: the server also serves them, so http://<server>/ works without GitHub Pages too.
 COPY *.html *.js *.css /srv/
+COPY fonts/ /srv/fonts/
+COPY assets/ /srv/assets/
 # Run as a normal user, not root. /data holds the database (mount a volume there).
 RUN useradd --system --uid 10001 --home /srv aegis && mkdir -p /srv/downloads /data && chown -R aegis /srv /data
 USER aegis

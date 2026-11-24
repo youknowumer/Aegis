@@ -12,10 +12,12 @@
   <meta property="og:description" content="Ask in plain English. Aegis does the work and asks before anything risky.">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z' fill='%230a7a78'/%3E%3Cpath d='M11 16l4 4 7-8' fill='none' stroke='%23fff' stroke-width='2.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preload" href="fonts/inter-tight-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <script src="theme-boot.js"></script>
   <link rel="stylesheet" href="landing.css">
   <link rel="stylesheet" href="landing-pro.css">
   <link rel="stylesheet" href="landing-hero.css">
+  <link rel="stylesheet" href="landing-vela.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -51,19 +53,71 @@
 
 <main id="main">
 
-  <!-- ============ HERO ============ -->
-  <section class="hero-sec" id="top">
-    <div class="aurora" aria-hidden="true">
-      <i class="b1" data-speed="0.12"></i>
-      <i class="b2" data-speed="0.2"></i>
-      <i class="b3" data-speed="0.07"></i>
+  <!-- ============ HERO (vela-style: cycling verb, tinted 3D icon, pastel grain panel, cream stats strip) ============ -->
+  <section class="hero-sec vela" id="top">
+    <div class="v-panel">
+      <div class="v-bg" aria-hidden="true">
+        <i class="vl vl1"></i><i class="vl vl2"></i><i class="vl vl3"></i><i class="vl vl4"></i>
+      </div>
+      <div class="v-grain" aria-hidden="true"></div>
+      <div class="vf">
+        <h1 class="vh" aria-label="Aegis. Ask, search, automate or connect, in your terms.">
+          <span class="vslot" id="vslot" aria-hidden="true">
+          <span class="vitem" data-word="Ask">
+            <span class="vic"><img src="assets/vela/message.webp" data-cdn="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/83de7c35-dd91-4e56-bfb8-0ffafc83d0e0.webp" alt="" width="320" height="320" decoding="async"><i class="tint" style="--tint:#E9C22E;--icon:url(assets/vela/message.webp)"></i></span>
+            <span class="vword">Ask</span>
+          </span>
+          <span class="vitem" data-word="Search">
+            <span class="vic"><img src="assets/vela/browse.webp" data-cdn="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/4d952211-0474-48cc-af48-58f68b3b7525.webp" alt="" width="320" height="320" decoding="async"><i class="tint" style="--tint:#F2772F;--icon:url(assets/vela/browse.webp)"></i></span>
+            <span class="vword">Search</span>
+          </span>
+          <span class="vitem" data-word="Automate">
+            <span class="vic"><img src="assets/vela/transact.webp" data-cdn="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/e2e91fca-5b3f-4e0e-a437-8a581592e407.webp" alt="" width="320" height="320" decoding="async"><i class="tint" style="--tint:#3FB874;--icon:url(assets/vela/transact.webp)"></i></span>
+            <span class="vword">Automate</span>
+          </span>
+          <span class="vitem" data-word="Connect">
+            <span class="vic"><img src="assets/vela/web.webp" data-cdn="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/6b32bb47-4ad6-4938-a637-c997b373c68b.webp" alt="" width="320" height="320" decoding="async"><i class="tint" style="--tint:#C564C4;--icon:url(assets/vela/web.webp)"></i></span>
+            <span class="vword">Connect</span>
+          </span>
+          </span>
+          <span class="vline2" aria-hidden="true">in your terms</span>
+        </h1>
+        <div class="vrow">
+          <a class="vbtn vbtn-a" id="vbtn-a" href="app.html?mode=register">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            <span><small>Free plan</small>Start free</span>
+          </a>
+          <a class="vbtn" href="#download">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+            <span><small>For Windows</small>Desktop app</span>
+          </a>
+          <p class="vcap">Aegis is an AI assistant for the web and Windows. It does <br>the work, and asks before anything risky.</p>
+        </div>
+      </div>
     </div>
 
-    <div class="hero wrap">
-      <div class="hero-copy" id="hero-copy">
-        <p class="hero-badge"><b>New</b> Expressive voice in every language, calendar, smart home and a meeting note-taker</p>
-        <h1>Tell your PC what you need. Aegis does it, and asks before anything risky.</h1>
-        <p class="lead">An AI assistant for the web and Windows. Ask in plain English. It opens apps, sorts your folders and remembers what you tell it. Deleting, typing and shell commands always wait for your yes.</p>
+    <div class="v-strip">
+      <svg class="v-notch" viewBox="0 0 1440 62" preserveAspectRatio="none" aria-hidden="true"><path d="M0 62 H1062 C1092 62 1098 54 1116 34 C1138 9 1146 1 1178 1 H1440 V62 Z"/></svg>
+      <a class="v-hint" href="#interface">&darr; Scroll to learn more</a>
+      <div class="vf v-strip-in">
+        <p class="v-tag">Nothing risky<br>happens unasked</p>
+        <dl class="v-stats">
+          <div><dt>Tools it can use</dt><dd><span data-count="65">65</span></dd></div>
+          <div><dt>Tools that wait for your yes</dt><dd><span data-count="18">18</span></dd></div>
+          <div><dt>Free messages a day</dt><dd><span data-count="15">15</span></dd></div>
+        </dl>
+        <svg class="v-sprout" viewBox="0 0 120 150" aria-hidden="true"><path d="M60 138V62"/><path d="M60 92C60 66 44 50 20 48c0 26 16 42 40 44z"/><path d="M60 74C60 50 74 34 98 30c0 26-14 42-38 44z"/><path d="M14 140h92"/></svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SEE IT WORK (the interactive demo, moved out of the hero) ============ -->
+  <section class="see wrap" id="see">
+    <div class="see-in">
+      <div class="see-copy" data-reveal>
+        <p class="eyebrow">See it work</p>
+        <h2>Ask in plain English. Watch every step.</h2>
+        <p class="lead">An AI assistant for the web and Windows. It opens apps, sorts your folders and remembers what you tell it. Deleting, typing and shell commands always wait for your yes.</p>
         <div class="hero-cta">
           <a class="btn solid big" href="app.html?mode=register">Start free</a>
           <a class="btn glass big" href="#download">Get the Windows app</a>
@@ -81,7 +135,7 @@
           <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Bring your own AI key</li>
         </ul>
       </div>
-
+      <div data-reveal style="--d:120ms">
       <figure class="demo" id="demo" aria-label="Interactive example of Aegis working on a request">
         <div class="demo-bar">
           <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -113,15 +167,9 @@
           <button type="button" class="replay" id="replay" hidden>Play again</button>
         </figcaption>
       </figure>
+      </div>
     </div>
-
-    <div class="wrap">
-      <dl class="stats" data-stagger>
-        <div><dt>Tools it can use</dt><dd><span data-count="65">65</span></dd></div>
-        <div><dt>Tools that wait for you</dt><dd><span data-count="18">18</span></dd></div>
-        <div><dt>Free messages a day</dt><dd><span data-count="15">15</span></dd></div>
-        <div><dt>Folders it can reach</dt><dd><span data-count="3">3</span></dd></div>
-      </dl>
+    <div class="prov-wrap">
       <div class="prov" data-reveal aria-label="Works with these AI providers">
         <span class="prov-l">Works with</span>
         <ul>
@@ -533,6 +581,6 @@
 <script src="landing.js"></script>
 <script src="landing-fx.js"></script>
 <script src="landing-pro.js"></script>
-<script src="landing-hero.js"></script>
+<script src="landing-vela.js"></script>
 </body>
 </html>
