@@ -169,6 +169,9 @@ class Session:
         self.cfg = None  # providers.AIConfig for that client
         self.voice = False  # the current message was spoken aloud and the reply will be read out by text-to-speech
         self.callme = ""  # how the user likes to be addressed ("sir", "boss", a name)
+        self.vibe = {}  # how the last spoken message SOUNDED: {"pace": slow|normal|fast, "energy": low|normal|high, "hesitant": bool}
+        self.deep = False  # the user asked Aegis to think deeply about this message
+        self.last_wrap = 0.0  # when the last conversation recap was saved
         self.lang = ""  # language the user just SPOKE ("ur", "roman-urdu", "es"...), a hint for the reply language
 
 
@@ -190,7 +193,7 @@ class Agent:
         self.db = db
         self.hub = hub
 
-    def _system(self, uid: int, user_text: str, device: bool, tz: str = "", web: bool = False, voice: bool = False, callme: str = "", reading=None, ctx=None, lang: str = "") -> str:
+    def _system(self, uid: int, user_text: str, device: bool, tz: str = "", web: bool = False, voice: bool = False, callme: str = "", reading=None, ctx=None, lang: str = "", vibe=None, deep: bool = False) -> str:
         rows = self.db.facts(uid)
         now = time.time()
         chosen = heart.select_memories(rows, user_text, 14, now)
@@ -267,6 +270,26 @@ class Agent:
             if lang in names:
                 extra += (f"\nThe user just SPOKE in {names[lang]}. Answer in that same language and script, matching their tone and energy, "
                           "so the reply sounds natural when read aloud. If their next message is in another language, switch with them.")
+        if voice and vibe:
+            bits = []
+            if vibe.get("pace") == "slow" and vibe.get("energy") == "low":
+                bits.append("Their voice sounded slow and low on energy: they may be tired, down or distracted. Go gently, keep it short and warm, and a soft check-in is welcome.")
+            elif vibe.get("pace") == "fast" and vibe.get("energy") in ("high", "normal"):
+                bits.append("They spoke fast and with energy: be quick, upbeat and to the point.")
+            elif vibe.get("energy") == "high":
+                bits.append("They spoke loudly and with force: it may be excitement or frustration, so decide from their words, stay calm and steady.")
+            elif vibe.get("energy") == "low":
+                bits.append("Their voice was quiet and soft: answer softly and without hurry.")
+            elif vibe.get("pace") == "slow":
+                bits.append("They spoke slowly, taking their time: do not rush them.")
+            if vibe.get("hesitant"):
+                bits.append("They hesitated while speaking: they may be unsure, so offer one simple choice or one gentle clarifying question instead of a long answer.")
+            if bits:
+                extra += "\nHow they SOUNDED (from their voice, private, never mention it): " + " ".join(bits)
+        if deep:
+            extra += ("\nThe user asked you to THINK DEEPLY about this. Reason it through carefully before answering: split it into parts, check each part, "
+                      "weigh alternatives and look for what could go wrong, use your tools to verify facts instead of guessing, then give your conclusion first in a few short spoken "
+                      "sentences and say you put the detailed reasoning on screen. Be honest about what you are unsure of.")
         return SYSTEM.format(mail_line=mail_line, today=utilities.now_in(tz).strftime("%A, %d %B %Y, %H:%M") + (f" ({tz})" if tz else " UTC"), app=settings.APP_NAME, device_line=device_line, search_line=search_line, home_line=home_line, memory_block=block) + extra
 
     async def _run_server_tool(self, uid: int, name: str, args: dict, tz: str = "") -> str:
@@ -741,6 +764,39 @@ class Agent:
                 return await stream.get_final_message()
         return await msgs.create(**kw)
 
+    async def recap(self, sess: Session) -> str:
+        """After a real conversation, keep a one-line recap as an `episode` memory, so next time Aegis can pick the thread up."""
+        uid = sess.user_id
+        if time.time() - sess.last_wrap < 600:
+            return ""
+        lines = []
+        for m in sess.history[-24:]:
+            c = m.get("content")
+            if isinstance(c, list):
+                c = " ".join(getattr(b, "text", "") if not isinstance(b, dict) else b.get("text", "") for b in c if getattr(b, "type", None) == "text" or (isinstance(b, dict) and b.get("type") == "text"))
+            c = " ".join(str(c or "").split())
+            if c:
+                lines.append(("User: " if m.get("role") == "user" else "Aegis: ") + c[:300])
+        if sum(1 for ln in lines if ln.startswith("User:")) < 3:
+            return ""
+        client = sess.client or self.client
+        if client is None:
+            return ""
+        sess.last_wrap = time.time()
+        cfg = sess.cfg
+        resp = await client.messages.create(
+            model=cfg.model if cfg else settings.MODEL, max_tokens=140,
+            system=("Write ONE plain sentence (max 30 words) that recaps this conversation for Aegis's own memory: what they talked about, any decision, "
+                    "open question or feeling that matters. Write it in the language the user used. No quotes, no preamble."),
+            messages=[{"role": "user", "content": "\n".join(lines)}],
+        )
+        text = " ".join("".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text").split())[:300]
+        if not text:
+            return ""
+        feel = next((m for m in self.db.moods(uid, since=time.time() - 3600) if m["mood"] != "neutral"), None)
+        self.db.add_fact(uid, "Last talk: " + text, "episode", False, mood=feel["mood"] if feel else "", level=feel["intensity"] if feel else 0, source="auto")
+        return text
+
     async def run(self, sess: Session, text: str, emit: Emit) -> str:
         uid = sess.user_id
         start_len = len(sess.history)
@@ -774,7 +830,7 @@ class Agent:
                 web = settings.WEB_SEARCH and (sess.cfg is None or sess.cfg.provider.kind == "anthropic")  # web search is an Anthropic server tool
                 resp = await self._model_turn(
                     sess,
-                    self._system(uid, text, device, sess.tz, web, sess.voice, sess.callme, reading, ctx, sess.lang),
+                    self._system(uid, text, device, sess.tz, web, sess.voice, sess.callme, reading, ctx, sess.lang, sess.vibe, sess.deep),
                     tools.schemas(device, web, settings.WEB_SEARCH_MAX_USES),
                     sess.history,
                     emit,

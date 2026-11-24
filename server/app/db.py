@@ -361,7 +361,7 @@ class DB:
         )
 
     # ---- memory ----
-    FACT_KINDS = ("fact", "preference", "person", "event", "goal", "emotion")
+    FACT_KINDS = ("fact", "preference", "person", "event", "goal", "emotion", "episode")
 
     @staticmethod
     def _words(text):

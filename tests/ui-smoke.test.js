@@ -106,6 +106,27 @@ T("auto language follows the person: Urdu script, Spanish and English move the l
   assert.match(a.lastLangNow(), /^en/);
 }));
 
+T("spoken approvals: yes / no in many languages, a casual ok is not enough for risky actions, unclear answers stay unanswered", async () => withApp(undefined, async ({ w }) => {
+  const yn = w.__aegis.yesNo;
+  for (const s of ["yes please", "haan ji kar do", "ہاں", "हाँ", "sí", "oui", "ja", "はい", "go ahead"]) assert.strictEqual(yn(s, "send_email"), true, s);
+  for (const s of ["no", "nahi", "نہیں", "नहीं", "don't do it", "mat karo", "non", "いいえ", "haan ya nahi"]) assert.strictEqual(yn(s, "send_email"), false, s);
+  assert.strictEqual(yn("ok", "send_email"), true);
+  assert.strictEqual(yn("ok", "power_action"), null);        // shutting down needs a clear yes
+  assert.strictEqual(yn("yes", "power_action"), true);
+  assert.strictEqual(yn("what time is it", "send_email"), null);
+}));
+
+T("how they sounded: slow + hesitant speech is noticed, normal speech sends nothing; deep thinking is recognised in any wording", async () => withApp(undefined, async ({ w }) => {
+  const a = w.__aegis;
+  assert.strictEqual(a.makeVibe("what is the weather like today in lahore", { vibe: { speechMs: 2600, avg: 0.04, pauses: 0 } }), null);
+  const slow = a.makeVibe("um I think I need to check my schedule", { vibe: { speechMs: 7000, avg: 0.02, pauses: 3 } });
+  assert.strictEqual(slow.pace, "slow"); assert.strictEqual(slow.hesitant, true);
+  const fast = a.makeVibe("open my inbox and read me the latest three emails right now please", { vibe: { speechMs: 2500, avg: 0.04, pauses: 0 } });
+  assert.strictEqual(fast.pace, "fast");
+  for (const s of ["think deeply about my budget", "gehrai se socho is plan ke baare mein", "take your time with this", "گہرائی سے سوچ کر بتاؤ"]) assert.ok(a.DEEP_RX.test(s), s);
+  assert.ok(!a.DEEP_RX.test("what is the weather"));
+}));
+
 T("emotion tags never reach the screen, the clipboard text or the read-back", async () => withApp(undefined, async ({ w }) => {
   const el = w.document.createElement("div");
   w.__aegis.rich(el, "[warm] Good morning! [joy] Your report is ready.\n\n[curious] Shall I send it?");

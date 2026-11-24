@@ -966,6 +966,11 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     sess.voice = bool(msg.get("voice"))
                     sess.callme = " ".join(str(msg.get("callme", "")).split())[:30]
                     sess.lang = "".join(ch for ch in str(msg.get("lang", "")).lower() if ch.isalpha() or ch == "-")[:16]
+                    v = msg.get("vibe") if isinstance(msg.get("vibe"), dict) else {}
+                    sess.vibe = {k: v[k] for k, ok in (("pace", ("slow", "normal", "fast")), ("energy", ("low", "normal", "high"))) if v.get(k) in ok}
+                    if v.get("hesitant") is True:
+                        sess.vibe["hesitant"] = True
+                    sess.deep = msg.get("deep") is True
                     t = asyncio.create_task(handle_chat(text))
                     sess.task = t
                     tasks.add(t)
@@ -992,6 +997,15 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     await send({"type": "ai_set", "ok": True, "provider": "server", "label": "Server default", "model": settings.MODEL})
                 elif kind == "confirm_response":
                     hub.resolve(msg.get("id"), bool(msg.get("ok")), uid)
+                elif kind == "wrap" and not sess.busy:
+                    async def do_wrap():
+                        try:
+                            await get_agent().recap(sess)
+                        except Exception:
+                            log.exception("recap failed")  # a recap is a nicety: it must never disturb the chat
+                    t = asyncio.create_task(do_wrap())
+                    tasks.add(t)
+                    t.add_done_callback(tasks.discard)
                 elif kind == "reset" and not sess.busy:
                     sess.history.clear()
                     db.clear_messages(uid)

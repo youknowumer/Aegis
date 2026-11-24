@@ -238,7 +238,7 @@
       this._rec.start(250);
       this._fire("onstart", {});
       const t0 = performance.now();
-      let noise = 0, nN = 0, speechMs = 0, lastSpeech = 0, heard = false, last = t0;
+      let noise = 0, nN = 0, speechMs = 0, lastSpeech = 0, heard = false, last = t0, rmsSum = 0, rmsN = 0, pauses = 0, gapAt = 0;
       this._timer = setInterval(() => {
         an.getFloatTimeDomainData(buf);
         let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
@@ -246,12 +246,18 @@
         if (window.__aegisOrb && window.__aegisOrb.setLevel) window.__aegisOrb.setLevel(Math.min(1, rms * 9));
         if (now - t0 < 260) { noise += rms; nN++; return; }          // learn the room's background noise first
         const thr = Math.min(0.035, Math.max(0.014, (noise / Math.max(1, nN)) * 2.6 + 0.006)); // capped: speaking right after the click must not be mistaken for room noise
-        if (rms > thr) { speechMs += dt; lastSpeech = now; if (speechMs > 140) heard = true; }
+        if (rms > thr) {
+          speechMs += dt; lastSpeech = now; rmsSum += rms; rmsN++;
+          if (speechMs > 140) heard = true;
+          if (gapAt && heard && now - gapAt > 450) pauses++;      // a pause in the middle of speaking: hesitation
+          gapAt = 0;
+        } else if (heard && !gapAt) gapAt = now;
         if (heard && now - lastSpeech > (speechMs > 6000 ? 1100 : 800)) this._finish();       // you stopped talking
         else if (!heard && now - t0 > 9000) { this._noSpeech = true; this._finish(); }          // nobody spoke
       }, 40);
       this._maxT = setTimeout(() => this._finish(), 45000);
       this._heard = () => heard;
+      this._stats = () => ({ avg: rmsN ? rmsSum / rmsN : 0, speechMs, pauses });
     }
     _finish() {
       if (this._finishing || this._done) return;
@@ -270,7 +276,7 @@
         const r = await transcribe(this._blob, { lang: this.lang === "auto" ? "" : this.lang, prompt: "Aegis." });
         const text = String(r.text || "").trim();
         if (!text) return this._fail("no-speech");
-        this._fire("onresult", { resultIndex: 0, language: r.language || "", results: [Object.assign([{ transcript: text }], { isFinal: true })] });
+        this._fire("onresult", { resultIndex: 0, language: r.language || "", vibe: this._stats ? this._stats() : null, results: [Object.assign([{ transcript: text }], { isFinal: true })] });
         this._end();
       } catch (e) {
         if (this._dead) return;

@@ -859,22 +859,23 @@
         break;
       case "mood": window.AegisFeel = { intensity: Math.max(1, Math.min(5, m.intensity || 3)), at: Date.now() }; showMood(m.mood, m.feeling); break;
       case "status": setDevice(m.device); break;
-      case "delta": onDelta(m.text || ""); break;
+      case "delta": clearCues(); onDelta(m.text || ""); break;
       case "delta_end": endStream(); break;
-      case "stopped": endStream(); setBusy(false); toast("Stopped."); break;
+      case "stopped": clearCues(); endStream(); setBusy(false); toast("Stopped."); break;
       case "reminder": onReminder(m); break;
       case "alert": alertUser(m.text); break;   // proactive heads-up from the server (meeting soon, habits open, spending)
       case "tool": addTool(m); break;
       case "tool_done": doneTool(m); break;
       case "confirm": confirmQueue.push(m); showConfirm(); break;
       case "reply":
+        clearCues();
         setBusy(false, true); // speak() re-syncs the microphone once it knows whether Aegis will talk
         if (!endStream(m.text)) addMsg("ai", m.text);
         setUsage(m.used, m.limit);
         loadMemory(); loadTasks(); loadReminders();
         speak(m.text);
         break;
-      case "error": endStream(); setBusy(false); addMsg("err", m.text); break;
+      case "error": clearCues(); confirmVoice = false; endStream(); setBusy(false); addMsg("err", m.text); break;
       case "cleared": clearChat(); break;
       case "ai_set": onAiSet(m); break;
     }
@@ -924,10 +925,13 @@
     clearTimeout(confirmTimer);
     confirmTimer = setTimeout(() => answerConfirm(false), CONFIRM_SECONDS * 1000); // the server also gives up after 60s
     stopSpeaking();
-    syncVoice();
+    clearCues();
+    confirmVoice = false;
+    if (voiceTurnLive() && hasTTS) askByVoice(m, title); else syncVoice();
   }
   function answerConfirm(ok) {
     clearTimeout(confirmTimer);
+    confirmVoice = false;
     const m = confirmQueue.shift();
     if (m) send({ type: "confirm_response", id: m.id, ok });
     const dlg = $("confirm");
@@ -1029,8 +1033,13 @@
     followUp = false;
     addMsg("user", text);
     if (spokenTurn) noteLang(text);
-    send({ type: "chat", text, tz: TZ, voice: spokenTurn, callme: callMe(), lang: spokenTurn ? spokenHint : "" });
+    const deep = DEEP_RX.test(text);
+    const vibe = spokenTurn ? lastVibe : null;
+    lastVibe = null;
+    turnsSinceWrap++;
+    send({ type: "chat", text, tz: TZ, voice: spokenTurn, callme: callMe(), lang: spokenTurn ? spokenHint : "", vibe: vibe || undefined, deep: deep || undefined });
     setBusy(true);
+    armCues(deep);
   }
   $("composer").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -1319,6 +1328,123 @@
   }
   let netFails = 0;
 
+  // ================================================================ voice brain: how I SOUND, thinking cues, spoken approvals, recaps
+  // ---- 1. How the person sounded (pace, energy, hesitation) travels with their words, so the reply can fit the mood behind them.
+  let lastVibe = null, talkStartAt = 0;
+  const FILLER_RX = /(?:^|\s)(?:um+|uh+|er+|hmm+|umm+|matlab|ya'?ani|aa+h?|mmm+|ہمم|مطلب|یعنی|एम+|मतलब|यानी)(?:\s|$)/i;
+  function makeVibe(text, ev) {
+    const words = /[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/.test(text) ? Math.ceil(text.replace(/\s/g, "").length / 2) : text.trim().split(/\s+/).length;
+    const st = ev && ev.vibe;
+    const sec = st && st.speechMs ? st.speechMs / 1000 : talkStartAt ? (Date.now() - talkStartAt) / 1000 : 0;
+    const v = { pace: "normal", energy: "normal", hesitant: false };
+    if (words >= 4 && sec > 0.8) { const wps = words / sec; v.pace = wps < 1.35 ? "slow" : wps > 3.4 ? "fast" : "normal"; }
+    if (st && st.avg) {                                           // loudness is judged against this person's own usual level (rooms and mics differ a lot)
+      const base = parseFloat(safeGet("aegis_rms_base")) || st.avg;
+      const ratio = st.avg / base;
+      v.energy = ratio < 0.62 ? "low" : ratio > 1.55 ? "high" : "normal";
+      safeSet("aegis_rms_base", String(base * 0.85 + st.avg * 0.15));
+    }
+    v.hesitant = !!((st && st.pauses >= 2) || FILLER_RX.test(" " + text.toLowerCase() + " "));
+    return v.pace === "normal" && v.energy === "normal" && !v.hesitant ? null : v;
+  }
+
+  // ---- 2. Thinking out loud: a short, natural line when an answer takes a while, in the language the person spoke.
+  const CUES = {
+    en: { think: ["Hmm, let me think about that.", "One moment, let me look into it.", "Give me a second."], deep: ["Let me think this through carefully."], more: ["Still on it, almost there.", "Bear with me, this one needs a little more work."] },
+    "roman-urdu": { think: ["Hmm, zara sochne dein.", "Ek second, dekh rahi hoon.", "Bas ek lamha."], deep: ["Is par main gehrai se sochti hoon."], more: ["Abhi kaam kar rahi hoon, bas thodi der.", "Thoda sa intezar, yeh zara lamba kaam hai."] },
+    ur: { think: ["ہمم، ذرا سوچنے دیجیے۔", "ایک لمحہ، میں دیکھتی ہوں۔"], deep: ["میں اس پر گہرائی سے سوچتی ہوں۔"], more: ["ابھی کام کر رہی ہوں، بس تھوڑی دیر۔"] },
+    hi: { think: ["हम्म, ज़रा सोचने दीजिए।", "एक पल, मैं देखती हूँ।"], deep: ["मैं इस पर गहराई से सोचती हूँ।"], more: ["अभी काम कर रही हूँ, बस थोड़ी देर।"] },
+    ar: { think: ["همم، دعني أفكر قليلاً.", "لحظة من فضلك."], deep: ["سأفكر في هذا بعمق."], more: ["ما زلت أعمل على ذلك، لحظات فقط."] },
+    es: { think: ["Mmm, déjame pensarlo.", "Un momento, lo miro."], deep: ["Déjame pensarlo con calma."], more: ["Sigo con ello, ya casi."] },
+    fr: { think: ["Hmm, laissez-moi réfléchir.", "Un instant, je regarde."], deep: ["Je réfléchis à cela avec soin."], more: ["J'y travaille encore, presque fini."] },
+    de: { think: ["Hmm, lass mich kurz nachdenken.", "Einen Moment, ich schaue nach."], deep: ["Ich denke das sorgfältig durch."], more: ["Ich bin noch dran, gleich fertig."] },
+    tr: { think: ["Hmm, bir düşüneyim.", "Bir saniye, bakıyorum."], deep: ["Bunu dikkatlice düşüneyim."], more: ["Hâlâ üzerinde çalışıyorum, az kaldı."] },
+    ru: { think: ["Хм, дайте подумать.", "Секунду, посмотрю."], deep: ["Я обдумаю это внимательно."], more: ["Ещё работаю, почти готово."] },
+    pt: { think: ["Hmm, deixa eu pensar.", "Um momento, vou ver."], deep: ["Deixa eu pensar com calma."], more: ["Ainda estou nisso, quase lá."] },
+    it: { think: ["Mmm, fammi pensare.", "Un attimo, controllo."], deep: ["Ci penso con attenzione."], more: ["Ci sto ancora lavorando, quasi fatto."] },
+    zh: { think: ["嗯，让我想一想。", "稍等，我看一下。"], deep: ["让我仔细想一想。"], more: ["还在处理，马上就好。"] },
+    ja: { think: ["うーん、考えさせてください。", "少々お待ちください。"], deep: ["じっくり考えてみますね。"], more: ["まだ作業中です、もう少しです。"] },
+  };
+  const cueBase = () => {
+    if (spokenHint && CUES[spokenHint]) return spokenHint;
+    const b = String(spokenHint || $("lang").value || "en").split("-")[0];
+    return CUES[b] ? b : "en";
+  };
+  const pickOf = (a) => a[Math.floor(Math.random() * a.length)];
+  let cueT1 = 0, cueT2 = 0, cueDeep = false, cueSaid = 0;
+  function clearCues() { clearTimeout(cueT1); clearTimeout(cueT2); cueT1 = cueT2 = 0; }
+  function armCues(deep) {
+    clearCues(); cueDeep = !!deep; cueSaid = 0;
+    if (!spokenTurn) return;
+    const c = CUES[cueBase()];
+    cueT1 = setTimeout(() => { if (!busy || confirmVoice) return; cueSaid++; speak(pickOf(cueDeep ? c.deep : c.think), true, { emotion: "curious", cue: true }); }, cueDeep ? 900 : 2800);
+    cueT2 = setTimeout(() => { if (!busy || confirmVoice) return; cueSaid++; speak(pickOf(c.more), true, { emotion: "calm", cue: true }); }, 11000);
+  }
+  const DEEP_RX = /\b(?:think (?:deeply|carefully|hard|it through)|deep(?:ly)? think|think this through|take your time|step by step|gehrai se (?:soch|socho)|achi tarah (?:soch|socho)|dhyan se (?:soch|socho))\b|گہرائی سے سوچ|سوچ سمجھ کر|गहराई से सोच/i;
+
+  // ---- 3. Approvals by voice: "Should I send this? Say yes or no." works in any language, hands free.
+  let confirmVoice = false, confirmTries = 0;
+  const YES_STRONG = new Set(["yes", "yeah", "yep", "yup", "confirm", "confirmed", "allow", "approve", "approved", "haan", "han", "ہاں", "हाँ", "हां", "نعم", "sí", "si", "oui", "ja", "sim", "evet", "да", "是", "好", "はい", "네", "iya", "sì"]);
+  const YES_SOFT = new Set(["ok", "okay", "sure", "ji", "جی", "जी", "bilkul", "بالکل", "बिल्कुल", "theek", "ٹھیک", "ठीक", "claro", "vale", "d'accord", "tamam", "конечно", "certo", "好的", "ha"]);
+  const NO_SET = new Set(["no", "nope", "nah", "stop", "cancel", "deny", "denied", "dont", "don't", "abort", "nahi", "nahin", "nhi", "na", "ruko", "نہیں", "نا", "رکو", "منسوخ", "नहीं", "ना", "रुको", "لا", "لأ", "non", "nein", "não", "nao", "hayır", "hayir", "yok", "нет", "不", "不要", "取消", "いいえ", "やめて", "아니", "안돼", "tidak", "jangan", "nunca", "annulla", "abbrechen", "annuler", "cancelar", "iptal"]);
+  const YES_PH = ["go ahead", "do it", "please do", "send it", "kar do", "kardo", "kr do", "haan ji", "ji haan", "theek hai", "thik hai", "ٹھیک ہے", "جی ہاں", "کر دو", "कर दो", "ठीक है", "आगे बढ़ो", "adelante", "vas-y", "mach es", "faça", "fai pure"];
+  const NO_PH = ["don't", "do not", "mat karo", "mat kro", "never mind", "nevermind", "not now", "cancel karo", "ruk jao", "مت کرو", "رک جاؤ", "मत करो", "रुक जाओ", "no lo hagas", "ne le fais pas", "tu es nicht"];
+  const HIGH_RISK = new Set(["power_action", "forget", "delete_routine", "delete_habit", "close_app", "chrome_eval", "delete_note", "delete_contact", "delete_event"]);
+  function yesNo(text, tool) {
+    const t = " " + String(text || "").toLowerCase().replace(/[’‘]/g, "'").replace(/[^\p{L}\p{M}\p{N}' ]+/gu, " ").replace(/\s+/g, " ").trim() + " ";
+    const toks = t.trim().split(" ");
+    if (NO_PH.some((p) => t.includes(" " + p + " ")) || toks.some((w) => NO_SET.has(w))) return false;
+    const strong = toks.some((w) => YES_STRONG.has(w)) || YES_PH.some((p) => t.includes(" " + p + " "));
+    if (strong) return true;
+    if (toks.some((w) => YES_SOFT.has(w))) return HIGH_RISK.has(tool) ? null : true;     // for something hard to undo, a casual "ok" is not enough
+    return null;
+  }
+  const APPROVE_ASK = {
+    en: "Say yes to allow, or no to cancel.", "roman-urdu": "Allow karne ke liye haan bolein, cancel ke liye nahi.", ur: "اجازت کے لیے ہاں، منسوخ کرنے کے لیے نہیں بولیے۔", hi: "अनुमति के लिए हाँ, रद्द करने के लिए नहीं बोलिए।",
+    ar: "قل نعم للموافقة أو لا للإلغاء.", es: "Di sí para permitir, o no para cancelar.", fr: "Dites oui pour autoriser, ou non pour annuler.", de: "Sagen Sie Ja zum Erlauben oder Nein zum Abbrechen.",
+    tr: "İzin için evet, iptal için hayır deyin.", ru: "Скажите «да», чтобы разрешить, или «нет», чтобы отменить.", pt: "Diga sim para permitir, ou não para cancelar.", it: "Di' sì per consentire, o no per annullare.",
+    zh: "说“是”表示允许，说“不”表示取消。", ja: "許可するなら「はい」、やめるなら「いいえ」と言ってください。",
+  };
+  const APPROVE_AGAIN = {
+    en: "Sorry, was that a yes or a no?", "roman-urdu": "Maaf kijiye, haan ya nahi?", ur: "معذرت، ہاں یا نہیں؟", hi: "माफ़ कीजिए, हाँ या नहीं?", ar: "آسفة، نعم أم لا؟", es: "Perdona, ¿sí o no?", fr: "Pardon, oui ou non ?",
+    de: "Entschuldigung, ja oder nein?", tr: "Pardon, evet mi hayır mı?", ru: "Простите, да или нет?", pt: "Desculpa, sim ou não?", it: "Scusa, sì o no?", zh: "抱歉，是还是不是？", ja: "すみません、はいですか、いいえですか？",
+  };
+  const APPROVE_SCREEN = {
+    en: "Okay, please tap Allow or Deny on the screen.", "roman-urdu": "Theek hai, screen par Allow ya Deny dabaiye.", ur: "ٹھیک ہے، اسکرین پر اجازت یا انکار دبائیے۔", hi: "ठीक है, स्क्रीन पर Allow या Deny दबाइए।",
+    ar: "حسناً، اضغط سماح أو رفض على الشاشة.", es: "Vale, pulsa Permitir o Denegar en la pantalla.", fr: "D'accord, touchez Autoriser ou Refuser à l'écran.", de: "Okay, tippe auf dem Bildschirm auf Erlauben oder Ablehnen.",
+    tr: "Tamam, ekranda İzin ver veya Reddet'e dokunun.", ru: "Хорошо, нажмите «Разрешить» или «Отклонить» на экране.", pt: "Certo, toque em Permitir ou Negar na tela.", it: "Va bene, tocca Consenti o Nega sullo schermo.", zh: "好的，请在屏幕上点“允许”或“拒绝”。", ja: "わかりました、画面で「許可」か「拒否」を押してください。",
+  };
+  const voiceBase = () => (spokenHint && APPROVE_ASK[spokenHint] ? spokenHint : (String($("lang").value || "en").split("-")[0] in APPROVE_ASK ? String($("lang").value).split("-")[0] : "en"));
+  const voiceTurnLive = () => spokenTurn || awake || convo;
+  function askByVoice(m, title) {
+    if (!SR && !groqOn()) return syncVoice();
+    confirmTries = 0;
+    const a = m.args || {};
+    const what = m.tool === "send_email" ? title + " To " + (a.to || "").slice(0, 60) + (a.subject ? ". Subject: " + String(a.subject).slice(0, 70) + "." : ".") : title;
+    const line = "[concern] " + what + "\n\n[calm] " + APPROVE_ASK[voiceBase()];
+    speak(line, true, { emotion: undefined, approval: true, onend: () => { if ($("confirm").open) { confirmVoice = true; syncVoice(); } } });
+  }
+  function handleConfirmSpeech(text) {
+    const m = confirmQueue[0];
+    const verdict = m ? yesNo(text, m.tool) : null;
+    addMsg("user", text);
+    if (verdict === null) {
+      if (++confirmTries >= 2) { confirmVoice = false; speak(APPROVE_SCREEN[voiceBase()], true, { emotion: "calm" }); return; }
+      confirmVoice = false;
+      return speak(APPROVE_AGAIN[voiceBase()], true, { emotion: "curious", onend: () => { if ($("confirm").open) { confirmVoice = true; syncVoice(); } } });
+    }
+    confirmVoice = false;
+    answerConfirm(verdict);
+  }
+
+  // ---- 4. A short recap of a real conversation is kept as a memory when it ends, so next time Aegis can pick the thread up.
+  let turnsSinceWrap = 0;
+  function sendWrap() {
+    if (turnsSinceWrap < 3 || !ws || ws.readyState !== 1 || !wsOpen) return;
+    turnsSinceWrap = 0;
+    send({ type: "wrap" });
+  }
+
   let wakeDebounce = 0, wakeStartedAt = 0;
   // Soft two-note chime the moment I wake: instant feedback, nothing to fetch, nothing for the mic to hear back.
   function chime() {
@@ -1375,7 +1501,7 @@
     const useGroq = kind === "once" && groqOn();
     if ((!SR && !useGroq) || (kind === "wake" && !SR) || rec) return;
     const r = useGroq ? new AegisGroq.Recognizer() : new SR();
-    rec = r; recKind = kind; recGotFinal = false; recErr = "";
+    rec = r; recKind = kind; recGotFinal = false; recErr = ""; talkStartAt = 0;
     if (kind === "once") followUp = false;
     r.lang = recLang(kind, useGroq);
     r.interimResults = true;
@@ -1419,11 +1545,14 @@
         return;
       }
       netFails = 0;
+      if (!talkStartAt && (interim || final)) talkStartAt = Date.now();
       setInterim(interim || final);
       if (final) {
-        recGotFinal = true; noSpeechStreak = 0; noteLang(final, e.language); stopRec();
+        recGotFinal = true; noSpeechStreak = 0; noteLang(final, e.language); lastVibe = makeVibe(final, e); talkStartAt = 0; stopRec();
+        if (confirmVoice && $("confirm").open) return handleConfirmSpeech(final);
         if (awake && SLEEP_RE.test(final)) {            // "thanks, that's all": go back to sleep politely
           sleepNow();
+          sendWrap();
           addMsg("user", final);
           const bye = /^ur/.test($("lang").value) || /[\u0600-\u06ff]/.test(final) ? "ٹھیک ہے۔" : ["Standing by.", "Anytime.", "Just say my name."][Math.floor(Math.random() * 3)];
           addMsg("ai", bye); speak(bye, true);
@@ -1458,7 +1587,9 @@
       setInterim("");
       const wasManual = manual;
       manual = false;
-      if (kind === "once" && !recGotFinal && !wasManual && (recErr === "no-speech" || recErr === "")) {
+      if (kind === "once" && !recGotFinal && confirmVoice && $("confirm").open) {            // nobody answered the spoken approval
+        if (++confirmTries >= 2) { confirmVoice = false; speak(APPROVE_SCREEN[voiceBase()], true, { emotion: "calm" }); }
+      } else if (kind === "once" && !recGotFinal && !wasManual && (recErr === "no-speech" || recErr === "")) {
         if (awake) sleepNow();                                   // you went quiet: back to waiting for my name
         else if (convo && !gated() && ++noSpeechStreak >= 3) { convo = false; syncToggles(); toast("Voice mode paused: I didn't hear anything."); }
       }
@@ -1491,8 +1622,9 @@
 
   // One place decides what the microphone should be doing right now.
   function syncVoice() {
-    if (!canListen() || !authed || busy || speaking || $("confirm").open) return stopRec(); // instant commands need no server, so voice works before the AI link is up
-    const want = manual || followUp || awake || (convo && !gated()) ? "once" : (wake || gated()) && gestured && SR ? "wake" : null;
+    const confirming = confirmVoice && $("confirm").open;                                   // a spoken approval is being waited for: the mic must listen even though the AI is "busy"
+    if (!canListen() || !authed || (busy && !confirming) || speaking || ($("confirm").open && !confirming)) return stopRec(); // instant commands need no server, so voice works before the AI link is up
+    const want = confirming ? "once" : manual || followUp || awake || (convo && !gated()) ? "once" : (wake || gated()) && gestured && SR ? "wake" : null;
     if (!want) return stopRec();
     if (rec && recKind === want) return;
     if (rec) { stopRec(); return void setTimeout(syncVoice, 80); }
@@ -1717,7 +1849,7 @@
     convo = $("voice-mode").checked;
     noSpeechStreak = 0;
     if (convo) { $("speak").checked = true; safeSet("aegis_speak", "1"); }
-    if (!convo) sleepNow(true);
+    if (!convo) { sleepNow(true); sendWrap(); }
     if (convo && gated()) toast('Voice mode on. Say \u201c' + wakeName() + '\u201d and ask me anything. Say \u201cthanks\u201d when you are done. Keep this tab open.', 7000);
     syncVoice();
   });
@@ -2075,6 +2207,6 @@
     setToken(t) { token = t; safeSet(TOKEN_KEY, t); if (desktop) desktop.setToken(t); },
     logout: () => logout(),
   }; // used by meetings.js and account.js
-  if (window.__AEGIS_TEST__) window.__aegis = { extractWake, rich, labelFor, noteLang, recLang, lastLangNow: () => lastLang };
+  if (window.__AEGIS_TEST__) window.__aegis = { extractWake, rich, labelFor, noteLang, recLang, yesNo, makeVibe, cueBase, DEEP_RX, lastLangNow: () => lastLang };
   start();
 })();
