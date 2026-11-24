@@ -20,6 +20,7 @@
   const fmtSize = (b) => (b >= 1048576 ? (b / 1048576).toFixed(b >= 104857600 ? 0 : 1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB");
   const fmtDate = (d) => { try { return new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); } catch { return "-"; } };
   const set = (id, t) => { const el = $(id); if (el) el.textContent = t; };
+  const show = (id, t) => { set(id, t); const box = $(id + "-box"); if (box) box.hidden = false; };   // fields appear only when GitHub gave a real value
   const toastHtml = (html) => { if (toast) { toast.innerHTML = html; toast.hidden = false; } };
 
   btn.setAttribute("href", url);
@@ -40,16 +41,35 @@
         if (!j) { say("The installer is not uploaded yet. The web app works today."); return; }
         const a = (j.assets || []).find((x) => /\.exe$/i.test(x.name || ""));
         if (!a) { missing = "asset"; say("The installer is not uploaded yet. The web app works today."); return; }
-        set("dl-ver", j.tag_name || j.name || "Latest");
         set("dl-file", a.name);
         set("dl-size", fmtSize(a.size));
-        set("dl-date", fmtDate(j.published_at || a.updated_at));
-        set("dl-count", Number(a.download_count || 0).toLocaleString());
+        if (j.tag_name || j.name) show("dl-ver", j.tag_name || j.name);
+        if (j.published_at || a.updated_at) show("dl-date", fmtDate(j.published_at || a.updated_at));
+        if (typeof a.download_count === "number") show("dl-count", a.download_count.toLocaleString());
         say("Latest release " + (j.tag_name || "") + ", ready to download.", true);
         const all = $("dl-releases"); if (all && j.html_url) all.href = j.html_url;
       })
       .catch(() => { /* GitHub unreachable: leave the button working */ });
   }
+
+  // Browsers do not report progress for a normal file download, so this shows an honest animation
+  // (no fake percentage): starting, downloading, then "started" with the next step.
+  const prog = $("dl-prog"), pt = $("dl-ptitle"), ps = $("dl-psub");
+  let t1, t2;
+  const animate = () => {
+    if (!prog) return;
+    clearTimeout(t1); clearTimeout(t2);
+    prog.hidden = false; prog.className = "dl-prog is-run";
+    pt.textContent = "Starting download…"; ps.textContent = "Aegis-Setup.exe";
+    btn.classList.add("busy"); btn.textContent = "Downloading…";
+    t1 = setTimeout(() => { pt.textContent = "Downloading Aegis-Setup.exe"; ps.textContent = "Your browser is saving the file. Watch its downloads list for progress."; }, 1300);
+    t2 = setTimeout(() => {
+      prog.className = "dl-prog is-done";
+      pt.textContent = "Download started";
+      ps.innerHTML = "Open Aegis-Setup.exe when it finishes. If SmartScreen appears, choose <b>More info</b>, then <b>Run anyway</b>.";
+      btn.classList.remove("busy"); btn.textContent = "Download now";
+    }, 5000);
+  };
 
   btn.addEventListener("click", (e) => {
     if (missing) {
@@ -57,7 +77,7 @@
       toastHtml("<b>The installer is not uploaded yet.</b> It will appear here as soon as it is published. Meanwhile, the <a href=\"app.html\">web app</a> works today.");
       return;
     }
-    say("Download started.", true);
-    toastHtml("<b>Download started.</b> When it finishes, open the file. If SmartScreen appears, choose More info, then Run anyway.");
+    if (toast) toast.hidden = true;
+    animate();
   });
 })();

@@ -20,7 +20,7 @@
   <link rel="preload" href="fonts/inter-tight-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <script src="theme-boot.js"></script>
   <link rel="stylesheet" href="landing.css">
-  <link rel="stylesheet" href="landing-pro.css">
+  <link rel="stylesheet" href="landing-pro.css?v=15">
   <link rel="stylesheet" href="landing-hero.css">
   <link rel="stylesheet" href="landing-vela.css">
   <link rel="stylesheet" href="landing-vela-page.css">
@@ -500,17 +500,21 @@
       <div class="get-actions">
         <a class="btn solid big" href="app.html">Open the web app</a>
         <a id="dl-btn" class="btn solid big" href="https://github.com/youknowumer/Aegis/releases/latest/download/Aegis-Setup.exe" download="Aegis-Setup.exe">Download now</a>
+        <div class="dl-prog" id="dl-prog" role="status" aria-live="polite" hidden>
+          <svg class="dl-ico" viewBox="0 0 48 48" aria-hidden="true"><path class="dl-tray" d="M10 30v8h28v-8"/><g class="dl-arrow"><path d="M24 8v22M15 22l9 9 9-9"/></g><path class="dl-chk" d="M13 25l8 8 15-17"/></svg>
+          <div class="dl-ptxt"><b id="dl-ptitle"></b><span id="dl-psub"></span><div class="dl-bar"><i></i></div></div>
+        </div>
         <p class="fine dl-status" id="dl-status" role="status">Windows 10 and 11, 64-bit. About 138 MB.</p>
       </div>
     </div>
 
     <div class="dlx" data-reveal>
-      <dl class="dl-rel" id="dl-rel" aria-label="Latest Windows release">
-        <div><dt>Version</dt><dd id="dl-ver">Latest</dd></div>
+      <dl class="dl-rel" id="dl-rel" aria-label="Windows installer">
         <div><dt>File</dt><dd id="dl-file">Aegis-Setup.exe</dd></div>
         <div><dt>Size</dt><dd id="dl-size">about 138 MB</dd></div>
-        <div><dt>Released</dt><dd id="dl-date">&ndash;</dd></div>
-        <div><dt>Downloads</dt><dd id="dl-count">&ndash;</dd></div>
+        <div hidden id="dl-ver-box"><dt>Version</dt><dd id="dl-ver"></dd></div>
+        <div hidden id="dl-date-box"><dt>Released</dt><dd id="dl-date"></dd></div>
+        <div hidden id="dl-count-box"><dt>Downloads</dt><dd id="dl-count"></dd></div>
       </dl>
       <div class="dl-cols">
         <div>
@@ -538,7 +542,7 @@
           <p>Updates arrive by themselves every 4 hours. Your data stays in <code>%APPDATA%\aegis-desktop</code>, even after you uninstall.</p>
         </div>
       </div>
-      <p class="dl-toast" id="dl-toast" role="status" hidden><b>Download started.</b> When it finishes, open the file. If SmartScreen appears, choose More info, then Run anyway.</p>
+      <p class="dl-toast" id="dl-toast" role="status" hidden></p>
       <p class="fine dl-alt">Prefer your own server? Run <code>start-local.bat</code> on Windows or <code>./start-local.sh</code> on Mac and Linux, then open <code>localhost:8000/app.html</code>. <a id="dl-releases" href="https://github.com/youknowumer/Aegis/releases" target="_blank" rel="noopener">All releases</a></p>
     </div>
   </section>
@@ -633,12 +637,12 @@
   <a class="btn glass" href="#download" tabindex="-1">Windows app</a>
 </div>
 
-<script src="landing.js"></script>
+<script src="landing.js?v=15"></script>
 <script src="landing-fx.js"></script>
 <script src="landing-pro.js"></script>
 <script src="landing-vela.js"></script>
 <script src="landing-vela-page.js"></script>
 <script src="landing-motion.js"></script>
-<script src="landing-download.js"></script>
+<script src="landing-download.js?v=15"></script>
 </body>
 </html>
