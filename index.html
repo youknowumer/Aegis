@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="landing-pro.css">
   <link rel="stylesheet" href="landing-hero.css">
   <link rel="stylesheet" href="landing-vela.css">
+  <link rel="stylesheet" href="landing-vela-page.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -113,7 +114,7 @@
 
   <!-- ============ SEE IT WORK (the interactive demo, moved out of the hero) ============ -->
   <section class="see wrap" id="see">
-    <div class="see-in">
+    <div class="see-in scene" data-hue="1"><span class="stk s-see" data-ic="0" aria-hidden="true"></span>
       <div class="see-copy" data-reveal>
         <p class="eyebrow">See it work</p>
         <h2>Ask in plain English. Watch every step.</h2>
@@ -180,13 +181,13 @@
   </section>
 
   <!-- ============ INTERFACE ============ -->
-  <section id="interface" class="ui-sec wrap">
+  <section id="interface" class="ui-sec wrap" data-hue="2">
     <div class="block-head" data-reveal>
       <p class="eyebrow">The interface</p>
       <h2>One calm screen for your day, your chat and every step Aegis takes</h2>
       <p>Tasks and reminders on the left, the conversation in the middle, a live activity log and device status on the right. Nothing happens out of sight.</p>
     </div>
-    <div class="ui-frame" data-reveal>
+    <div class="ui-frame scene" data-reveal data-hue="2"><span class="stk s-ui" data-ic="1" aria-hidden="true"></span>
       <div class="mock" role="img" aria-label="Illustration of the Aegis interface with a task list, a conversation and an activity panel">
         <div class="mk-col">
           <div class="mk-card"><div class="mk-time">15:41<small>03</small></div><div class="mk-sub">Tuesday &middot; 17 November</div></div>
@@ -229,7 +230,7 @@
   </section>
 
   <!-- ============ VOICE ============ -->
-  <section id="voice" class="split wrap">
+  <section id="voice" class="split wrap scene" data-hue="3"><span class="stk s-voice" data-ic="2" aria-hidden="true"></span>
     <div class="split-copy" data-reveal>
       <p class="eyebrow">Voice assistant</p>
       <h2>Call it by name. It answers like a person.</h2>
@@ -254,7 +255,7 @@
   </section>
 
   <!-- ============ MEETINGS ============ -->
-  <section id="meetings" class="split rev wrap">
+  <section id="meetings" class="split rev wrap scene" data-hue="4"><span class="stk s-meet" data-ic="3" aria-hidden="true"></span>
     <figure class="mtmock" id="mtmock" data-reveal aria-label="Illustration of live meeting notes">
       <div class="mt-top"><span class="mt-rec"><i></i>Recording</span><span class="mt-time" id="mt-time">00:00</span><span class="mt-eng">Groq Whisper</span></div>
       <div class="mt-live">
@@ -282,7 +283,7 @@
   </section>
 
   <!-- ============ WHAT IT DOES ============ -->
-  <section id="what" class="block wrap">
+  <section id="what" class="block wrap" data-hue="1">
     <div class="block-head" data-reveal>
       <h2>Everything you would do by hand, said in one sentence</h2>
       <p>Aegis plans the steps and carries them out until the job is done. These are the real tools it has today.</p>
@@ -320,7 +321,7 @@
   </section>
 
   <!-- ============ INSTANT COMMANDS ============ -->
-  <section id="commands" class="cmds-sec wrap">
+  <section id="commands" class="cmds-sec wrap" data-hue="2">
     <div class="cmd-wrap">
       <div class="block-head" data-reveal>
         <p class="eyebrow">Instant commands</p>
@@ -384,7 +385,7 @@
   </section>
 
   <!-- ============ HOW ============ -->
-  <section id="how" class="block wrap">
+  <section id="how" class="block wrap" data-hue="3">
     <div class="block-head" data-reveal>
       <h2>From your sentence to a finished job</h2>
       <p>Start in the browser. Add the Windows app when you want Aegis to use your computer.</p>
@@ -436,7 +437,7 @@
   </section>
 
   <!-- ============ PLATFORM ============ -->
-  <section id="platform" class="wrap">
+  <section id="platform" class="wrap" data-hue="1">
     <div class="block-head" data-reveal>
       <p class="eyebrow">Under the hood</p>
       <h2>Built for depth, not just demos</h2>
@@ -453,7 +454,7 @@
   </section>
 
   <!-- ============ PLANS ============ -->
-  <section id="plans" class="block wrap plans-sec">
+  <section id="plans" class="block wrap plans-sec" data-hue="4">
     <div class="aurora small" aria-hidden="true"><i class="b1" data-speed="-0.08"></i><i class="b2" data-speed="0.1"></i></div>
     <div class="block-head" data-reveal>
       <h2>Start free, move up when you need more messages</h2>
@@ -466,7 +467,7 @@
         <p>For trying Aegis and everyday small jobs.</p>
         <a class="btn glass" href="app.html?mode=register">Start free</a>
       </article>
-      <article class="plan feat">
+      <article class="plan feat scene" data-hue="2">
         <h3>Basic</h3>
         <p class="num"><span data-count="150">150</span> <small>messages a day</small></p>
         <p>For daily use at work or study.</p>
@@ -484,7 +485,7 @@
 
   <!-- ============ DOWNLOAD ============ -->
   <section id="download" class="wrap">
-    <div class="get" data-reveal>
+    <div class="get scene" data-reveal data-hue="4"><span class="stk s-get" data-ic="0" aria-hidden="true"></span>
       <div>
         <h2>Use it in the browser, or give it your PC</h2>
         <p>The web app runs anywhere but cannot touch your computer. The Windows app adds PC control, with the same account and the same memory.</p>
@@ -498,7 +499,7 @@
   </section>
 
   <!-- ============ FAQ ============ -->
-  <section id="faq" class="block wrap">
+  <section id="faq" class="block wrap" data-hue="3">
     <div class="block-head" data-reveal>
       <h2>Questions people ask first</h2>
     </div>
@@ -566,6 +567,7 @@
       <p>Built for people who like to stay in control.</p>
     </div>
   </div>
+  <div class="foot-mark" id="foot-mark" aria-hidden="true">aegis</div>
 </footer>
 
 <button type="button" class="to-top" id="to-top" aria-label="Back to top">
@@ -582,5 +584,6 @@
 <script src="landing-fx.js"></script>
 <script src="landing-pro.js"></script>
 <script src="landing-vela.js"></script>
+<script src="landing-vela-page.js"></script>
 </body>
 </html>
