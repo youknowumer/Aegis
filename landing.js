@@ -15,22 +15,7 @@
     $("start-link").href = "app.html";
   }
 
-  // Relative path, so it also works under github.io/<repo>/
-  const enableDownload = (href) => {
-    const b = $("dl-btn");
-    if (href) b.setAttribute("href", href);
-    b.textContent = "Download for Windows";
-    b.classList.remove("disabled", "glass");
-    b.classList.add("solid");
-    b.setAttribute("aria-disabled", "false");
-  };
-  const dlUrl = (window.AEGIS_CONFIG && window.AEGIS_CONFIG.DOWNLOAD_URL) || "";
-  if (/^https:\/\//.test(dlUrl)) enableDownload(dlUrl);   // e.g. GitHub Releases: can't be probed from the browser (CORS), so trust the setting
-  else {
-    fetch("downloads/Aegis-Setup.exe", { method: "HEAD" })
-      .then((r) => { if (r.ok) enableDownload(""); })
-      .catch(() => {});
-  }
+  // Download button logic lives in landing-download.js (release check, file size, SmartScreen guidance).
 
   // ------------------------------------------------------------ hero headline: words blur in once
   const h1 = document.querySelector(".hero h1");

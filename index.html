@@ -494,13 +494,52 @@
     <div class="get scene" data-reveal data-hue="4"><span class="stk s-get" data-ic="0" aria-hidden="true"></span>
       <div>
         <h2>Use it in the browser, or give it your PC</h2>
-        <p>The web app runs anywhere but cannot touch your computer. The Windows app adds PC control, with the same account and the same memory.</p>
+        <p>The web app runs anywhere but cannot touch your computer. The Windows app adds PC control, with the same account and the same memory. It ships its own private server, so there is nothing else to install.</p>
         <p class="fine">Windows 10 and 11, 64-bit. Not signed with a publisher certificate yet, so Windows SmartScreen may show a warning on first run.</p>
       </div>
       <div class="get-actions">
         <a class="btn solid big" href="app.html">Open the web app</a>
         <a id="dl-btn" class="btn glass big disabled" href="downloads/Aegis-Setup.exe" aria-disabled="true">Windows app is coming soon</a>
+        <p class="fine dl-status" id="dl-status" role="status">Checking the latest release&hellip;</p>
       </div>
+    </div>
+
+    <div class="dlx" data-reveal>
+      <dl class="dl-rel" id="dl-rel" aria-label="Latest Windows release">
+        <div><dt>Version</dt><dd id="dl-ver">Latest</dd></div>
+        <div><dt>File</dt><dd id="dl-file">Aegis-Setup.exe</dd></div>
+        <div><dt>Size</dt><dd id="dl-size">about 138 MB</dd></div>
+        <div><dt>Released</dt><dd id="dl-date">&ndash;</dd></div>
+        <div><dt>Downloads</dt><dd id="dl-count">&ndash;</dd></div>
+      </dl>
+      <div class="dl-cols">
+        <div>
+          <h3>Before you install</h3>
+          <ul>
+            <li>Windows 10 or 11, 64-bit.</li>
+            <li>Internet for the AI, voice and live data.</li>
+            <li>An AI key: Groq has a free tier, or use Claude, OpenAI or Gemini.</li>
+            <li>Python is not needed. It is bundled.</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Install in five steps</h3>
+          <ol>
+            <li>Run <b>Aegis-Setup.exe</b> and choose a folder.</li>
+            <li>Open Aegis. It starts its own server on this PC only.</li>
+            <li>Create an account. It is stored locally.</li>
+            <li>Open <b>Settings &gt; AI provider</b>, paste the key, press Test, then Save.</li>
+            <li>Say &ldquo;Hey Aegis&rdquo; and talk.</li>
+          </ol>
+        </div>
+        <div>
+          <h3>If Windows warns you</h3>
+          <p>The installer is not code-signed yet, so SmartScreen may say &ldquo;Unknown publisher&rdquo; once. Download only from this page or the official Releases page, then choose <b>More info</b> and <b>Run anyway</b>.</p>
+          <p>Updates arrive by themselves every 4 hours. Your data stays in <code>%APPDATA%\aegis-desktop</code>, even after you uninstall.</p>
+        </div>
+      </div>
+      <p class="dl-toast" id="dl-toast" role="status" hidden><b>Download started.</b> When it finishes, open the file. If SmartScreen appears, choose More info, then Run anyway.</p>
+      <p class="fine dl-alt">Prefer your own server? Run <code>start-local.bat</code> on Windows or <code>./start-local.sh</code> on Mac and Linux, then open <code>localhost:8000/app.html</code>. <a id="dl-releases" href="https://github.com/youknowumer/Aegis/releases" target="_blank" rel="noopener">All releases</a></p>
     </div>
   </section>
 
@@ -521,6 +560,14 @@
       <details>
         <summary>Does it work on Mac or Linux?</summary>
         <div class="ans"><p>The web app works in any browser. PC control, meaning opening apps, typing and key presses, is Windows-only for now.</p></div>
+      </details>
+      <details>
+        <summary>Windows says &ldquo;Unknown publisher&rdquo;. Is the installer safe?</summary>
+        <div class="ans"><p>The installer is not signed with a publisher certificate yet, which is why SmartScreen warns on the first run. Download it only from this page or the official GitHub Releases page, then choose More info and Run anyway.</p></div>
+      </details>
+      <details>
+        <summary>How does the Windows app update?</summary>
+        <div class="ans"><p>It checks for a new version every 4 hours, downloads it in the background and offers Restart now or Later. Your account, memory and settings are kept.</p></div>
       </details>
       <details>
         <summary>What does it remember about me?</summary>
@@ -592,5 +639,6 @@
 <script src="landing-vela.js"></script>
 <script src="landing-vela-page.js"></script>
 <script src="landing-motion.js"></script>
+<script src="landing-download.js"></script>
 </body>
 </html>
