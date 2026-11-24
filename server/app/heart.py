@@ -134,7 +134,85 @@ def extract_memories(text: str, now: Optional[datetime] = None) -> List[dict]:
     m = re.search(r"\b(?:mera|meri|mere)\s+(" + _EVENT_WORDS + r")\s+(" + r"kal|aaj|parson|[\w ]{3,20}" + r")\s+(?:hai|hain|he)\b", raw, re.I)
     if m:
         add(f"They have an {m.group(1).lower()} {_clean(m.group(2))} (said on {stamp})", "event", True)
-    return out[:6]
+
+    # pets
+    m = re.search(r"\bmy (dog|cat|puppy|kitten|parrot|rabbit|horse|fish|bird)(?:['’]s name)?\s+(?:is named|is called|name is|named|called|is)\s+" + _NAME_ANY, raw, re.I)
+    if m and m.group(2).lower() not in ("a", "an", "the", "so", "very", "sick", "ill", "here", "not", "named", "called"):
+        add(f"Their {m.group(1).lower()} is called {m.group(2).capitalize()}", "person", True)
+    m = re.search(r"\bi have (?:a|an|two|three)\s+(dog|cat|puppy|kitten|parrot|rabbit|horse)s?\s+(?:named|called)\s+" + _NAME_ANY, raw, re.I)
+    if m:
+        add(f"They have a {m.group(1).lower()} called {m.group(2).capitalize()}", "person", True)
+    # health: allergies, conditions, fears (always kept, they matter)
+    m = re.search(r"\bi(?:'m| am) allergic to\s+([^.,!;?]{2,40})", raw, re.I) or re.search(r"\bmujhe\s+([^.,!;?]{2,30}?)\s+se\s+allergy\s+hai", raw, re.I)
+    if m:
+        add(f"They are allergic to {_clean(m.group(1))}", "fact", True)
+    m = re.search(r"\bi (?:have|suffer from|was diagnosed with)\s+(diabetes|asthma|migraines?|anxiety|depression|adhd|epilepsy|high blood pressure|hypertension|insomnia|arthritis)\b", raw, re.I)
+    if m:
+        add(f"They have {m.group(1).lower()} (be considerate about it)", "fact", True)
+    m = re.search(r"\bi(?:'m| am) (?:scared|afraid|terrified) of\s+([^.,!;?]{2,40})", raw, re.I) or re.search(r"\bmujhe\s+([^.,!;?]{2,30}?)\s+se\s+(?:dar|darr)\s+lagta\b", raw, re.I)
+    if m:
+        add(f"They are afraid of {_clean(m.group(1))}", "emotion", True)
+    # favourites
+    m = re.search(r"\bmy fav(?:ou?rite)?\s+([a-z ]{2,20}?)\s+(?:is|are)\s+([^.,!;?]{2,40})", raw, re.I)
+    if m:
+        add(f"Their favourite {_clean(m.group(1))} is {_clean(m.group(2))}", "preference")
+    # who they are: job title, age, family changes
+    m = re.search(r"\bi(?:'m| am) an?\s+((?:[a-z]+ ){0,2}(?:engineer|developer|designer|doctor|nurse|teacher|student|lawyer|accountant|manager|writer|artist|freelancer|entrepreneur|founder|driver|chef|pilot|researcher|analyst))\b", raw, re.I)
+    if m:
+        add(f"They are {'an' if m.group(1)[0].lower() in 'aeiou' else 'a'} {_clean(m.group(1)).lower()}", "fact")
+    m = re.search(r"\bi(?:'m| am)\s+(\d{2})\s+years?\s+old\b", raw, re.I) or re.search(r"\bmeri umar\s+(\d{2})\s+(?:saal\s+)?hai\b", raw, re.I)
+    if m and 5 <= int(m.group(1)) <= 110:
+        add(f"They are {m.group(1)} years old (said on {stamp})", "fact")
+    m = re.search(r"\bi (?:just |recently )?(got married|got engaged|had a baby|became a (?:dad|father|mom|mother)|graduated|got (?:the|a) job|got hired|moved to [^.,!;?]{2,30}|lost my job|got fired|got divorced)", raw, re.I)
+    if m:
+        add(f"They {_clean(m.group(1))} (told us on {stamp})", "emotion", True)
+    return out[:8]
+
+
+# ------------------------------------------------------------------ one fact per slot: new replaces old
+_SINGULAR_REL = "mother|mom|mum|dad|father|wife|husband|boss|girlfriend|boyfriend|fiance|fiancee|partner"
+_SLOTS = [
+    (r"^their name is ", "name"),
+    (r"^they live in ", "home"),
+    (r"^they are from ", "origin"),
+    (r"^they work ", "work"),
+    (r"^they study ", "study"),
+    (r"^their birthday is ", "birthday"),
+    (r"^their anniversary is ", "anniversary"),
+    (r"^they are \d+ years old", "age"),
+    (r"^their (" + _SINGULAR_REL + r") is ", None),     # slot = the relation
+    (r"^their favourite ([a-z ]+) is ", None),          # slot = what it is a favourite of
+]
+
+
+def slot_of(text: str) -> str:
+    """'They live in Lahore' -> 'home'. Facts with a slot can only hold one value: the newest wins ('I moved' replaces the old city)."""
+    t = str(text or "").strip().lower()
+    for pat, name in _SLOTS:
+        m = re.match(pat, t)
+        if m:
+            if name:
+                return name
+            rel = m.group(1).strip().replace(" ", "_")
+            return {"mom": "mother", "mum": "mother", "dad": "father"}.get(rel, rel)
+    return ""
+
+
+def supersede(db, uid: int, text: str) -> int:
+    """After saving `text`, delete older memories that held a different value for the same slot. Returns how many were replaced."""
+    slot = slot_of(text)
+    if not slot:
+        return 0
+    n = 0
+    rows = [dict(r) for r in db.facts(uid)]  # newest first
+    newest = next((r for r in rows if r["text"].strip().lower() == text.strip().lower()), None)
+    if not newest:
+        return 0
+    for r in rows:
+        if r["id"] != newest["id"] and slot_of(r["text"]) == slot and r["text"].strip().lower() != text.strip().lower() and r["created"] <= newest["created"]:
+            db.delete_fact(uid, r["id"])
+            n += 1
+    return n
 
 
 # ------------------------------------------------------------------ recall: what to bring to mind
@@ -145,8 +223,32 @@ def _stem(w: str) -> str:
     return w
 
 
+_SYN = [
+    {"mom", "mother", "mum", "ammi", "ami", "maa", "mama"}, {"dad", "father", "abbu", "abu", "papa", "baba"},
+    {"wife", "bivi", "biwi", "spouse", "partner"}, {"husband", "shohar", "spouse", "partner"},
+    {"sister", "behen", "behan", "sis"}, {"brother", "bhai", "bro"},
+    {"birthday", "bday", "janamdin", "born"}, {"job", "work", "office", "company", "career", "employer"},
+    {"study", "studying", "university", "college", "school", "degree", "student"}, {"live", "home", "city", "stay", "rehta", "address"},
+    {"dog", "puppy", "pet"}, {"cat", "kitten", "pet"}, {"afraid", "scared", "fear", "phobia", "darr"},
+    {"allergic", "allergy", "allergies"}, {"exam", "test", "imtihan", "viva", "paper"}, {"sick", "ill", "unwell", "hospital", "bimar"},
+    {"goal", "plan", "dream", "want", "maqsad"}, {"like", "love", "enjoy", "favourite", "favorite", "pasand"},
+]
+_SYN_INDEX: Dict[str, set] = {}
+for _grp in _SYN:
+    for _w in _grp:
+        _SYN_INDEX.setdefault(_w, set()).update(_grp)
+
+
 def _tokens(text: str) -> set:
     return {_stem(w) for w in re.findall(r"\w+", str(text).lower()) if len(w) > 1}
+
+
+def _tokens_expanded(text: str) -> set:
+    """Query words plus their everyday synonyms ('mom' also looks for 'mother'). Used for the question, never for the stored memory."""
+    out = set(_tokens(text))
+    for w in re.findall(r"\w+", str(text).lower()):
+        out |= {_stem(x) for x in _SYN_INDEX.get(w, ())}
+    return out
 
 
 def _trigrams(w: str) -> set:
@@ -172,7 +274,7 @@ def _fuzzy_overlap(q: set, t: set) -> float:
 
 def memory_score(r, q: set, now: float, query_text: str = "") -> float:
     t = _tokens(r["text"])
-    rel = _fuzzy_overlap(q, t) if q else 0.0
+    rel = min(_fuzzy_overlap(q, t), 3.0) if q else 0.0
     age = max(0.0, now - (r["created"] or now)) / 86400
     half_life = 10 * (1 + r["weight"] * 2)  # days; an important memory fades 5x slower than a casual one
     recency = 0.5 ** (age / half_life)
@@ -185,7 +287,7 @@ def memory_score(r, q: set, now: float, query_text: str = "") -> float:
 def select_memories(rows, query: str = "", limit: int = 14, now: Optional[float] = None) -> list:
     """The memories that should be on Aegis's mind for this message, most relevant first."""
     now = now or time.time()
-    q = _tokens(query)
+    q = _tokens_expanded(query)
     ranked = sorted(rows, key=lambda r: -memory_score(r, q, now))
     hits = [r for r in ranked if q and _fuzzy_overlap(q, _tokens(r["text"])) >= 1][:7]
     chosen = list(hits)
@@ -223,6 +325,10 @@ def format_memories(rows, now: Optional[float] = None) -> str:
         if r["mood"] and r["mood_level"] >= 2:
             bits.append(f"they felt {r['mood']}" + (" very strongly" if r["mood_level"] >= 4 else ""))
         tag = f" [{r['kind']}]" if r["kind"] != "fact" else ""
+        if r["weight"] >= 3:
+            bits.append("important to them")
+        if int(r["uses"] or 0) >= 5:
+            bits.append("comes up often")
         lines.append(f"- {r['text']}{tag} ({', '.join(bits)})")
     return "\n".join(lines)
 
@@ -245,11 +351,26 @@ def consolidate(db, uid: int, cap: int = MEMORY_CAP, now: Optional[float] = None
             if b["id"] in gone or a["kind"] != b["kind"]:
                 continue
             wa, wb = words[a["id"]], words[b["id"]]
-            if wa and wb and len(wa & wb) / len(wa | wb) >= 0.6:
+            # people and dated events differ by one name ("Their sister is Ayesha" / "...Sana"): only merge when nearly identical
+            need = 0.8 if a["kind"] in ("person", "event") else 0.6
+            if wa and wb and len(wa & wb) / len(wa | wb) >= need:
                 db.update_fact_text(uid, a["id"], a["text"], min(5, max(a["weight"], b["weight"])))
                 db.delete_fact(uid, b["id"])
                 gone.add(b["id"])
                 merged += 1
+    seen_slots = set()
+    for r in rows:  # newest first: the first one seen for a slot is the current truth
+        if r["id"] in gone:
+            continue
+        slot = slot_of(r["text"])
+        if not slot:
+            continue
+        if slot in seen_slots:
+            db.delete_fact(uid, r["id"])
+            gone.add(r["id"])
+            merged += 1
+        else:
+            seen_slots.add(slot)
     rows = [r for r in rows if r["id"] not in gone]
     faded = 0
     if len(rows) > cap:

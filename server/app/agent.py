@@ -818,6 +818,7 @@ class Agent:
                 for m in heart.extract_memories(text, datetime.now(zone)):
                     self.db.add_fact(uid, m["text"], m["kind"], m["important"], mood=reading.mood if reading.mood != "neutral" else "",
                                      level=reading.intensity, source="auto", when_md=m["when_md"])
+                    heart.supersede(self.db, uid, m["text"])
         except Exception:
             pass  # remembering must never break a chat
         try:

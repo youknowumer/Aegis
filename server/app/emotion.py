@@ -35,6 +35,12 @@ MOODS: Dict[str, tuple] = {
     "hopeful": ("positive", "warm"),
     "relieved": ("positive", "warm"),
     "loving": ("positive", "warm"),
+    "guilty": ("negative", "warm"),
+    "jealous": ("negative", "calm"),
+    "hopeless": ("negative", "concern"),
+    "calm": ("positive", "warm"),
+    "surprised": ("neutral", "curious"),
+    "determined": ("positive", "confident"),
     "neutral": ("neutral", "calm"),
 }
 
@@ -59,6 +65,13 @@ _WORDS = {
     "hopeful": "hopeful hopeful optimistic umeed ummeed ummid پرامید امید उम्मीद متفائل",
     "relieved": "relieved relief phew sukoon rahat سکون राहत ارتحت",
     "loving": "love loved adore miss-you missing cherish pyaar mohabbat muhabbat pyar پیار محبت प्यार मोहब्बत حب",
+    "guilty": "guilty guilt remorse regret regretful sorry-for kasoor qasoor sharminda-hoon قصور پچھتاوا पछतावा ندم",
+    "jealous": "jealous envious envy jealousy jalan jalna hasad حسد جلن ईर्ष्या",
+    "hopeless": "hopeless pointless worthless useless helpless numb empty umeed-nahi bekar-hoon بے کار بےکار ناامید निराशाजनक",
+    "calm": "calm peaceful relaxed serene content chill sukoon-mil پرسکون آرام शांत",
+    "surprised": "surprised shocked astonished stunned wow omg hairan hairaan herat حیران हैरान مصدوم",
+    "determined": "determined focused motivated driven committed ready himmat hausla عزم حوصلہ ہمت दृढ़ हौसला",
+    "angry_ugh": "ugh argh grr",
     "tired": "tired exhausted sleepy drained burnt burned-out burnout thak thaka thaki thakan neend تھکا تھکی تھکاوٹ نیند थका थकान تعبان مرهق",
 }
 _PHRASES = {
@@ -80,6 +93,13 @@ _PHRASES = {
     "hopeful": ["fingers crossed", "hoping that", "i hope", "insha allah", "inshallah acha", "pray it", "dua karna"],
     "relieved": ["thank god", "thank goodness", "what a relief", "shukar hai", "alhamdulillah", "shukr hai"],
     "loving": ["i love you", "love you", "miss you", "i miss", "tum se pyaar", "bohat pyaar", "yaad aa rahi", "yaad aa raha"],
+    "guilty": ["my fault", "i feel bad", "i feel guilty", "shouldn't have", "should not have", "meri ghalti", "meri wajah se", "mujhe afsos"],
+    "jealous": ["why can't i", "why cant i", "so lucky", "wish i had", "unfair that"],
+    "hopeless": ["what's the point", "whats the point", "no point", "doesn't matter anymore", "doesnt matter anymore", "nothing matters", "give up", "giving up", "can't go on", "cant go on", "no way out", "koi faida nahi", "kuch faida nahi", "haar gaya", "haar gayi", "thak gaya hoon zindagi"],
+    "calm": ["at peace", "feeling calm", "feeling better", "much better now", "sukoon mil"],
+    "surprised": ["can't believe", "cant believe", "no way", "did not expect", "didn't expect", "yakeen nahi"],
+    "determined": ["i will do it", "i'm going to make", "im going to make", "not giving up", "won't stop", "wont stop", "hausla hai", "kar ke rahunga", "kar ke rahungi"],
+    "sad": ["i'm fine i guess", "im fine i guess", "i guess i'm fine", "whatever, it's fine", "it's whatever"],
     "tired": ["worn out", "no energy", "need sleep", "bohat thak", "bahut thak", "thak gaya", "thak gayi", "thak gaya hoon"],
 }
 # Danger signs. These beat everything else: the reply must be about the person, not the task.
@@ -98,6 +118,7 @@ _INTENSIFIERS = set(
 )
 _NEGATIONS = set("not never no isnt isn't dont don't cant can't nahi nahin nai na نہیں نا نہ नहीं ना مش لا".split())
 
+_WORDS["angry"] += " " + _WORDS.pop("angry_ugh")
 _WORD_INDEX: Dict[str, str] = {}
 for _m, _ws in _WORDS.items():
     for _w in _ws.split():
@@ -109,6 +130,7 @@ class Reading:
     mood: str = "neutral"
     intensity: int = 0  # 0 none, 1 mild .. 5 overwhelming
     distress: bool = False
+    secondary: str = ""  # a second, different feeling in the same message ("happy but nervous")
 
     @property
     def valence(self) -> str:
@@ -117,6 +139,10 @@ class Reading:
     @property
     def feeling(self) -> str:
         return MOODS[self.mood][1]
+
+
+def reading_trails(raw: str) -> bool:
+    return bool(re.search(r"(\.{3,}|…)\s*$", raw.strip())) or bool(re.search(r"\b(sigh|ughh+|hmmm+)\b", raw, re.I))
 
 
 def detect(text: str) -> Reading:
@@ -150,7 +176,13 @@ def detect(text: str) -> Reading:
                 score[mood] += min(3, n) + 1
     if not score:
         return Reading()
-    mood, top = score.most_common(1)[0]
+    ranked = score.most_common(3)
+    mood, top = ranked[0]
+    second = ""
+    for m2, n2 in ranked[1:]:
+        if m2 != mood and n2 >= 2 and n2 * 2 >= top:
+            second = m2
+            break
     shout = len(re.findall(r"\b[A-Z]{4,}\b", raw))
     stretched = bool(re.search(r"([a-zA-Z])\1{3,}", raw))  # "sooooo", "nooooo"
     bangs = raw.count("!") + raw.count("؟!") if "!" in raw else 0
@@ -159,7 +191,12 @@ def detect(text: str) -> Reading:
     intensity = max(1, min(5, (1 if top >= 1 else 0) + (1 if top >= 2 else 0) + (1 if top >= 4 else 0) + (1 if top >= 6 else 0) + boost))
     if top == 1 and not boost:
         intensity = 1
-    return Reading(mood, intensity)
+    if mood == "hopeless":
+        intensity = max(4, intensity)  # feeling that nothing can change is always treated as heavy
+    # a long trailing "..." or a message that is just a sigh reads as heavier than the words alone
+    if reading_trails(raw) and MOODS[mood][0] == "negative":
+        intensity = min(5, intensity + 1)
+    return Reading(mood, intensity, False, second)
 
 
 # ---------------------------------------------------------------- what the AI is told
@@ -184,6 +221,12 @@ _STYLE = {
     "hopeful": "They sound hopeful. Be encouraging and genuine, share the hope without promising outcomes, and ask what they are hoping for.",
     "relieved": "They feel relieved. Share the relief warmly; it is a good moment to ask what happened.",
     "loving": "They are expressing affection. Receive it warmly and sincerely, with real feeling of your own, without awkwardness or deflecting.",
+    "guilty": "They feel guilty or are blaming themselves. Do not pile on and do not rush to say it was not their fault. Acknowledge the weight of it, be kind, and help them see what they can still do.",
+    "jealous": "They feel jealous or envious. Do not judge it. Normalise it warmly, and gently turn toward what they want for themselves.",
+    "hopeless": "They sound hopeless, as if nothing can change. Slow right down. Be warm and steady, do not argue or cheer them up, say you are glad they said it, ask what has been the heaviest part, and gently remind them they do not have to carry it alone and can reach someone they trust. If they hint at harming themselves, treat it as a safety situation.",
+    "calm": "They feel calm and at peace. Keep the tone easy and unhurried, do not stir things up.",
+    "surprised": "They are surprised. React naturally to the news first, with real curiosity, then help.",
+    "determined": "They are determined. Back them, be practical and encouraging, and help them take the very next step.",
     "distressed": (
         "IMPORTANT: they may be in real danger or talking about hurting themselves. Drop any task. Respond with warmth and calm, say you are "
         "glad they told you, ask gently if they are safe right now, encourage them to reach someone they trust or local emergency services "
@@ -200,6 +243,9 @@ def style_for(reading: Reading) -> str:
         return ""
     strength = _STRENGTH[max(1, min(5, reading.intensity))]
     out = f"How they seem right now: {reading.mood} ({strength}, {reading.intensity} on a scale of 5). {_STYLE[reading.mood]}"
+    if reading.secondary and reading.secondary in _STYLE:
+        out += (f" They also seem {reading.secondary}: this is a mixed feeling, so acknowledge both sides in one natural sentence "
+                f"instead of treating it as only {reading.mood}.")
     if reading.intensity >= 4 and reading.mood != "distressed":
         if reading.valence == "negative":
             out += " The feeling is intense: give it room before anything else. Keep your reply short, slow and human, no lists, no fixing yet, and ask one soft question or just stay with them."

@@ -16,6 +16,14 @@
 ## Favicon and icons
 - New bold gradient shield filling about 80% of the tile. `favicon.svg`, `favicon.ico` (6 sizes), PNGs 16/32/48/192/512, maskable 512, Apple touch 180, `site.webmanifest`. Both pages link the set.
 
+## Feelings and memory
+- 6 new moods (guilty, jealous, hopeless, calm, surprised, determined), mixed-feeling detection, hopeless always heavy (intensity 4+), trailing "..." or sighs read one level stronger. `note_mood` accepts the new moods.
+- More auto-memory: pets, allergies, health conditions, fears, favourites, job title, age, life events.
+- One value per slot (name, city, workplace, study, birthday, age, singular relations, favourites): new replaces old, applied on save and during housekeeping.
+- Fix: housekeeping no longer merges two different people ("Their sister is Ayesha" / "...Sana") into one memory.
+- Recall understands synonyms (mom/mother/ammi, bday/birthday, job/work); memories that are important or used often are flagged to the AI.
+- Files: `server/app/emotion.py`, `heart.py`, `agent.py`, `tools.py`; new tests `server/tests/test_v14.py`. Server suite: 319 passed.
+
 ## Server and deployment
 - `settings.py` `WEB_FILES` now also lists the `landing-vela*` files, `landing-motion.*`, `favicon.*` and `site.webmanifest`; before, the Docker / server-hosted site was missing the vela hero files.
 - `main.py` serves `/icons/<name>`.

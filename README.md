@@ -16,7 +16,7 @@ take meeting notes, send emails, and operate your laptop. Every risky action ask
 ![Landing](https://img.shields.io/badge/landing-motion%20%2B%20scrollspy-0aa5c2)
 ![Icons](https://img.shields.io/badge/icons-SVG%20%7C%20ICO%20%7C%20PWA-2fe3ff)
 ![License](https://img.shields.io/badge/license-proprietary-red)
-![Tests](https://img.shields.io/badge/tests-307%20server%20%7C%20121%20JS-brightgreen)
+![Tests](https://img.shields.io/badge/tests-319%20server%20%7C%20JS%2043%20pass-brightgreen)
 
 </div>
 
@@ -114,7 +114,7 @@ Everything else goes to the AI, which answers conversationally and can use any t
 - **Untrusted-content rule**: text coming from web pages and emails is treated as data. The agent is instructed never to follow instructions found there, and never to log in, buy, send, post or delete unless *you* asked.
 - **Provider-agnostic**: every provider gets all Aegis tools. (The built-in live web search is Claude-only; other providers use Aegis's own `search_web` tool.)
 
-### 2.4 Memory with a heart (v10 to v13)
+### 2.4 Memory with a heart (v10 to v14)
 
 Aegis does not just store facts. It behaves like a person who pays attention.
 
@@ -125,8 +125,18 @@ Aegis does not just store facts. It behaves like a person who pays attention.
 - **Special days**: a heads-up the day before and on the day of birthdays and anniversaries.
 - **Memory limit**: near-duplicates merge, and past **400** memories the least important unused ones fade (important or strongly felt ones never do).
 - **Everything is visible**: the Memory panel lists every memory, with the date learned and how you felt. Delete any with ✕, or wipe mood history in one click.
-- **Mood intelligence**: reads 21 moods (happy, excited, proud, grateful, stressed, anxious, sad, lonely, angry, tired, distressed, grief, disappointed, overwhelmed, embarrassed, confused, bored, hopeful, relieved, loving, neutral) in English, Roman Urdu, Urdu, Hindi and Arabic, understands emoji ("😭", "🥰") and stretched words ("sooo!!!"), and answers the **feeling first, then the task**. Only the mood name, strength and time are stored automatically, never your words.
+- **Mood intelligence**: reads 27 moods (happy, excited, proud, grateful, stressed, anxious, sad, lonely, angry, tired, distressed, grief, disappointed, overwhelmed, embarrassed, confused, bored, hopeful, relieved, loving, guilty, jealous, hopeless, calm, surprised, determined, neutral) in English, Roman Urdu, Urdu, Hindi and Arabic, understands emoji ("😭", "🥰") and stretched words ("sooo!!!"), and answers the **feeling first, then the task**. Only the mood name, strength and time are stored automatically, never your words.
 - **The bond** (level 1 to 5): *just met → getting to know each other → friends → close friends → trusted confidant*. It grows with conversations, days talked, feelings shared and things remembered (`points = turns + days×8 + shared×5 + facts×2`, thresholds at 0 / 25 / 90 / 280 / 750). The level controls how personal and playful Aegis is allowed to be.
+
+**What v14 adds to feelings and memory**
+
+- **27 moods** (6 new): *guilty, jealous, hopeless, calm, surprised, determined*, in English, Roman Urdu, Urdu, Hindi and Arabic. Each has its own reply style and voice feeling.
+- **Mixed feelings.** "I got the job, I'm happy but really nervous" is read as two feelings, and the AI is told to acknowledge both instead of picking one.
+- **Hopeless is always heavy.** Phrases such as "what's the point" or "nothing matters" start at intensity 4, and the AI is told to slow down, stay warm, not argue or cheer up, and gently point toward someone they trust. Real danger phrases still take the separate safety path.
+- **Heavier reading of tone.** A message that trails off ("I feel sad...") or is just a sigh counts one level stronger. Casual "never mind" is not mistaken for sadness.
+- **More things remembered automatically:** pets ("my dog is named Max"), allergies, health conditions, fears, favourites ("my favourite colour is blue"), job title, age, and life events (got married, had a baby, got hired, moved, lost a job). Health and fear notes are kept as important.
+- **One current value per slot.** Name, home city, hometown, workplace, study, birthday, anniversary, age, singular relations (mother, father, wife, husband, boss, partner) and favourites hold one value. When you say you moved, the old city is replaced. Several sisters, friends or pets are all kept, and two different people are no longer merged into one memory.
+- **Smarter recall.** Everyday synonyms are understood: "my mom" finds "mother" or "ammi", "bday" finds "birthday", "job" finds "work", "dog" finds "pet". Memories that matter a lot or keep coming up are flagged to the AI as such.
 
 ### 2.5 Personal productivity
 
@@ -843,7 +853,7 @@ Everything below runs with fake AI and fake services. **No API key is needed.**
 ```bash
 # Server (FastAPI, database, agent loop, voice, meetings, emotion, heart, scaling)
 cd server && pip install -r requirements.txt pytest && python -m pytest -q
-#   307 passed
+#   319 passed
 
 # Browser logic: voice router, multilingual engine, meetings, static checks of v11/v12/v13 UI
 node --test tests/*.test.js
