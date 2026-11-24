@@ -109,3 +109,68 @@ body:not(.calm) .qcard:hover::after { background: radial-gradient(200px circle a
   .orb-zone::after { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .orb-ripples, #fx-dust { display: none; } }
+
+/* ======================= sign-up details (v14) ======================= */
+.reg-only[hidden] { display: none !important; }
+
+/* progress checklist */
+.reg-steps { list-style: none; margin: 0 0 16px; padding: 0 0 10px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; position: relative; font-size: 11.5px; color: var(--muted); }
+.reg-steps li { display: flex; align-items: center; gap: 6px; font-weight: 600; transition: color .3s; }
+.reg-steps li i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--line-2); position: relative; flex: none; transition: background-color .3s, border-color .3s, transform .4s cubic-bezier(.3, 1.6, .5, 1); }
+.reg-steps li.ok { color: var(--text-2); }
+.reg-steps li.ok i { background: var(--good); border-color: var(--good); transform: scale(1.15); }
+.reg-steps li.ok i::after { content: ""; position: absolute; left: 3px; top: 0; width: 3px; height: 6px; border: solid #04121a; border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); }
+.reg-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.reg-bar b { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, var(--accent), var(--good)); transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
+
+/* typo suggestion + password generator */
+.suggest { display: inline-flex; margin-top: 6px; padding: 5px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--accent); background: rgba(var(--ac), .09); border: 1px solid rgba(var(--ac), .28); cursor: pointer; }
+.suggest:hover { background: rgba(var(--ac), .16); }
+.suggest[hidden] { display: none; }
+.gen-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: -4px 0 14px; }
+.gen-btn { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 9px; font-size: 12.5px; font-weight: 600; color: var(--accent); background: transparent; border: 1px dashed rgba(var(--ac), .45); cursor: pointer; transition: background-color .2s, border-color .2s, transform .2s; }
+.gen-btn:hover { background: rgba(var(--ac), .1); border-style: solid; }
+.gen-btn:active { transform: scale(.97); }
+.gen-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.gen-btn.pop svg { animation: gen-spin .7s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes gen-spin { from { transform: rotate(-180deg) scale(.4); } }
+.gen-note { font-size: 12px; color: var(--good); }
+.gen-note:empty { display: none; }
+.crack { margin: -4px 0 10px; font-size: 12px; color: var(--muted); }
+.crack[hidden] { display: none; }
+
+/* terms checkbox */
+.terms { display: flex; gap: 10px; align-items: flex-start; margin: 2px 0 14px; font-size: 12.5px; line-height: 1.45; color: var(--text-2); cursor: pointer; }
+.terms input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.terms .box { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 6px; border: 1.5px solid var(--line-2); display: grid; place-items: center; transition: background-color .2s, border-color .2s, box-shadow .2s; }
+.terms .box svg { width: 12px; height: 12px; fill: none; stroke: #04121a; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset .3s ease; }
+.terms input:checked + .box { background: var(--accent); border-color: var(--accent); }
+.terms input:checked + .box svg { stroke-dashoffset: 0; }
+.terms input:focus-visible + .box { box-shadow: 0 0 0 4px rgba(var(--ac), .25); }
+.terms[hidden] { display: none; }
+
+/* submit button: dim until the checklist is complete, glow when ready */
+#auth-card[data-mode="register"]:has(#reg-steps:not([data-n="4"])) #auth-submit:not(.loading):not(.success) { filter: saturate(.55) brightness(.9); }
+#auth-card[data-mode="register"]:has(#reg-steps[data-n="4"]) #auth-submit:not(.loading):not(.success) { box-shadow: 0 0 0 0 rgba(var(--ac), .5), 0 10px 26px -10px rgba(var(--ac), .7); }
+
+/* success burst */
+.burst { position: absolute; left: 50%; top: 42%; width: 0; height: 0; pointer-events: none; z-index: 5; }
+.burst i { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: hsl(var(--h) 90% 62%); animation: burst 1s cubic-bezier(.2, .8, .3, 1) forwards; }
+@keyframes burst { from { transform: translate(0, 0) scale(1); opacity: 1; } to { transform: translate(var(--x), var(--y)) scale(.2); opacity: 0; } }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* register fields cascade in when you switch to Create account */
+  #auth-card[data-mode="register"] .reg-only:not([hidden]) { animation: reg-in .55s cubic-bezier(.2, .8, .2, 1) both; }
+  #auth-card[data-mode="register"] #reg-steps { animation-delay: 0s; }
+  #auth-card[data-mode="register"] #gen-row { animation-delay: .06s; }
+  #auth-card[data-mode="register"] #fld-confirm { animation-delay: .1s; }
+  #auth-card[data-mode="register"] #crack { animation-delay: .12s; }
+  #auth-card[data-mode="register"] #terms-row { animation-delay: .16s; }
+  @keyframes reg-in { from { opacity: 0; transform: translateY(14px); filter: blur(6px); } }
+  /* labels lift and glow while a field is focused */
+  .fld:focus-within .lbl { color: var(--accent); transition: color .2s; }
+  /* the form card gets a slow animated border light */
+  .auth-card::before { background: conic-gradient(from var(--ang, 0deg), transparent 0 70%, rgba(var(--ac), .55) 85%, transparent 100%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: card-spin 7s linear infinite; }
+  @property --ang { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+  @keyframes card-spin { to { --ang: 360deg; } }
+}

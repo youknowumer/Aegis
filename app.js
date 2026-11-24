@@ -256,6 +256,8 @@
     $("auth-error").textContent = "";
     $("auth-card").classList.remove("shake");
     $("strength").hidden = $("rules").hidden = $("auth-legal").hidden = mode === "login";
+    document.querySelectorAll(".reg-only").forEach((el) => { el.hidden = mode === "login"; });
+    $("auth-card").dataset.mode = mode;
     document.dispatchEvent(new CustomEvent("aegis:authmode", { detail: mode }));
   }
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => setAuthMode(t.dataset.mode)));
@@ -282,6 +284,10 @@
     if (!/^\S+@\S+\.\S+$/.test($("email").value.trim())) { $("email").focus(); return fail("Enter a valid email address."); }
     if ($("password").value.length < 8 && authMode === "register") { $("password").focus(); return fail("Your password needs at least 8 characters."); }
     if (!$("password").value) { $("password").focus(); return fail("Enter your password."); }
+    if (authMode === "register") {
+      if ($("password2").value !== $("password").value) { $("password2").focus(); return fail("The two passwords do not match."); }
+      if (!$("terms").checked) { $("terms").focus(); return fail("Tick the box to confirm you agree."); }
+    }
     btn.disabled = true;
     btn.classList.add("loading");
     try {
@@ -291,8 +297,9 @@
       });
       token = data.token;
       safeSet(TOKEN_KEY, token);
-      $("password").value = "";
+      $("password").value = ""; $("password2").value = "";
       btn.classList.remove("loading");
+      document.dispatchEvent(new CustomEvent("aegis:authok", { detail: authMode }));
       btn.classList.add("success");
       btn.querySelector(".btn-label").textContent = authMode === "login" ? "Welcome back" : "Account created";
       await new Promise((r) => setTimeout(r, 650));

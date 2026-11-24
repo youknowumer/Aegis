@@ -1037,6 +1037,14 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         for name in settings.WEB_FILES:
             if (settings.WEB_DIR / name).is_file():
                 app.add_api_route("/" + name, serve(name), include_in_schema=False)
+        icons_dir = settings.WEB_DIR / "icons"
+        if icons_dir.is_dir():
+            def icon_file(name: str):
+                p = icons_dir / name
+                if "/" in name or "\\" in name or not p.is_file():
+                    raise HTTPException(404)
+                return FileResponse(p)
+            app.add_api_route("/icons/{name}", icon_file, include_in_schema=False)
         if (settings.WEB_DIR / "index.html").is_file():
             app.add_api_route("/", serve("index.html"), include_in_schema=False)
     return app

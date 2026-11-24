@@ -4,7 +4,8 @@ COPY server/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY server/ /srv/server/
 # Website files: the server also serves them, so http://<server>/ works without GitHub Pages too.
-COPY *.html *.js *.css /srv/
+COPY *.html *.js *.css favicon.svg favicon.ico site.webmanifest /srv/
+COPY icons/ /srv/icons/
 COPY fonts/ /srv/fonts/
 COPY assets/ /srv/assets/
 # Run as a normal user, not root. /data holds the database (mount a volume there).
