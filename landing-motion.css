@@ -79,3 +79,64 @@
 }
 @media (prefers-reduced-motion: reduce) { .v-sparks, .v-spot { display: none; } }
 @media (max-width: 760px) { .hero-sec.vela .vic, .hero-sec.vela .vword, .hero-sec.vela .v-bg { translate: none; } }
+
+/* ======================= smoothness + detailing (v14.1) ======================= */
+html { scroll-padding-top: 84px; overscroll-behavior-y: none; scrollbar-gutter: stable; text-size-adjust: 100%; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+::selection { background: rgb(var(--spot, 47 227 255) / .28); }
+:focus-visible { outline: 2px solid rgb(var(--spot, 47 227 255)); outline-offset: 3px; border-radius: 6px; }
+a, button, summary { -webkit-tap-highlight-color: transparent; }
+img, svg, canvas { max-width: 100%; }
+/* every moving thing is promoted once, not on every frame */
+.demo, .mock, .vmock, .mtmock, .plan, .cap, .cmd, .node, .stk { backface-visibility: hidden; }
+
+/* sliding indicator under the active nav link */
+.links { position: relative; }
+.nav-ind { position: absolute; left: 0; bottom: -6px; height: 2px; width: 0; border-radius: 2px; background: rgb(var(--spot, 47 227 255)); opacity: 0;
+  transform: translateX(var(--nx, 0)); transition: transform .45s cubic-bezier(.2, .8, .2, 1), width .45s cubic-bezier(.2, .8, .2, 1), opacity .3s; pointer-events: none; }
+.nav-ind.on { opacity: 1; }
+.links a.active { opacity: 1; }
+
+/* smart header: slides away on scroll down, returns on scroll up */
+.nav { transition: transform .45s cubic-bezier(.2, .8, .2, 1), background-color .3s, border-color .3s, box-shadow .3s; }
+.nav.hide { transform: translateY(-110%); }
+
+/* section rail (desktop): dots with labels */
+.rail { position: fixed; right: 18px; top: 50%; z-index: 25; display: none; flex-direction: column; gap: 4px; transform: translateY(-50%); opacity: 0; transition: opacity .4s; }
+.rail.on { opacity: 1; }
+.rail a { position: relative; display: block; width: 22px; height: 22px; }
+.rail a::before { content: ""; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px; border-radius: 50%; background: currentColor; opacity: .3; transition: transform .35s cubic-bezier(.3, 1.6, .5, 1), opacity .3s, background-color .3s; }
+.rail a:hover::before { opacity: .8; transform: scale(1.3); }
+.rail a.active::before { opacity: 1; transform: scale(1.7); background: rgb(var(--spot, 47 227 255)); box-shadow: 0 0 0 4px rgb(var(--spot, 47 227 255) / .18); }
+.rail a span { position: absolute; right: 26px; top: 50%; transform: translate(8px, -50%); padding: 4px 9px; border-radius: 7px; font-size: 12px; font-weight: 600; white-space: nowrap; background: var(--ink, #111); color: var(--paper, #fff); opacity: 0; pointer-events: none; transition: opacity .25s, transform .3s cubic-bezier(.2, .8, .2, 1); }
+.rail a:hover span, .rail a:focus-visible span { opacity: 1; transform: translate(0, -50%); }
+@media (min-width: 1280px) { .rail { display: flex; color: var(--ink, currentColor); } }
+
+/* FAQ: answers glide open and closed (Chrome 131+; others open instantly as before) */
+@supports (interpolate-size: allow-keywords) {
+  .faq details { interpolate-size: allow-keywords; }
+  .faq details::details-content { block-size: 0; overflow: clip; opacity: 0; transition: block-size .5s cubic-bezier(.2, .8, .2, 1), opacity .4s, content-visibility .5s allow-discrete; }
+  .faq details[open]::details-content { block-size: auto; opacity: 1; }
+}
+
+/* page-leave fade when jumping to the app */
+body { transition: opacity .28s ease, filter .28s ease; }
+body.leaving { opacity: 0; filter: blur(6px); }
+
+/* back-to-top shows a ring that fills with reading progress */
+.to-top { --p: 0; }
+.to-top::before { content: ""; position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(rgb(var(--spot, 47 227 255)) calc(var(--p) * 360deg), transparent 0); -webkit-mask: radial-gradient(circle, transparent 60%, #000 62%); mask: radial-gradient(circle, transparent 60%, #000 62%); pointer-events: none; }
+
+/* pointer tilt on cards (JS sets --tx/--ty) */
+@media (prefers-reduced-motion: no-preference) and (hover: hover) {
+  .tilt, .js [data-reveal].in.tilt { transform: perspective(900px) rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg)); transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .45s, border-color .3s; }
+  .tilt.on, .js [data-reveal].in.tilt.on { transition: transform .08s linear, box-shadow .45s, border-color .3s; }
+
+  /* section headings underline-sweep once revealed */
+  .block-head h2, .get h2 { background-image: linear-gradient(90deg, rgb(var(--spot, 47 227 255) / .35), transparent); background-repeat: no-repeat; background-position: 0 100%; background-size: 0 .08em; transition: background-size 1.2s cubic-bezier(.2, .8, .2, 1) .5s; }
+  .in .block-head h2, .block-head.in h2, .get.in h2 { background-size: 100% .08em; }
+
+  /* footer columns rise in */
+  .foot-col, .foot-about { animation: m-rise-view linear both; animation-timeline: view(); animation-range: entry 0% entry 60%; }
+  @keyframes m-rise-view { from { opacity: 0; transform: translateY(24px); } }
+}
+@media (prefers-reduced-motion: reduce) { body.leaving { opacity: 1; filter: none; } .nav.hide { transform: none; } }

@@ -112,3 +112,123 @@
     else new MutationObserver((_, mo) => { if (host.classList.contains("in")) { e.classList.add("in"); mo.disconnect(); } }).observe(host, { attributes: true, attributeFilter: ["class"] });
   });
 })();
+
+// ======================= smoothness + detailing (v14.1) =======================
+(() => {
+  "use strict";
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const NAV = 84;
+
+  // ---- eased anchor scrolling (replaces the browser's linear jump; keeps URL hash and focus correct)
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  let anim = 0;
+  // target is a function so late layout changes (images, fonts, reveals) never make the scroll land short or long
+  function scrollToY(target, ms) {
+    cancelAnimationFrame(anim);
+    const from = scrollY, first = target();
+    if (reduce || Math.abs(first - from) < 2) { scrollTo({ top: first, behavior: "instant" }); return; }
+    const t0 = performance.now(), dur = ms || clamp(Math.abs(first - from) / 2.2, 450, 1200);
+    const stop = () => cancelAnimationFrame(anim);
+    addEventListener("wheel", stop, { once: true, passive: true });
+    addEventListener("touchstart", stop, { once: true, passive: true });
+    const step = (now) => { const k = clamp((now - t0) / dur); scrollTo({ top: from + (target() - from) * ease(k), behavior: "instant" }); if (k < 1) anim = requestAnimationFrame(step); };
+    anim = requestAnimationFrame(step);
+  }
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest && e.target.closest('a[href^="#"]');
+    if (!a || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    const id = a.getAttribute("href").slice(1);
+    const el = id ? document.getElementById(id) : document.body;
+    if (!el) return;
+    e.preventDefault();
+    scrollToY(() => (id ? Math.max(0, el.getBoundingClientRect().top + scrollY - (id === "top" ? 0 : NAV) + 1) : 0));
+    history.pushState(null, "", id ? "#" + id : location.pathname);
+    el.setAttribute("tabindex", "-1"); el.focus({ preventScroll: true });
+  });
+
+  // ---- fade out when leaving for the app, and warm the app page on hover
+  document.querySelectorAll('a[href^="app.html"]').forEach((a) => {
+    const warm = () => { if (a.dataset.warm) return; a.dataset.warm = "1"; const l = document.createElement("link"); l.rel = "prefetch"; l.href = "app.html"; document.head.appendChild(l); };
+    a.addEventListener("pointerenter", warm, { once: true }); a.addEventListener("focus", warm, { once: true });
+    a.addEventListener("click", (e) => {
+      if (reduce || e.metaKey || e.ctrlKey || e.shiftKey || a.target === "_blank") return;
+      e.preventDefault(); document.body.classList.add("leaving");
+      setTimeout(() => { location.href = a.href; }, 240);
+    });
+  });
+  addEventListener("pageshow", () => document.body.classList.remove("leaving"));
+
+  // ---- scrollspy: nav indicator + section rail
+  const links = [...document.querySelectorAll("#links a[href^='#']")];
+  const secs = [...document.querySelectorAll("main section[id]")];
+  const NAMES = { top: "Top", see: "See it work", interface: "Interface", voice: "Voice", meetings: "Meetings", what: "What it does", commands: "Commands", control: "Your control", how: "How it works", platform: "Platform", plans: "Plans", download: "Download", faq: "Questions" };
+  const nl = document.getElementById("links");
+  let ind = null;
+  if (nl) { ind = document.createElement("i"); ind.className = "nav-ind"; ind.setAttribute("aria-hidden", "true"); nl.appendChild(ind); }
+  const rail = document.createElement("nav");
+  rail.className = "rail"; rail.setAttribute("aria-label", "Page sections");
+  secs.filter((s) => NAMES[s.id]).forEach((s) => {
+    const a = document.createElement("a"); a.href = "#" + s.id; a.setAttribute("aria-label", NAMES[s.id]);
+    a.innerHTML = "<span>" + NAMES[s.id] + "</span>"; rail.appendChild(a);
+  });
+  document.body.appendChild(rail);
+  const railLinks = [...rail.querySelectorAll("a")];
+  let current = "";
+  function spy() {
+    const mid = innerHeight * 0.4;
+    let id = "";
+    for (const s of secs) { const r = s.getBoundingClientRect(); if (r.top <= mid && r.bottom > mid) id = s.id; }
+    if (id === current) return;
+    current = id;
+    railLinks.forEach((a) => a.classList.toggle("active", a.getAttribute("href") === "#" + id));
+    let hit = null;
+    links.forEach((a) => { const on = a.getAttribute("href") === "#" + id; a.classList.toggle("active", on); if (on) hit = a; });
+    if (ind) {
+      if (hit) { ind.style.width = hit.offsetWidth + "px"; ind.style.setProperty("--nx", hit.offsetLeft + "px"); ind.classList.add("on"); }
+      else ind.classList.remove("on");
+    }
+  }
+
+  // ---- smart header, rail visibility, to-top ring (one rAF-throttled scroll handler)
+  const nav = document.getElementById("nav"), top = document.getElementById("to-top");
+  let lastY = scrollY, tk = false;
+  function onScroll() {
+    if (tk) return; tk = true;
+    requestAnimationFrame(() => {
+      tk = false;
+      const y = scrollY, dy = y - lastY;
+      if (nav && !reduce) {
+        if (y > 520 && dy > 6) nav.classList.add("hide");
+        else if (dy < -6 || y < 520) nav.classList.remove("hide");
+      }
+      lastY = y;
+      rail.classList.toggle("on", y > innerHeight * 0.6);
+      if (top) top.style.setProperty("--p", clamp(y / Math.max(1, document.documentElement.scrollHeight - innerHeight)).toFixed(3));
+      spy();
+    });
+  }
+  addEventListener("scroll", onScroll, { passive: true });
+  addEventListener("resize", () => { current = ""; onScroll(); });
+  nav && nav.addEventListener("focusin", () => nav.classList.remove("hide"));
+  spy();
+
+  // ---- pointer tilt on cards
+  if (fine && !reduce) {
+    document.querySelectorAll(".plan, .cap, .cmd, .node").forEach((c) => {
+      c.classList.add("tilt");
+      c.addEventListener("pointerenter", () => c.classList.add("on"));
+      c.addEventListener("pointermove", (e) => {
+        const r = c.getBoundingClientRect();
+        c.style.setProperty("--ty", (((e.clientX - r.left) / r.width - 0.5) * 6).toFixed(2) + "deg");
+        c.style.setProperty("--tx", ((0.5 - (e.clientY - r.top) / r.height) * 5).toFixed(2) + "deg");
+      }, { passive: true });
+      c.addEventListener("pointerleave", () => { c.classList.remove("on"); c.style.setProperty("--tx", "0deg"); c.style.setProperty("--ty", "0deg"); });
+    });
+  }
+
+  // ---- FAQ: only one answer open at a time
+  const dets = [...document.querySelectorAll(".faq details")];
+  dets.forEach((d) => d.addEventListener("toggle", () => { if (d.open) dets.forEach((o) => { if (o !== d) o.open = false; }); }));
+})();

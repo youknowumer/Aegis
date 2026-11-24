@@ -7,12 +7,14 @@
 **Talk to it, type to it, and let it do real work:** answer questions, remember your life, run your day,
 take meeting notes, send emails, and operate your laptop. Every risky action asks for your approval first.
 
-![Status](https://img.shields.io/badge/version-v13-6c63ff)
+![Status](https://img.shields.io/badge/version-v14-6c63ff)
 ![Backend](https://img.shields.io/badge/backend-FastAPI%20%2B%20SQLite-009688)
 ![Desktop](https://img.shields.io/badge/desktop-Electron%20(Windows)-47848f)
 ![AI](https://img.shields.io/badge/AI-Claude%20%7C%20Groq%20%7C%20OpenAI%20%7C%20Gemini%20%7C%20more-ff9800)
 ![Tools](https://img.shields.io/badge/agent%20tools-118-blue)
 ![Languages](https://img.shields.io/badge/voice-20%20languages-success)
+![Landing](https://img.shields.io/badge/landing-motion%20%2B%20scrollspy-0aa5c2)
+![Icons](https://img.shields.io/badge/icons-SVG%20%7C%20ICO%20%7C%20PWA-2fe3ff)
 ![License](https://img.shields.io/badge/license-proprietary-red)
 ![Tests](https://img.shields.io/badge/tests-307%20server%20%7C%20121%20JS-brightgreen)
 
@@ -196,7 +198,86 @@ Aegis can speak up without being asked (`AEGIS_PROACTIVE=0` turns it off):
 - **Live activity feed** of every tool the AI uses.
 - **Approval dialog** with a 60-second countdown.
 - **Command palette** (`Ctrl/⌘ K`), settings dialog, themes and accent colours (dark/light), compact orb once a chat starts, message actions (copy / read aloud / regenerate), conversation search, prompt history, slash quick-prompts, drag-and-drop a text file into the chat, export chat to Markdown, offline banner, responsive on phones.
-- **Landing page** with animated hero, live demo, voice mock, meeting mock, command list, FAQ, plans, light/dark toggle and a Windows download button.
+- **Landing page** with animated hero, live demo, voice mock, meeting mock, command list, FAQ, plans, light/dark toggle and a Windows download button. See [2.11](#211-landing-page-motion-and-navigation-v14).
+- **Sign-up form** with live validation, a progress checklist, password strength and a password suggester. See [2.12](#212-sign-up-form-v14).
+- **Brand icons** as SVG, ICO, PNG, Apple touch and installable-app (PWA) icons. See [2.13](#213-favicon-and-app-icons-v14).
+
+### 2.11 Landing page: motion and navigation (v14)
+
+The landing page (`index.html`) is plain HTML, CSS and JS with no build step. Motion is split into small files that load in order, so each layer can be changed or removed on its own:
+
+| File | What it does |
+|---|---|
+| `landing.css` · `landing.js` | Base layout, theme, reveal-on-scroll, the live demo |
+| `landing-pro.*` · `landing-fx.js` | Scroll-linked blur, word-by-word heading scrub, card spotlight, cursor light, demo tilt |
+| `landing-hero.*` | Particle shield that assembles into the logo |
+| `landing-vela*.{css,js}` | The cycling-verb hero (**Ask / Search / Automate / Connect**), tinted icons, stats strip, footer wordmark |
+| `landing-motion.{css,js}` | **v14 layer:** intro choreography, parallax, sparks, smooth scroll, scrollspy, rail, tilt, page transition |
+
+**Hero (v14)**
+
+- The coloured panel wipes open, then the headline line, both buttons, the caption, the three stats and the sprout cascade in, in that order.
+- Pointer parallax moves the background, the verb icon and the word by different amounts. It uses the independent CSS `translate` property, so it never fights the clock-driven animation of the hero.
+- A soft spotlight and about 34 drifting sparks follow the pointer (16 on phones). The spark canvas pauses when the hero is off-screen or the tab is hidden.
+- On scroll the hero panel recedes (scales down, rounds its bottom corners) and the content fades up.
+- Buttons get a light sweep on hover and a small magnetic pull toward the pointer.
+
+**Smoothness and navigation (v14)**
+
+- **Eased anchor scrolling.** Clicks on `#section` links glide with a cubic ease (450 to 1200 ms depending on distance). The target is re-measured every frame, so late layout changes never make it land short. A wheel or touch input cancels the glide at once. The URL hash and keyboard focus are updated correctly.
+- **Scrollspy.** A sliding underline in the top nav and a dotted **section rail** on the right (screens 1280 px and wider) show the section you are in. Hover a dot for its name.
+- **Smart header.** Hides while you scroll down, returns on the first upward scroll or when something in it gets keyboard focus.
+- **Reading progress.** A glowing bar at the top and a progress ring around the back-to-top button.
+- **Page transition.** Links to the app fade the page out for 240 ms, and the app page is prefetched on hover or focus so it opens faster.
+- **FAQ.** Answers open and close with a height animation (Chrome 131+; other browsers open instantly) and only one answer stays open.
+- **Cards.** 3D tilt toward the pointer (max about 6 degrees), lift and glow on hover, staggered entrance (zoom, left or right).
+- **Details.** Heading underline sweeps in, eyebrow underlines draw in, the small 3D stickers float, selection colour and focus rings follow the accent colour.
+
+**Performance and accessibility**
+
+- One `requestAnimationFrame`-throttled scroll handler drives the header, rail, progress ring and scrollspy. Scroll listeners are passive.
+- All canvas loops stop when off-screen (`IntersectionObserver`) or when the tab is hidden.
+- `prefers-reduced-motion: reduce` turns off every animation above. The hero shows its still state and anchor jumps are instant.
+- Touch devices (`hover: none`) skip parallax, tilt, magnetic buttons and the cursor light.
+- Measured in headless Chrome at 1440 x 900: **61 fps** while scrolling the full page, with no console errors.
+
+### 2.12 Sign-up form (v14)
+
+Open `app.html?mode=register` (every "Start free" button on the landing page links there). The form lives in `app.html`; its behaviour is split between `app.js` (submit, API calls) and `auth-fx.js` (all the extra detail). The server API is unchanged: it still receives only `email` and `password`.
+
+| Detail | Behaviour |
+|---|---|
+| **Progress checklist** | Four steps (Email, Password, Confirm, Agree) tick off live, with a bar that fills. The *Create account* button looks muted until all four are done, then glows. |
+| **Email check** | Green tick once the address looks complete, a gentle hint when you leave the field with a bad one. |
+| **Typo helper** | If you type `gmial.com` or `hotmial.com`, a one-click chip offers the likely fix (`gmail.com`, `outlook.com`, `hotmail.com`, `yahoo.com`, `icloud.com`, `proton.me`, `live.com`). |
+| **Password strength** | A 4-segment meter (Too short, Weak, Fair, Good, Strong) and three rules: 8+ characters, letters and numbers, upper and lower case. |
+| **Guess-time estimate** | A plain sentence under the meter, for example "Would take centuries to guess." It is a rough estimate from length and character mix, and common passwords are flagged as guessable in seconds. |
+| **Password suggester** | *Suggest a strong password* builds a readable passphrase such as `Grove-delta-pearl*72` using `crypto.getRandomValues`, fills both fields, reveals it and copies it to the clipboard when the browser allows. |
+| **Confirm password** | A second field with a live match indicator. Submitting with a mismatch is blocked with a clear message. |
+| **Terms checkbox** | Required to create an account. |
+| **Caps Lock notice** | Appears under the password field while Caps Lock is on. |
+| **Show / hide** | Eye button on the password field. |
+| **Errors** | A shake on the card and a red message. Server errors (for example "email already registered") use the same style. |
+| **Success** | The button turns green ("Account created") and a short confetti burst plays around the card before the app opens. |
+| **Motion** | Register-only fields cascade in when you switch tabs, the active tab has a sliding thumb, the card border carries a slow rotating light, and the card has a pointer-following glow. All of it is off for reduced-motion users. |
+
+Passwords are hashed with scrypt on the server and are never stored in the browser. The password suggester and the clipboard copy happen only on your device.
+
+### 2.13 Favicon and app icons (v14)
+
+The Aegis mark is now a bold gradient shield with a checkmark on a dark rounded tile, filling about 80% of the icon (it used to be a thin shield with margins, which turned to a smudge at 16 px).
+
+| File | Size | Used for |
+|---|---|---|
+| `favicon.svg` | vector | Modern browsers (sharp at any zoom) |
+| `favicon.ico` | 16 to 256 px, 6 sizes | Old browsers, Windows shortcuts, bookmarks |
+| `icons/icon-16.png` · `icon-32.png` · `icon-48.png` | 16, 32, 48 | Tab, taskbar, bookmark bar |
+| `icons/apple-touch-icon.png` | 180 | iPhone and iPad home screen (full-bleed, iOS rounds it) |
+| `icons/icon-192.png` · `icon-512.png` | 192, 512 | Android and installable-app icon |
+| `icons/icon-maskable-512.png` | 512 | Android adaptive icon (shield kept inside the safe zone) |
+| `site.webmanifest` | | Name, colours and icon list so "Add to home screen" works |
+
+Both `index.html` and `app.html` link the full set. The server serves `favicon.svg`, `favicon.ico`, `site.webmanifest` and the `icons/` folder, and the `Dockerfile` copies them. To change the brand mark, edit `favicon.svg` and re-export the PNGs (any SVG-to-PNG tool works; keep the 64 x 64 viewBox).
 
 ---
 
@@ -335,6 +416,16 @@ Keys are checked before use (no spaces, ASCII only, max 400 characters, quotes s
 ---
 
 ## 6. Using Aegis
+
+### 6.0 Creating your account
+
+1. Click **Start free** on the landing page (or open `app.html?mode=register`).
+2. Enter your email. If the domain looks misspelled, tap the suggestion.
+3. Choose a password, or tap **Suggest a strong password** and save the result in your password manager.
+4. Type it again in **Confirm password** and tick the agreement box.
+5. When all four checklist steps are green, press **Create account**. You land in the assistant straight away.
+
+Free accounts get 15 messages a day and need no card. Details of the form are in [2.12](#212-sign-up-form-v14).
 
 ### 6.1 Voice mode step by step
 
@@ -756,7 +847,7 @@ cd server && pip install -r requirements.txt pytest && python -m pytest -q
 
 # Browser logic: voice router, multilingual engine, meetings, static checks of v11/v12/v13 UI
 node --test tests/*.test.js
-#   50 tests: 43 pass, 7 skipped (the UI smoke test needs: npm install --no-save jsdom)
+#   54 tests: 43 pass, 0 fail, 11 skipped (the UI smoke test needs: npm install --no-save jsdom)
 
 # Desktop tools: files, Chrome, Outlook (against a pretend Outlook), PC pro, YouTube, local server
 cd desktop && npm install && npm test
@@ -772,8 +863,13 @@ Counts above come from a real run of this version of the project. Run `npm insta
 ```
 Aegis/
 ├─ index.html                 Landing page
-├─ landing.css · landing-pro.css · landing-hero.css
+├─ landing.css · landing-pro.css · landing-hero.css · landing-vela.css · landing-vela-page.css
+├─ landing-motion.css         v14 motion layer: intro, parallax, rail, tilt, smooth-scroll styles
 ├─ landing.js · landing-pro.js · landing-hero.js · landing-fx.js · theme-boot.js
+├─ landing-vela.js · landing-vela-page.js
+├─ landing-motion.js          v14 motion layer: hero intro, sparks, eased scroll, scrollspy, tilt
+├─ favicon.svg · favicon.ico · site.webmanifest     Brand icon set (v14)
+├─ icons/                     PNG icons: 16 / 32 / 48 / 180 / 192 / 512 / maskable
 ├─ app.html                   The assistant (login, HUD, chat, voice, settings)
 ├─ style.css · app-fx.css · meetings.css
 ├─ app.js                     Core: auth, websocket, chat, voice mode, wake word, settings
@@ -827,7 +923,7 @@ Aegis/
 ├─ start-local.sh · start-local.bat
 ├─ .github/workflows/static.yml   Publishes the website to GitHub Pages
 ├─ SETUP.md · SCALING.md
-└─ CHANGES-v4.md … CHANGES-v13.md   Per-version release notes
+└─ CHANGES-v4.md … CHANGES-v14.md   Per-version release notes
 ```
 
 ---
@@ -866,6 +962,9 @@ Honest list, so there are no surprises:
 - **Studio voice, live markets and Home Assistant** were written against the providers' documented APIs and tested with fake responses, not live accounts. Try each once.
 - **Single process**: no horizontal scaling yet (see Section 14).
 - **Not built yet**: payments, Google sign-in, installer code-signing, multi-instance scaling, a GitHub Actions workflow that builds the Windows installer (build it locally with `npm run dist`).
+- **Landing page motion** uses modern CSS (`animation-timeline`, `interpolate-size`, `@property`). Older browsers fall back to instant, still fully usable pages.
+- **Sign-up checklist** and the guess-time sentence are guidance in the browser. The server still enforces its own rules (8+ characters, unique email).
+- **Hero icons**: the four `assets/vela/*.webp` icons are fetched with `scripts/fetch-vela-icons.sh` (see `assets/vela/README.md`). Without them the hero shows a broken-image box.
 - **Free Edge voice** is not an official paid API. For a commercial product use an OpenAI or ElevenLabs key.
 
 ---
@@ -884,7 +983,8 @@ Honest list, so there are no surprises:
 | v10 | Feelings and a better memory | [CHANGES-v10.md](CHANGES-v10.md) |
 | v11 | Bug fixes, account safety, readiness for many users, spending, habits, prayer times | [CHANGES-v11.md](CHANGES-v11.md) |
 | v12 | Proactive chief-of-staff, deep research, deeper PC control | [CHANGES-v12.md](CHANGES-v12.md) |
-| **v13** | **A deeper heart: feelings on a 1 to 5 scale, person-like memory, the bond** | [CHANGES-v13.md](CHANGES-v13.md) |
+| v13 | A deeper heart: feelings on a 1 to 5 scale, person-like memory, the bond | [CHANGES-v13.md](CHANGES-v13.md) |
+| **v14** | **Landing motion and smooth navigation, detailed sign-up form, new favicon and app icons** | [CHANGES-v14.md](CHANGES-v14.md) |
 
 ---
 
