@@ -8,6 +8,9 @@
 - **Accessibility and performance**: everything respects `prefers-reduced-motion`; touch devices skip pointer effects; canvases pause off-screen; one throttled scroll handler. 61 fps in a full-page scroll test.
 - New files: `landing-motion.css`, `landing-motion.js`.
 
+## Landing colour system
+- Section-wise colour: hero sparks follow the current verb's hue; each section gets an ambient glow and top rule in its hue; nav underline, rail, back-to-top ring, cursor light cross-fade to the current section colour; cards, steps, FAQ and plans cycle through the four hues; featured plan and demo window get a travelling colour border. Fixed earlier motion rules that used an invalid colour format.
+
 ## Sign-up form
 - Four-step progress checklist, confirm-password field with live match, terms checkbox, email typo suggestion, password suggester (crypto-random passphrase, copy to clipboard), guess-time estimate, success burst, cascading fields, rotating card border light.
 - Server API unchanged.

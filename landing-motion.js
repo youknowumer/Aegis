@@ -36,11 +36,23 @@
   const N = innerWidth < 760 ? 16 : 34;
   for (let i = 0; i < N; i++) S.push({ x: rnd(0, 1), y: rnd(0, 1), r: rnd(1, 3), v: rnd(0.01, 0.04), ph: rnd(0, 6.28), dx: rnd(-0.01, 0.01) });
   let px = 0.5, py = 0.4;
+  // hero word colours (same order as the .vl layers: Ask, Search, Automate, Connect), blended smoothly between words
+  const HERO = [[246, 200, 40], [249, 120, 48], [60, 190, 120], [214, 100, 210]];
+  let cur = HERO[1].slice();
+  function heroRGB(now) {
+    const clk = window.__velaClock, t = clk && typeof clk.currentTime === "number" ? clk.currentTime : now;
+    const k = t / 1750, i = Math.floor(k) % 4, f = k - Math.floor(k), a = HERO[((i % 4) + 4) % 4], b = HERO[(i + 1) % 4];
+    const m = f > 0.8 ? (f - 0.8) / 0.2 : 0;
+    for (let c = 0; c < 3; c++) cur[c] = Math.round(a[c] + (b[c] - a[c]) * m);
+    hero.style.setProperty("--hg", cur.join(" "));
+    return cur;
+  }
   function draw(now) {
     raf = 0; if (!running) return;
     ctx.clearRect(0, 0, W, H);
     const dark = document.documentElement.getAttribute("data-theme") === "dark";
-    ctx.fillStyle = dark ? "rgb(47,227,255)" : "rgb(255,255,255)";
+    const hg = heroRGB(now);
+    ctx.fillStyle = `rgb(${hg[0]},${hg[1]},${hg[2]})`;
     for (const s of S) {
       s.y -= s.v * 0.004; s.x += s.dx * 0.002 + Math.sin(now / 2000 + s.ph) * 0.0003;
       if (s.y < -0.05) { s.y = 1.05; s.x = rnd(0, 1); }
@@ -176,6 +188,13 @@
   document.body.appendChild(rail);
   const railLinks = [...rail.querySelectorAll("a")];
   let current = "";
+  const HUES = { 1: ["#E9C22E", "233, 194, 46"], 2: ["#F2772F", "242, 119, 47"], 3: ["#3FB874", "63, 184, 116"], 4: ["#C564C4", "197, 100, 196"] };
+  const root = document.documentElement;
+  function tintPage(sec) {
+    const h = sec && HUES[sec.dataset.hue];
+    if (h) { root.style.setProperty("--secc", h[0]); root.style.setProperty("--spot", h[1]); }
+    else { root.style.removeProperty("--secc"); root.style.removeProperty("--spot"); }
+  }
   function spy() {
     const mid = innerHeight * 0.4;
     let id = "";
@@ -183,6 +202,7 @@
     if (id === current) return;
     current = id;
     railLinks.forEach((a) => a.classList.toggle("active", a.getAttribute("href") === "#" + id));
+    tintPage(secs.find((x) => x.id === id));
     let hit = null;
     links.forEach((a) => { const on = a.getAttribute("href") === "#" + id; a.classList.toggle("active", on); if (on) hit = a; });
     if (ind) {

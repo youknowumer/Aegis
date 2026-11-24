@@ -1,10 +1,16 @@
+/* current-section colour: JS sets --secc (and --spot) on <html> as you scroll; the registered type lets it cross-fade */
+@property --secc { syntax: "<color>"; inherits: true; initial-value: #0a7a78; }
+:root { --secc: #0a7a78; transition: --secc .9s cubic-bezier(.2, .7, .2, 1); }
+:root[data-theme="dark"] { --secc: #2fe3ff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --secc: #2fe3ff; } }
+
 /* Aegis landing: motion layer (v14). Loaded last. Everything here is additive and gated on motion preference. */
 .hero-sec.vela { --mx: 0; --my: 0; }
 
 /* ---- hero spotlight that follows the pointer + drifting sparks (JS fills .v-sparks) ---- */
 .v-spot { position: absolute; inset: 0; pointer-events: none; z-index: 1; opacity: 0; transition: opacity .6s;
-  background: radial-gradient(520px circle at var(--sx, 70%) var(--sy, 40%), rgb(255 255 255 / .38), transparent 62%); mix-blend-mode: soft-light; }
-:root[data-theme="dark"] .v-spot { background: radial-gradient(520px circle at var(--sx, 70%) var(--sy, 40%), rgb(47 227 255 / .16), transparent 62%); mix-blend-mode: screen; }
+  background: radial-gradient(520px circle at var(--sx, 70%) var(--sy, 40%), rgb(var(--hg, 255 255 255) / .55), transparent 62%); mix-blend-mode: soft-light; }
+:root[data-theme="dark"] .v-spot { background: radial-gradient(520px circle at var(--sx, 70%) var(--sy, 40%), rgb(var(--hg, 47 227 255) / .3), transparent 62%); mix-blend-mode: screen; }
 .hero-sec.vela.hot .v-spot { opacity: 1; }
 .v-sparks { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
 
@@ -62,7 +68,7 @@
 
   /* ---- cards: gentle lift and glow border on hover ---- */
   .cap, .cmd, .plan, .node, .col { transition: transform .45s cubic-bezier(.2, .8, .2, 1), box-shadow .45s, border-color .3s, background-color .25s; }
-  .cap:hover, .cmd:hover, .node:hover, .col:hover { translate: 0 -5px; box-shadow: 0 22px 44px -26px rgb(var(--spot, 47 227 255) / .55); }
+  .cap:hover, .cmd:hover, .node:hover, .col:hover { translate: 0 -5px; box-shadow: 0 26px 48px -24px color-mix(in srgb, var(--tint, var(--secc)) 70%, transparent), 0 0 0 1px color-mix(in srgb, var(--tint, var(--secc)) 45%, transparent); }
   .plan:hover { translate: 0 -6px; }
 
   /* ---- nav gets a glassy blur once the page moves ---- */
@@ -70,7 +76,7 @@
   .is-scrolled .nav { backdrop-filter: saturate(1.4) blur(16px); -webkit-backdrop-filter: saturate(1.4) blur(16px); }
 
   /* ---- progress bar glows ---- */
-  .progress { box-shadow: 0 0 12px rgb(var(--spot, 47 227 255) / .8); }
+  .progress { box-shadow: 0 0 12px color-mix(in srgb, var(--secc) 80%, transparent); }
 
   /* ---- floating stickers (the small 3D icons) bob slowly ---- */
   .stk { animation: m-bob 7s ease-in-out infinite; }
@@ -82,8 +88,8 @@
 
 /* ======================= smoothness + detailing (v14.1) ======================= */
 html { scroll-padding-top: 84px; overscroll-behavior-y: none; scrollbar-gutter: stable; text-size-adjust: 100%; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
-::selection { background: rgb(var(--spot, 47 227 255) / .28); }
-:focus-visible { outline: 2px solid rgb(var(--spot, 47 227 255)); outline-offset: 3px; border-radius: 6px; }
+::selection { background: color-mix(in srgb, var(--secc) 28%, transparent); }
+:focus-visible { outline: 2px solid var(--secc); outline-offset: 3px; border-radius: 6px; }
 a, button, summary { -webkit-tap-highlight-color: transparent; }
 img, svg, canvas { max-width: 100%; }
 /* every moving thing is promoted once, not on every frame */
@@ -91,7 +97,7 @@ img, svg, canvas { max-width: 100%; }
 
 /* sliding indicator under the active nav link */
 .links { position: relative; }
-.nav-ind { position: absolute; left: 0; bottom: -6px; height: 2px; width: 0; border-radius: 2px; background: rgb(var(--spot, 47 227 255)); opacity: 0;
+.nav-ind { position: absolute; left: 0; bottom: -6px; height: 2px; width: 0; border-radius: 2px; background: var(--secc); opacity: 0;
   transform: translateX(var(--nx, 0)); transition: transform .45s cubic-bezier(.2, .8, .2, 1), width .45s cubic-bezier(.2, .8, .2, 1), opacity .3s; pointer-events: none; }
 .nav-ind.on { opacity: 1; }
 .links a.active { opacity: 1; }
@@ -106,7 +112,7 @@ img, svg, canvas { max-width: 100%; }
 .rail a { position: relative; display: block; width: 22px; height: 22px; }
 .rail a::before { content: ""; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px; border-radius: 50%; background: currentColor; opacity: .3; transition: transform .35s cubic-bezier(.3, 1.6, .5, 1), opacity .3s, background-color .3s; }
 .rail a:hover::before { opacity: .8; transform: scale(1.3); }
-.rail a.active::before { opacity: 1; transform: scale(1.7); background: rgb(var(--spot, 47 227 255)); box-shadow: 0 0 0 4px rgb(var(--spot, 47 227 255) / .18); }
+.rail a.active::before { opacity: 1; transform: scale(1.7); background: var(--secc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--secc) 18%, transparent); }
 .rail a span { position: absolute; right: 26px; top: 50%; transform: translate(8px, -50%); padding: 4px 9px; border-radius: 7px; font-size: 12px; font-weight: 600; white-space: nowrap; background: var(--ink, #111); color: var(--paper, #fff); opacity: 0; pointer-events: none; transition: opacity .25s, transform .3s cubic-bezier(.2, .8, .2, 1); }
 .rail a:hover span, .rail a:focus-visible span { opacity: 1; transform: translate(0, -50%); }
 @media (min-width: 1280px) { .rail { display: flex; color: var(--ink, currentColor); } }
@@ -124,7 +130,7 @@ body.leaving { opacity: 0; filter: blur(6px); }
 
 /* back-to-top shows a ring that fills with reading progress */
 .to-top { --p: 0; }
-.to-top::before { content: ""; position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(rgb(var(--spot, 47 227 255)) calc(var(--p) * 360deg), transparent 0); -webkit-mask: radial-gradient(circle, transparent 60%, #000 62%); mask: radial-gradient(circle, transparent 60%, #000 62%); pointer-events: none; }
+.to-top::before { content: ""; position: absolute; inset: -3px; border-radius: 50%; background: conic-gradient(var(--secc) calc(var(--p) * 360deg), transparent 0); -webkit-mask: radial-gradient(circle, transparent 60%, #000 62%); mask: radial-gradient(circle, transparent 60%, #000 62%); pointer-events: none; }
 
 /* pointer tilt on cards (JS sets --tx/--ty) */
 @media (prefers-reduced-motion: no-preference) and (hover: hover) {
@@ -132,7 +138,7 @@ body.leaving { opacity: 0; filter: blur(6px); }
   .tilt.on, .js [data-reveal].in.tilt.on { transition: transform .08s linear, box-shadow .45s, border-color .3s; }
 
   /* section headings underline-sweep once revealed */
-  .block-head h2, .get h2 { background-image: linear-gradient(90deg, rgb(var(--spot, 47 227 255) / .35), transparent); background-repeat: no-repeat; background-position: 0 100%; background-size: 0 .08em; transition: background-size 1.2s cubic-bezier(.2, .8, .2, 1) .5s; }
+  .block-head h2, .get h2 { background-image: linear-gradient(90deg, color-mix(in srgb, var(--secc) 35%, transparent), transparent); background-repeat: no-repeat; background-position: 0 100%; background-size: 0 .08em; transition: background-size 1.2s cubic-bezier(.2, .8, .2, 1) .5s; }
   .in .block-head h2, .block-head.in h2, .get.in h2 { background-size: 100% .08em; }
 
   /* footer columns rise in */
@@ -140,3 +146,71 @@ body.leaving { opacity: 0; filter: blur(6px); }
   @keyframes m-rise-view { from { opacity: 0; transform: translateY(24px); } }
 }
 @media (prefers-reduced-motion: reduce) { body.leaving { opacity: 1; filter: none; } .nav.hide { transform: none; } }
+
+
+/* ======================= section-wise colour (v14.2) =======================
+   Four hues from the hero (yellow, orange, green, pink) drive each section: ambient glow, top rule, eyebrow dot, card accents,
+   list numbers, hover glow. Teal stays for the control band, download and the brand chrome. */
+:root { --h1: #E9C22E; --h2: #F2772F; --h3: #3FB874; --h4: #C564C4; }
+main > section[data-hue] { position: relative; isolation: isolate; }
+main > section[data-hue]::before { content: ""; position: absolute; inset: -6% -4%; z-index: -1; pointer-events: none; opacity: .7;
+  -webkit-mask-image: radial-gradient(closest-side, #000 45%, transparent 100%); mask-image: radial-gradient(closest-side, #000 45%, transparent 100%);
+  background:
+    radial-gradient(55% 48% at 12% 18%, color-mix(in srgb, var(--tint) 26%, transparent), transparent 72%),
+    radial-gradient(48% 44% at 92% 86%, color-mix(in srgb, var(--tint) 18%, transparent), transparent 72%); }
+:root[data-theme="dark"] main > section[data-hue]::before { opacity: 1;
+  background:
+    radial-gradient(55% 48% at 14% 22%, color-mix(in srgb, var(--tint) 38%, transparent), transparent 70%),
+    radial-gradient(48% 44% at 88% 82%, color-mix(in srgb, var(--tint) 28%, transparent), transparent 70%); }
+/* hairline at the top of each coloured section: the hue fading out to the right */
+main > section[data-hue]::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; pointer-events: none;
+  background: linear-gradient(90deg, var(--tint), color-mix(in srgb, var(--tint) 0%, transparent) 70%); transform-origin: left; }
+/* control band and download are teal */
+#control, #download { --tint: var(--secc); }
+/* items inside a section cycle through the four hues */
+:is(.cap, .cmd, .node, .col, .steps li, .proofs li, .ui-points li, .faq details):nth-child(4n+1) { --tint: var(--h1); }
+:is(.cap, .cmd, .node, .col, .steps li, .proofs li, .ui-points li, .faq details):nth-child(4n+2) { --tint: var(--h2); }
+:is(.cap, .cmd, .node, .col, .steps li, .proofs li, .ui-points li, .faq details):nth-child(4n+3) { --tint: var(--h3); }
+:is(.cap, .cmd, .node, .col, .steps li, .proofs li, .ui-points li, .faq details):nth-child(4n+4) { --tint: var(--h4); }
+.plan:nth-child(1) { --tint: var(--h3); } .plan:nth-child(2) { --tint: var(--h2); } .plan:nth-child(3) { --tint: var(--h4); }
+.plan { box-shadow: inset 0 3px 0 var(--tint, transparent); }
+.plan.feat { border-color: var(--tint, var(--teal)); }
+.say-chip:nth-of-type(1) { --tint: var(--h1); } .say-chip:nth-of-type(2) { --tint: var(--h2); } .say-chip:nth-of-type(3) { --tint: var(--h3); }
+.say-chip { border-color: color-mix(in srgb, var(--tint, var(--secc)) 55%, transparent); background: color-mix(in srgb, var(--tint, var(--secc)) 12%, transparent); }
+/* hero stats: a coloured bar under each number */
+.v-stats > div { --tint: var(--h1); position: relative; }
+.v-stats > div:nth-child(2) { --tint: var(--h2); } .v-stats > div:nth-child(3) { --tint: var(--h3); }
+.v-stats > div::after { content: ""; position: absolute; left: 0; bottom: -10px; width: 34px; height: 3px; border-radius: 3px; background: var(--tint); }
+/* the live bits take the colour of their section */
+.vm-state, .mt-rec i { color: var(--tint, var(--secc)); }
+.seg .on, .seg [aria-selected="true"] { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tint, var(--secc)) 60%, transparent); }
+.nav-ind, .rail a.active::before { background: var(--secc); }
+.rail a.active::before { box-shadow: 0 0 0 4px color-mix(in srgb, var(--secc) 22%, transparent); }
+.cursor-glow { transition: opacity .3s; }
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* section glow breathes in as the section crosses the screen, and the top rule draws left to right */
+    main > section[data-hue]::before { animation: sec-glow linear both; animation-timeline: view(); animation-range: cover 0% cover 100%; }
+    main > section[data-hue]::after { animation: sec-rule linear both; animation-timeline: view(); animation-range: entry 0% entry 70%; }
+    @keyframes sec-glow { 0% { opacity: 0; transform: translateY(40px) scale(.96); } 30%, 70% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-40px) scale(1.03); } }
+    @keyframes sec-rule { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    /* each list item's number and dot saturate as it arrives */
+    .steps li::before, .cmd h3::before { animation: sec-pop linear both; animation-timeline: view(); animation-range: entry 0% entry 80%; }
+    @keyframes sec-pop { from { filter: saturate(0) brightness(1.6); transform: scale(.6); } to { filter: none; transform: none; } }
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* colour-travelling border light on the featured plan and the demo window */
+  .plan.feat, .demo { --ang2: 0deg; }
+  .plan.feat::before, .demo::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1.5px; pointer-events: none; z-index: 2;
+    background: conic-gradient(from var(--ang2), transparent 0 60%, var(--tint, var(--secc)) 80%, var(--h4) 90%, transparent 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: card-spin2 6s linear infinite; }
+  @property --ang2 { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+  @keyframes card-spin2 { to { --ang2: 360deg; } }
+  .plan.feat, .demo { position: relative; }
+  /* eyebrow dot pulses in its own colour */
+  .eyebrow::before { animation: vping-c 2.4s ease-in-out infinite; }
+  @keyframes vping-c { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--tint, var(--secc)) 0%, transparent); } }
+  .stk { filter: drop-shadow(0 14px 22px color-mix(in srgb, var(--tint, var(--secc)) 45%, transparent)); }
+}

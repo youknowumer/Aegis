@@ -243,6 +243,22 @@ The landing page (`index.html`) is plain HTML, CSS and JS with no build step. Mo
 - **Cards.** 3D tilt toward the pointer (max about 6 degrees), lift and glow on hover, staggered entrance (zoom, left or right).
 - **Details.** Heading underline sweeps in, eyebrow underlines draw in, the small 3D stickers float, selection colour and focus rings follow the accent colour.
 
+**Section-wise colour (v14)**
+
+The four hero hues (yellow `#E9C22E`, orange `#F2772F`, green `#3FB874`, pink `#C564C4`) now colour the whole page, one per section, and teal stays for the brand chrome and the *Your control* and *Download* sections.
+
+| Where | Colour behaviour |
+|---|---|
+| Hero sparks and spotlight | Follow the current verb: Ask is yellow, Search orange, Automate green, Connect pink, blended smoothly between words (reads the hero clock). |
+| Each `data-hue` section | A soft ambient glow in its hue breathes in as the section crosses the screen, and a hairline at the top draws left to right (scroll-driven, Chrome and Edge; others see the static glow). |
+| Page chrome | Nav underline, section rail dot, back-to-top ring, cursor light and selection cross-fade to the colour of the section you are in. |
+| Cards and lists | Capabilities, commands, steps, proofs and FAQ items cycle through the four hues for their dots, numbers, icons and hover glow. |
+| Plans | Free is green, Basic orange, Power pink, each with a coloured top edge. The featured plan and the demo window have a travelling colour light on their border. |
+| Hero stats | A coloured bar under each number. |
+| Stickers and eyebrow dots | Glow and pulse in their section colour. |
+
+To retune the palette, change `--h1` to `--h4` in `landing-motion.css` (and the matching `HUES` table in `landing-motion.js`). Everything works in light and dark themes, and reduced-motion users get the static colours without movement.
+
 **Performance and accessibility**
 
 - One `requestAnimationFrame`-throttled scroll handler drives the header, rail, progress ring and scrollspy. Scroll listeners are passive.
