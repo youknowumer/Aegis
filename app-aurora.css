@@ -1,0 +1,210 @@
+/* Aegis "Midnight Aurora": one accent colour on deep graphite, light that moves slowly, motion that has a reason.
+   Surfaces are quiet; the orb and the accent carry the colour. Everything follows the theme accent (--ac) and the live state (--sc).
+   Off in Calm mode (body.calm) and with prefers-reduced-motion. */
+
+body {
+  --vi: 124, 108, 255;                         /* cool counter-tone that sits behind the accent */
+  --sc: var(--ac);
+  --out: cubic-bezier(.16, 1, .3, 1);          /* long, soft deceleration */
+  --spring: cubic-bezier(.34, 1.45, .55, 1);
+}
+body[data-fx-state="offline"] { --sc: 120, 132, 156; }
+body[data-fx-state="listening"] { --sc: 52, 230, 150; }
+body[data-fx-state="thinking"] { --sc: 150, 130, 255; }
+
+/* helper layers made by app-aurora.js stay hidden until motion is allowed */
+.fx-blobs, .fx-spot, .fx-boot, .fx-edge, .fx-shock, .orb-halo, .orb-sweep { display: none; pointer-events: none; }
+body.calm .fx-blobs, body.calm .fx-spot, body.calm .fx-boot, body.calm .fx-edge, body.calm .fx-shock, body.calm .orb-halo, body.calm .orb-sweep { display: none !important; }
+
+/* ================= surfaces: quiet graphite, hairline edges ================= */
+body:not(.calm) {
+  --panel: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .012) 40%), rgba(11, 13, 22, .68);
+  --hair: rgba(255, 255, 255, .08);
+  --lit: inset 0 1px 0 rgba(255, 255, 255, .08), inset 0 0 0 1px rgba(255, 255, 255, .015);
+  --text-2: #c3cbdb; --muted: #8e99b0;
+}
+body:not(.calm) .topbar, body:not(.calm) .rail, body:not(.calm) .composer, body:not(.calm) .find-bar {
+  background: var(--panel); border: 1px solid var(--hair); -webkit-backdrop-filter: blur(22px) saturate(150%); backdrop-filter: blur(22px) saturate(150%);
+  box-shadow: var(--lit), 0 36px 70px -36px rgba(0, 0, 0, .9);
+}
+body:not(.calm) .topbar { border-radius: 18px; }
+body:not(.calm) .rail { border-radius: 22px; }
+body:not(.calm) .composer { border-radius: 24px; }
+body:not(.calm) .blk { border-bottom-color: rgba(255, 255, 255, .06); }
+body:not(.calm) .blk-head h3 { color: var(--text-2); letter-spacing: .12em; }
+body:not(.calm) .blk-head h3 svg { color: rgb(var(--ac)); stroke: rgb(var(--ac)); }
+body:not(.calm) .count { background: rgba(var(--ac), .14); color: rgb(var(--ac)); border: 1px solid rgba(var(--ac), .3); box-shadow: none; }
+body:not(.calm) .icon-btn, body:not(.calm) .btn.ghost { background: rgba(255, 255, 255, .04); border: 1px solid var(--hair); box-shadow: none; }
+body:not(.calm) .icon-btn:hover:not(:disabled), body:not(.calm) .btn.ghost:hover:not(:disabled) { background: rgba(var(--ac), .12); border-color: rgba(var(--ac), .45); color: #fff; }
+body:not(.calm) .topbar .icon-btn { background: transparent; border-color: transparent; }
+body:not(.calm) .palette-btn { background: rgba(255, 255, 255, .04); border: 1px solid var(--hair); box-shadow: none; }
+body:not(.calm) .palette-btn:hover { border-color: rgba(var(--ac), .45); }
+body:not(.calm) .pill { box-shadow: none; }
+body:not(.calm) .orb-label { background: rgba(8, 10, 18, .72); border: 1px solid rgba(var(--sc), .4); color: #fff; box-shadow: 0 0 26px -8px rgba(var(--sc), .8); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+body:not(.calm) .stage[data-state] .orb-label { color: #fff; z-index: 3; }
+body:not(.calm) .orb-label::before { color: rgb(var(--sc)); }
+
+/* quick cards */
+body:not(.calm) .qcard { background: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .015)), rgba(12, 14, 24, .55); border: 1px solid var(--hair); border-radius: 18px; box-shadow: var(--lit), 0 16px 30px -22px rgba(0, 0, 0, .9);
+  transition: border-color .35s, box-shadow .45s var(--out), background-color .3s; }
+body:not(.calm) .qcard .qi { background: linear-gradient(145deg, rgba(var(--ac), .3), rgba(var(--ac), .08)); border: 1px solid rgba(var(--ac), .38); color: rgb(var(--ac)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18); }
+body:not(.calm) .qcard span:not(.qi) { color: var(--muted); }
+body:not(.calm) .qcard::after, body:not(.calm) .blk::after { background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), rgba(var(--ac), .16), transparent 65%); }
+
+/* composer */
+body:not(.calm) .composer:focus-within { box-shadow: var(--lit), 0 36px 70px -36px rgba(0, 0, 0, .9), 0 0 0 1px rgba(var(--ac), .35), 0 0 60px -12px rgba(var(--ac), .45); }
+body:not(.calm) .btn.primary.send { border: 0; border-radius: 16px; color: #14100a; font-weight: 700;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .35), rgba(255, 255, 255, 0) 55%), linear-gradient(135deg, rgb(var(--ac)), rgba(var(--ac), .72));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 10px 26px -10px rgba(var(--ac), .85); }
+body:not(.calm) .btn.primary.send:hover:not(:disabled) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 14px 34px -8px rgba(var(--ac), 1); }
+
+/* messages */
+body:not(.calm) .msg.user { background: linear-gradient(145deg, rgba(var(--ac), .22), rgba(var(--ac), .07)); border: 1px solid rgba(var(--ac), .38); border-radius: 20px 20px 6px 20px; box-shadow: 0 16px 34px -20px rgba(var(--ac), .7), inset 0 1px 0 rgba(255, 255, 255, .1); }
+
+/* ================= headline ================= */
+body:not(.calm) .welcome h2 { font-size: 36px; font-weight: 720; letter-spacing: -.03em; background-image: linear-gradient(180deg, #fff 30%, #b6c0d6); }
+body:not(.calm) .eyebrow-date { color: rgb(var(--ac)); letter-spacing: .2em; text-shadow: none; }
+
+/* ================= motion ================= */
+@media (prefers-reduced-motion: no-preference) {
+  .fx-blobs, .fx-spot, .fx-boot, .fx-edge, .orb-halo, .orb-sweep, .fx-shock { display: block; }
+
+  /* ---------- background: two slow pools of light + a faint dot field ---------- */
+  .fx-blobs { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
+  .fx-blobs i { position: absolute; border-radius: 50%; will-change: transform; filter: blur(80px); }
+  .fx-blobs i:nth-child(1) { left: 50%; top: -34vmax; width: 78vmax; height: 62vmax; margin-left: -39vmax; opacity: .34; background: radial-gradient(closest-side, rgba(var(--ac), .9), transparent); animation: poolA 32s ease-in-out infinite alternate; }
+  .fx-blobs i:nth-child(2) { right: -24vmax; bottom: -30vmax; width: 70vmax; height: 62vmax; opacity: .3; background: radial-gradient(closest-side, rgba(var(--vi), .9), transparent); animation: poolB 40s ease-in-out infinite alternate; }
+  .fx-blobs i:nth-child(3) { left: -20vmax; bottom: -26vmax; width: 52vmax; height: 46vmax; opacity: .2; background: radial-gradient(closest-side, rgba(var(--sc), .9), transparent); transition: background 1.4s; animation: poolC 36s ease-in-out infinite alternate; }
+  @keyframes poolA { 0% { transform: translate3d(-12vw, 0, 0) scale(1); } 100% { transform: translate3d(14vw, 6vh, 0) scale(1.18); } }
+  @keyframes poolB { 0% { transform: translate3d(0, 0, 0) scale(1); } 100% { transform: translate3d(-22vw, -12vh, 0) scale(1.22); } }
+  @keyframes poolC { 0% { transform: translate3d(0, 0, 0) scale(.9); } 100% { transform: translate3d(18vw, -8vh, 0) scale(1.2); } }
+  .bg-aurora { opacity: .6; }
+  .bg-grid { opacity: .55; background-image: radial-gradient(rgba(255, 255, 255, .22) 1px, transparent 1.2px); background-size: 30px 30px; animation: dotsDrift 60s linear infinite; }
+  @keyframes dotsDrift { to { background-position: 30px 30px; } }
+
+  .fx-spot { position: fixed; left: 0; top: 0; width: 560px; height: 560px; margin: -280px 0 0 -280px; z-index: 0; opacity: 0; transition: opacity .6s; mix-blend-mode: screen; will-change: transform;
+    background: radial-gradient(circle, rgba(var(--ac), .13), transparent 66%); }
+  .fx-spot.on { opacity: 1; }
+  .fx-edge { position: fixed; inset: 0; z-index: 30; opacity: 0; box-shadow: inset 0 0 140px -10px rgba(var(--sc), .35); }
+  .fx-edge.go { animation: edgePulse 1s ease-out; }
+  @keyframes edgePulse { 15% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* ---------- boot: a single clean ring and a soft light wash ---------- */
+  .fx-boot { position: fixed; inset: 0; z-index: 60; opacity: 0; overflow: hidden; }
+  .fx-boot.go { animation: bootLife 1.8s linear forwards; }
+  .fx-boot::before { content: ""; position: absolute; left: 50%; top: 34%; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%; border: 1px solid rgba(var(--ac), .9); box-shadow: 0 0 40px rgba(var(--ac), .5), inset 0 0 24px rgba(var(--ac), .4); opacity: 0; }
+  .fx-boot.go::before { animation: bootRing 1.6s var(--out) forwards; }
+  .fx-boot::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 60% 50% at 50% 34%, rgba(var(--ac), .22), transparent 70%); opacity: 0; }
+  .fx-boot.go::after { animation: bootWash 1.6s ease-out forwards; }
+  @keyframes bootLife { 0%, 92% { opacity: 1; } 100% { opacity: 0; } }
+  @keyframes bootRing { 0% { transform: scale(.2); opacity: 0; } 15% { opacity: 1; } 100% { transform: scale(85); opacity: 0; } }
+  @keyframes bootWash { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+
+  /* ---------- orb: soft core light that breathes, thin pulse rings ---------- */
+  .orb-halo { position: absolute; left: 50%; top: 50%; height: 118%; aspect-ratio: 1; transform: translate(-50%, -50%); z-index: 0; border-radius: 50%; transition: opacity .6s;
+    background: radial-gradient(closest-side, rgba(var(--sc), .5), rgba(var(--sc), .16) 48%, transparent 100%); filter: blur(10px); animation: coreBreath 5s ease-in-out infinite; }
+  .stage[data-state="thinking"] .orb-halo { animation-duration: 1.4s; }
+  .stage[data-state="listening"] .orb-halo { animation-duration: 2.2s; }
+  .stage[data-state="speaking"] .orb-halo { animation-duration: 1.8s; }
+  .stage[data-state="offline"] .orb-halo { opacity: .35; animation-duration: 9s; }
+  @keyframes coreBreath { 0%, 100% { transform: translate(-50%, -50%) scale(.9); opacity: .7; } 50% { transform: translate(-50%, -50%) scale(1.14); opacity: 1; } }
+  .orb-sweep { position: absolute; left: 50%; top: 50%; height: 88%; aspect-ratio: 1; transform: translate(-50%, -50%); z-index: 0; border-radius: 50%; opacity: .0; transition: opacity .6s;
+    background: conic-gradient(from var(--ua), transparent 0 78%, rgba(var(--sc), .35) 100%);
+    -webkit-mask-image: radial-gradient(closest-side, transparent 60%, #000 62%, #000 100%); mask-image: radial-gradient(closest-side, transparent 60%, #000 62%, #000 100%); animation: uaSpin 6s linear infinite; }
+  .stage[data-state="thinking"] .orb-sweep, .stage[data-state="listening"] .orb-sweep, .stage[data-state="speaking"] .orb-sweep { opacity: 1; }
+  .stage[data-state="thinking"] .orb-sweep { animation-duration: 1.4s; }
+  .stage[data-chat="1"] .orb-halo { opacity: .55; }
+  .stage[data-chat="1"] .orb-sweep { opacity: 0; }
+  @property --ua { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  @keyframes uaSpin { to { --ua: 360deg; } }
+
+  .fx-shock { position: absolute; left: 50%; top: 50%; height: 36%; aspect-ratio: 1; z-index: 0; border-radius: 50%; border: 1px solid rgba(var(--sc), .9); opacity: 0;
+    box-shadow: 0 0 30px rgba(var(--sc), .45), inset 0 0 22px rgba(var(--sc), .3); transform: translate(-50%, -50%) scale(.4); animation: shockOut 1.5s var(--out) forwards; }
+  .fx-shock.b { animation-delay: .16s; } .fx-shock.c { animation-delay: .34s; }
+  @keyframes shockOut { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); } 12% { opacity: .9; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(5); } }
+
+  .orb-deco { filter: drop-shadow(0 0 6px rgba(var(--ac), .4)); }
+  .orb-deco .d-ring.r1 { stroke: rgba(var(--ac), .4); }
+  .orb-deco .d-dash, .orb-deco .d-dash2 { stroke-opacity: .6; }
+  .orb-deco .d-spin.s1 { animation-duration: 50s; } .orb-deco .d-spin.s2 { animation-duration: 32s; }
+  .orb-deco .d-tick { fill: none; stroke: rgba(255, 255, 255, .4); stroke-width: 4; stroke-dasharray: 1 22.6; }
+  .orb-deco .d-arc { fill: none; stroke: rgb(var(--sc)); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 110 1040; filter: drop-shadow(0 0 4px rgb(var(--sc))); }
+  .orb-deco .d-arc.a2 { stroke: rgba(255, 255, 255, .75); stroke-width: 1.5; stroke-dasharray: 36 1020; filter: none; }
+  .orb-deco .s3 { animation: spin 14s linear infinite; } .orb-deco .s4 { animation: spin 20s linear infinite reverse; } .orb-deco .s5 { animation: spin 120s linear infinite; }
+  .stage[data-state="thinking"] .orb-deco .s3 { animation-duration: 1.8s; }
+  .stage[data-state="thinking"] .orb-deco .s4 { animation-duration: 2.6s; }
+  .stage[data-state="listening"] .orb-deco .s3, .stage[data-state="speaking"] .orb-deco .s3 { animation-duration: 5s; }
+  .orb-zone { cursor: pointer; }
+  .orb-zone canvas { transition: transform .8s var(--out); }
+  .orb-zone:hover canvas { transform: scale(1.05); }
+
+  /* ---------- top bar: a thin light travels along its lower edge ---------- */
+  .topbar { position: relative; }
+  .topbar::before { content: ""; position: absolute; left: 14px; right: 14px; bottom: -1px; height: 1px; pointer-events: none; border-radius: 1px;
+    background: linear-gradient(90deg, transparent, rgba(var(--ac), .9) 50%, transparent); background-size: 28% 100%; background-repeat: no-repeat; animation: edgeRun 6s var(--out) infinite; }
+  @keyframes edgeRun { 0% { background-position: -40% 0; } 60%, 100% { background-position: 140% 0; } }
+  .brand-mark { animation: markPulse 4s ease-in-out infinite; }
+  @keyframes markPulse { 50% { filter: drop-shadow(0 0 12px rgba(var(--ac), .95)); } }
+
+  /* ---------- entrance choreography: everything arrives in order, with weight ---------- */
+  @keyframes fxTop { from { opacity: 0; transform: translateY(-40px); filter: blur(10px); } }
+  @keyframes fxLeft { from { opacity: 0; transform: translateX(-70px) scale(.97); filter: blur(12px); } }
+  @keyframes fxRight { from { opacity: 0; transform: translateX(70px) scale(.97); filter: blur(12px); } }
+  @keyframes fxOrb { from { opacity: 0; transform: scale(.4); filter: blur(22px); } }
+  @keyframes fxUp { from { opacity: 0; transform: translateY(30px); filter: blur(10px); } }
+  @keyframes fxCard { from { opacity: 0; transform: translateY(46px) scale(.94); filter: blur(8px); } }
+  @keyframes fxRise { from { opacity: 0; transform: translateY(60px) scale(.97); filter: blur(10px); } }
+  body:not(.calm) .topbar { animation: fxTop 1s var(--out) backwards; }
+  body:not(.calm) .rail.left { animation: fxLeft 1.2s var(--out) .1s backwards; }
+  body:not(.calm) .rail.right { animation: fxRight 1.2s var(--out) .2s backwards; }
+  body:not(.calm) .orb-zone canvas { animation: fxOrb 1.8s var(--out) .25s backwards; }
+  body:not(.calm) .qcard { animation: fxCard 1s var(--spring) backwards; }
+  body:not(.calm) .composer { animation: fxRise 1.1s var(--out) 1s backwards; }
+  body:not(.calm) .welcome h2 { animation: headIn 1.3s var(--out) .6s backwards; }
+  @keyframes headIn { from { opacity: 0; transform: translateY(34px) scale(.94); filter: blur(14px); letter-spacing: .06em; } }
+  body:not(.calm) .eyebrow-date { animation: eyeIn 1.2s var(--out) .45s backwards; }
+  @keyframes eyeIn { from { opacity: 0; letter-spacing: .6em; filter: blur(8px); } }
+  .welcome-sub { animation: fxUp 1s var(--out) 1s backwards; }
+
+  /* ---------- cards: lift, tilt, a moving edge light ---------- */
+  .qcard { position: relative; overflow: hidden; }
+  .qcard::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; opacity: 0; transition: opacity .4s;
+    background: conic-gradient(from var(--ua), transparent 0 60%, rgba(var(--ac), .95) 82%, #fff 90%, transparent 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+  .qcard:hover::before, .qcard:focus-visible::before { opacity: 1; animation: uaSpin 3s linear infinite; }
+  body:not(.calm) .qcard:hover { transform: perspective(800px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-8px) scale(1.035); transition: transform .6s var(--spring), border-color .3s, box-shadow .5s;
+    border-color: rgba(var(--ac), .4); box-shadow: var(--lit), 0 30px 50px -22px rgba(0, 0, 0, .95), 0 24px 60px -20px rgba(var(--ac), .55); }
+  body:not(.calm) .qcard:active { transform: scale(.96); transition-duration: .12s; }
+  body:not(.calm) .qcard:hover .qi { transform: translateZ(18px) scale(1.14); box-shadow: 0 0 26px -2px rgba(var(--ac), .8), inset 0 1px 0 rgba(255, 255, 255, .3); }
+  .qcard .fx-shine { position: absolute; top: 0; bottom: 0; left: -60%; width: 36%; transform: skewX(-22deg); pointer-events: none; opacity: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .16), transparent); }
+  .qcard:hover .fx-shine { animation: shineSweep 1s var(--out); }
+  @keyframes shineSweep { 0% { left: -60%; opacity: 1; } 100% { left: 140%; opacity: 1; } }
+
+  /* ---------- panels, buttons, composer ---------- */
+  .blk { transition: background-color .3s; }
+  .blk-head:hover h3 { color: #fff; }
+  body:not(.calm) .btn:hover:not(:disabled), body:not(.calm) .icon-btn:hover:not(:disabled) { transform: translateY(-2px); }
+  .fx-mag { transition: transform .35s var(--out); will-change: transform; }
+  body:not(.calm) .composer { transition: transform .6s var(--out), box-shadow .5s; }
+  body:not(.calm) .composer:focus-within { transform: translateY(-4px) scale(1.012); }
+  body:not(.calm) .composer:focus-within::before { opacity: .9; animation: ang 3.4s linear infinite; }
+  body:not(.calm) .btn.primary.send { background-size: 100% 100%, 220% 100%; transition: transform .3s var(--spring), box-shadow .4s; }
+  body:not(.calm) .btn.primary.send:hover:not(:disabled) { transform: translateY(-2px) scale(1.05); }
+  #mic-btn { position: relative; }
+  #mic-btn::after { content: ""; position: absolute; inset: -2px; border-radius: inherit; border: 1.5px solid rgba(var(--ac), .7); opacity: 0; pointer-events: none; animation: micPing 3.2s ease-out infinite; }
+  @keyframes micPing { 0% { transform: scale(.92); opacity: .75; } 70%, 100% { transform: scale(1.6); opacity: 0; } }
+  .app:has(.stage[data-state="listening"]) #mic-btn { color: rgb(52, 230, 150); border-color: rgba(52, 230, 150, .6); box-shadow: 0 0 24px -4px rgba(52, 230, 150, .8); }
+  .app:has(.stage[data-state="listening"]) #mic-btn::after { border-color: rgb(52, 230, 150); animation-duration: 1.2s; }
+
+  /* ---------- messages ---------- */
+  body:not(.calm) .msg.ai { animation: aiIn .8s var(--out) both; }
+  body:not(.calm) .msg.user { animation: userIn .7s var(--spring) both; }
+  @keyframes aiIn { from { opacity: 0; transform: translateY(26px); filter: blur(8px); } }
+  @keyframes userIn { from { opacity: 0; transform: translate(50px, 18px) scale(.9); filter: blur(6px); } }
+  .msg.ai::after { content: ""; position: absolute; left: 10px; top: 26px; bottom: 4px; width: 2px; border-radius: 2px; background: linear-gradient(180deg, rgba(var(--ac), .8), transparent); transform-origin: top; animation: lineGrow 1s var(--out) .2s both; }
+  @keyframes lineGrow { from { transform: scaleY(0); } }
+}
+
+@media (max-width: 1100px) { body:not(.calm) .rail.left, body:not(.calm) .rail.right { animation: none; } }
+@media (max-width: 760px) { .fx-spot, .orb-sweep { display: none !important; } .fx-blobs i { filter: blur(50px); } }
+body.fx-paused *, body.fx-paused *::before, body.fx-paused *::after { animation-play-state: paused !important; }
