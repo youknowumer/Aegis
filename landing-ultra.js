@@ -76,31 +76,46 @@
     }, { passive: true });
   }
 
-  /* 7. scroll-linked: page progress, parallax stickers, steps line */
+  /* 7. image fallback: a missing sticker/icon never shows as a broken box */
+  const sweep = () => $$(".stk, .vic").forEach((w) => {
+    const img = w.querySelector("img"); if (!img) return;
+    const broken = img.complete && img.naturalWidth === 0 && !!img.getAttribute("src");
+    w.classList.toggle("ux-noimg", broken);
+  });
+  d.addEventListener("error", (e) => { if (e.target && e.target.tagName === "IMG") setTimeout(sweep, 60); }, true);
+  [1500, 3500, 7000].forEach((t) => setTimeout(sweep, t));
+  addEventListener("load", () => setTimeout(sweep, 400));
+
+  /* 8. scroll-linked motion, damped so it glides: colour field drifts, stickers float, steps line draws */
   const stk = $$(".stk");
   const steps = d.getElementById("steps");
-  let ticking = false;
-  const frame = () => {
-    ticking = false;
+  const cur = new WeakMap();
+  let target = scrollY, smooth = scrollY, raf = 0;
+  const apply = () => {
     const vh = innerHeight, max = Math.max(1, root.scrollHeight - vh);
-    root.style.setProperty("--ux-sp", Math.min(1, scrollY / max).toFixed(4));
-    if (!reduce) {
-      stk.forEach((s) => {
-        const r = s.parentElement.getBoundingClientRect();
-        if (r.bottom < -100 || r.top > vh + 100) return;
-        const k = (r.top + r.height / 2 - vh / 2) / vh;
-        s.style.setProperty("--py2", (k * -46).toFixed(1));
-        if (!s.hasAttribute("data-px")) s.setAttribute("data-px", "");
-      });
-    }
+    field.style.transform = "translate3d(0," + (-(smooth / max) * 9).toFixed(2) + "vh,0)";
+    if (reduce) return;
+    // read first, write after (no layout thrash)
+    const reads = stk.map((s) => { const r = s.parentElement.getBoundingClientRect(); return (r.bottom < -120 || r.top > vh + 120) ? null : (r.top + r.height / 2 - vh / 2) / vh; });
+    stk.forEach((s, i) => {
+      if (reads[i] == null) return;
+      const goal = reads[i] * -46, prev = cur.has(s) ? cur.get(s) : goal, v = prev + (goal - prev) * 0.2;
+      cur.set(s, v); s.style.setProperty("--py2", v.toFixed(1)); if (!s.hasAttribute("data-px")) s.setAttribute("data-px", "");
+    });
     if (steps) {
       const r = steps.getBoundingClientRect();
-      const p = reduce ? 1 : Math.min(1, Math.max(0, (vh * 0.85 - r.top) / (r.height + vh * 0.2)));
-      steps.style.setProperty("--ux-steps", p.toFixed(3));
+      steps.style.setProperty("--ux-steps", (Math.min(1, Math.max(0, (vh * 0.85 - r.top) / (r.height + vh * 0.2)))).toFixed(3));
     }
   };
-  const req = () => { if (!ticking) { ticking = true; requestAnimationFrame(frame); } };
-  addEventListener("scroll", req, { passive: true });
-  addEventListener("resize", req);
-  frame();
+  const loop = () => {
+    smooth += (target - smooth) * 0.14;
+    if (Math.abs(target - smooth) < 0.4) smooth = target;
+    apply();
+    raf = smooth !== target ? requestAnimationFrame(loop) : 0;
+  };
+  const onScroll = () => { target = scrollY; if (!raf) raf = requestAnimationFrame(loop); };
+  addEventListener("scroll", onScroll, { passive: true });
+  addEventListener("resize", onScroll);
+  if (reduce && steps) steps.style.setProperty("--ux-steps", 1);
+  apply();
 })();
