@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import sqlite3
 import sys
 import time
@@ -19,11 +20,11 @@ from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import chief, emotion, extras, heart, meeting, providers, settings, smarthome, tts
+from . import chief, emotion, extras, heart, meeting, otter, providers, settings, smarthome, tts
 from .agent import Agent, Session
 from .auth import EMAIL_RE, hash_password, make_token, read_token_full, verify_password
 from .db import DB
@@ -96,6 +97,26 @@ class PasswordOnly(BaseModel):
 
 class PlanIn(BaseModel):
     plan: str
+
+
+class AskIn(BaseModel):
+    question: str
+    mid: int = 0  # 0 = ask across all of the user's meetings
+    history: list = []
+
+
+class ExtraIn(BaseModel):
+    labels: list = []
+    names: dict = {}
+    highlights: list = []
+    comments: list = []
+    tags: list = []
+    title: str = ""
+
+
+class FollowupIn(BaseModel):
+    tone: str = "friendly and professional"
+    language: str = "English"
 
 
 class ExpenseIn(BaseModel):
@@ -655,13 +676,120 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     def list_meetings(user=Depends(current_user)):
         return db.meetings(user["id"])
 
+    # ---------- Otter-style extras: search, ask, speakers, highlights, share, export, follow-up ----------
+    def _meeting_or_404(uid: int, mid: int) -> dict:
+        row = db.meeting(uid, mid)
+        if not row:
+            raise HTTPException(404, "Not found")
+        return row
+
+    @app.get("/api/meetings/search")
+    def search_meetings(q: str = "", user=Depends(current_user)):
+        terms = otter.search_terms(q)
+        out = []
+        for r in db.search_meetings(user["id"], terms):
+            hit = otter.snippet(r["transcript"], terms) if any(t in r["transcript"].lower() for t in terms) else otter.snippet(r["notes"], terms)
+            out.append({"id": r["id"], "title": r["title"], "duration": r["duration"], "created": r["created"], "snippet": hit})
+        return out
+
+    @app.post("/api/meetings/ask")
+    async def ask_meetings(b: AskIn, request: Request, user=Depends(current_user)):
+        q = b.question.strip()
+        if len(q) < 2:
+            raise HTTPException(400, "Ask a question first")
+        notes_limiter.check((user["id"], "ask"))
+        try:
+            key = groq_key(request, user, "notes")
+            if b.mid:
+                row = _meeting_or_404(user["id"], b.mid)
+                ans = await otter.ask_one(q, row["title"], row["transcript"], json.loads(row["notes"]), otter.load_extra(row["extra"]), key, b.history)
+                return {"answer": ans, "sources": [{"id": row["id"], "title": row["title"]}]}
+            return await otter.ask_many(q, db.meetings_full(user["id"]), key)
+        except meeting.GroqError as e:
+            raise groq_http(e)
+
+    @app.get("/api/meetings/{mid}/extra")
+    def meeting_extra(mid: int, user=Depends(current_user)):
+        row = _meeting_or_404(user["id"], mid)
+        ex = otter.load_extra(row["extra"])
+        return {**ex, "share": row["share"], "insights": otter.insights(row["transcript"], ex, row["duration"])}
+
+    @app.put("/api/meetings/{mid}/extra")
+    def save_meeting_extra(mid: int, b: ExtraIn, user=Depends(current_user)):
+        row = _meeting_or_404(user["id"], mid)
+        ex = otter.clean_extra(b.model_dump(), len(otter.parse_lines(row["transcript"])))
+        db.set_meeting_extra(user["id"], mid, json.dumps(ex, ensure_ascii=False))
+        if b.title.strip():
+            db.set_meeting_title(user["id"], mid, b.title)
+        return {**ex, "insights": otter.insights(row["transcript"], ex, row["duration"])}
+
+    @app.post("/api/meetings/{mid}/speakers")
+    async def label_meeting_speakers(mid: int, request: Request, user=Depends(current_user)):
+        row = _meeting_or_404(user["id"], mid)
+        notes_limiter.check((user["id"], "spk"))
+        try:
+            got = await otter.label_speakers(row["transcript"], groq_key(request, user, "notes"))
+        except meeting.GroqError as e:
+            raise groq_http(e)
+        ex = otter.load_extra(row["extra"])
+        ex["labels"], ex["names"] = got["labels"], {**got["names"], **{k: v for k, v in ex["names"].items() if v}}
+        db.set_meeting_extra(user["id"], mid, json.dumps(ex, ensure_ascii=False))
+        return {**ex, "insights": otter.insights(row["transcript"], ex, row["duration"])}
+
+    @app.post("/api/meetings/{mid}/followup")
+    async def meeting_followup(mid: int, b: FollowupIn, request: Request, user=Depends(current_user)):
+        row = _meeting_or_404(user["id"], mid)
+        notes_limiter.check((user["id"], "mail"))
+        try:
+            return await otter.followup_email(json.loads(row["notes"]), row["title"], groq_key(request, user, "notes"), b.tone, b.language)
+        except meeting.GroqError as e:
+            raise groq_http(e)
+
+    @app.post("/api/meetings/{mid}/share")
+    def share_meeting(mid: int, user=Depends(current_user)):
+        row = _meeting_or_404(user["id"], mid)
+        tok = row["share"] or secrets.token_urlsafe(18)
+        db.set_meeting_share(user["id"], mid, tok)
+        return {"token": tok, "path": "/shared/" + tok}
+
+    @app.delete("/api/meetings/{mid}/share")
+    def unshare_meeting(mid: int, user=Depends(current_user)):
+        _meeting_or_404(user["id"], mid)
+        db.set_meeting_share(user["id"], mid, "")
+        return {"ok": True}
+
+    @app.get("/shared/{token}", include_in_schema=False)
+    def shared_meeting(token: str):
+        row = db.meeting_by_share(token)
+        if not row:
+            raise HTTPException(404, "This link is no longer shared")
+        return HTMLResponse(otter.shared_html(row, json.loads(row["notes"]), otter.load_extra(row["extra"])), headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex"})
+
+    @app.get("/api/meetings/{mid}/export")
+    def export_meeting(mid: int, fmt: str = "txt", user=Depends(current_user)):
+        row = _meeting_or_404(user["id"], mid)
+        ex, notes = otter.load_extra(row["extra"]), json.loads(row["notes"])
+        date = time.strftime("%d %B %Y", time.localtime(row["created"]))
+        name = re.sub(r"[^\w-]+", "-", row["title"].lower()).strip("-")[:40] or "meeting"
+        if fmt == "srt":
+            body, mt = otter.to_srt(row["transcript"], ex), "application/x-subrip"
+        elif fmt == "vtt":
+            body, mt = otter.to_vtt(row["transcript"], ex), "text/vtt"
+        elif fmt == "md":
+            body, mt = meeting.to_markdown(notes, otter.to_txt(row["title"], row["transcript"], ex).split("\n", 3)[-1], date), "text/markdown"
+        elif fmt == "json":
+            body, mt = json.dumps({"title": row["title"], "created": row["created"], "duration": row["duration"], "notes": notes, "transcript": row["transcript"], "speakers": ex}, ensure_ascii=False, indent=1), "application/json"
+        else:
+            fmt, body, mt = "txt", otter.to_txt(row["title"], row["transcript"], ex), "text/plain"
+        return Response(body, media_type=mt + "; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{name}.{fmt}"', "Cache-Control": "no-store"})
+
     @app.get("/api/meetings/{mid}")
     def get_meeting(mid: int, user=Depends(current_user)):
         row = db.meeting(user["id"], mid)
         if not row:
             raise HTTPException(404, "Not found")
         notes = json.loads(row["notes"])
-        return {"id": row["id"], "title": row["title"], "duration": row["duration"], "created": row["created"], "transcript": row["transcript"], "notes": notes,
+        return {"id": row["id"], "title": row["title"], "duration": row["duration"], "created": row["created"], "transcript": row["transcript"], "notes": notes, "extra": otter.load_extra(row["extra"]), "share": row["share"],
                 "markdown": meeting.to_markdown(notes, row["transcript"], time.strftime("%d %B %Y", time.localtime(row["created"])))}
 
     @app.delete("/api/meetings/{mid}")

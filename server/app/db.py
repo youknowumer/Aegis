@@ -179,6 +179,10 @@ class DB:
             self.conn.execute("ALTER TABLE users ADD COLUMN token_ver INTEGER NOT NULL DEFAULT 0")
         if "last_seen" not in ucols:
             self.conn.execute("ALTER TABLE users ADD COLUMN last_seen REAL NOT NULL DEFAULT 0")
+        mcols = {r["name"] for r in self.conn.execute("PRAGMA table_info(meetings)")}
+        for col, ddl in (("extra", "TEXT NOT NULL DEFAULT '{}'"), ("share", "TEXT NOT NULL DEFAULT ''")):  # speakers, highlights, comments, tags / public share token
+            if col not in mcols:
+                self.conn.execute(f"ALTER TABLE meetings ADD COLUMN {col} {ddl}")
         fcols = {r["name"] for r in self.conn.execute("PRAGMA table_info(facts)")}
         if "kind" not in fcols:
             self.conn.execute("ALTER TABLE facts ADD COLUMN kind TEXT NOT NULL DEFAULT 'fact'")
@@ -751,8 +755,36 @@ class DB:
         return [dict(r) for r in self.all("SELECT id, title, duration, created FROM meetings WHERE user_id = ? ORDER BY id DESC LIMIT ?", (uid, limit))]
 
     def meeting(self, uid, mid):
-        r = self.one("SELECT id, title, duration, transcript, notes, created FROM meetings WHERE id = ? AND user_id = ?", (mid, uid))
+        r = self.one("SELECT id, title, duration, transcript, notes, created, extra, share FROM meetings WHERE id = ? AND user_id = ?", (mid, uid))
         return dict(r) if r else None
+
+    def set_meeting_extra(self, uid, mid, extra_json):
+        return self.execute("UPDATE meetings SET extra = ? WHERE id = ? AND user_id = ?", (extra_json, mid, uid)).rowcount
+
+    def set_meeting_title(self, uid, mid, title):
+        return self.execute("UPDATE meetings SET title = ? WHERE id = ? AND user_id = ?", (title.strip()[:120] or "Meeting", mid, uid)).rowcount
+
+    def set_meeting_share(self, uid, mid, token):
+        return self.execute("UPDATE meetings SET share = ? WHERE id = ? AND user_id = ?", (token, mid, uid)).rowcount
+
+    def meeting_by_share(self, token):
+        if not token or len(token) < 16:
+            return None
+        r = self.one("SELECT id, title, duration, transcript, notes, created, extra, share FROM meetings WHERE share = ?", (token,))
+        return dict(r) if r else None
+
+    def meetings_full(self, uid, limit=60):
+        return [dict(r) for r in self.all("SELECT id, title, duration, transcript, notes, created, extra FROM meetings WHERE user_id = ? ORDER BY id DESC LIMIT ?", (uid, limit))]
+
+    def search_meetings(self, uid, terms, limit=20):
+        """Every term must appear in the title, notes or transcript (any order). Newest first."""
+        if not terms:
+            return []
+        where, args = "user_id = ?", [uid]
+        for t in terms:
+            where += " AND (title LIKE ? OR notes LIKE ? OR transcript LIKE ?)"
+            args += [f"%{t}%"] * 3
+        return [dict(r) for r in self.all(f"SELECT id, title, duration, transcript, notes, created FROM meetings WHERE {where} ORDER BY id DESC LIMIT ?", (*args, limit))]
 
     def latest_meeting(self, uid, query=""):
         if query:
