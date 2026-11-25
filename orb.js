@@ -48,6 +48,11 @@
     const stars = Array.from({ length: small ? 40 : 110 }, () => ({ x: Math.random() * 2 - 1, y: Math.random() * 2 - 1, z: 0.15 + Math.random() * 0.85, ph: Math.random() * TAU }));
     const inflow = Array.from({ length: small ? 14 : 30 }, () => ({ a: Math.random() * TAU, b: Math.acos(2 * Math.random() - 1), p: Math.random(), s: 0.35 + Math.random() * 0.5 }));
     const bolts = Array.from({ length: small ? 3 : 6 }, () => ({ i: 0, j: 0, born: -9, life: 0.5 }));
+    const sparks = [];                       // ejected energy particles (fly outward from the core, fade)
+    let flash = 0;                           // 0..1 white-hot core flash, decays fast
+    let kick = 0;                            // 0..1 scale punch on the whole globe
+    const bloomC = document.createElement("canvas"), bloomX = bloomC.getContext("2d");
+    const bloomOn = !small;                  // bloom pass only on the big orb
 
     const pts = fib(small ? 160 : 340);
     const shell = Array.from({ length: small ? 28 : 70 }, () => ({
@@ -65,6 +70,7 @@
       w = Math.max(1, r.width); h = Math.max(1, r.height);
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      bloomC.width = Math.max(8, Math.round(w / 5)); bloomC.height = Math.max(8, Math.round(h / 5));
       if (reduce) draw(0, true);
     }
 
@@ -94,11 +100,12 @@
       level += (levelT - level) * Math.min(1, dt * 14);
       const amp = Math.min(1.2, cur.amp * (0.62 + 0.9 * level) + level * 0.18);
       yaw += dt * cur.spin;
+      flash *= Math.pow(0.0009, dt); kick *= Math.pow(0.004, dt);
       px += (pointer.x - px) * Math.min(1, dt * 3.5 || 1);
       py += (pointer.y - py) * Math.min(1, dt * 3.5 || 1);
       ctx.clearRect(0, 0, w, h);
       const cx = w / 2, cy = h / 2;
-      const R = Math.min(w, h) / 2 / 2.35;   // 1 unit in world space, in pixels
+      const R = Math.min(w, h) / 2 / 2.35 * (1 + kick * 0.09);   // 1 unit in world space, in pixels
       const D = 4.2;                          // camera distance (perspective strength)
       const tiltY = yaw + px * 0.55, tiltX = 0.32 + py * 0.4;
       const beat = 0.5 + 0.5 * Math.sin(t * cur.pulse * TAU * 0.5);
@@ -262,6 +269,53 @@
       const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 1.6);
       core.addColorStop(0, "rgba(255,255,255,0.95)"); core.addColorStop(0.25, rgba(0.9)); core.addColorStop(0.6, rgba(0.28)); core.addColorStop(1, rgba(0));
       ctx.fillStyle = core; ctx.beginPath(); ctx.arc(cx, cy, coreR * 1.6, 0, TAU); ctx.fill();
+
+      // --- plasma rays: thin spokes that rotate out of the core and lengthen with the voice
+      {
+        const nR = small ? 8 : 16;
+        ctx.lineWidth = 1.2;
+        for (let i = 0; i < nR; i++) {
+          const a = (i / nR) * TAU + t * (0.18 + cur.spin * 0.12) * (i % 2 ? 1 : -1);
+          const len = R * (0.55 + 0.35 * Math.sin(t * 1.7 + i * 1.9) + amp * 0.9 + flash * 1.1);
+          const g2 = ctx.createLinearGradient(cx, cy, cx + Math.cos(a) * len, cy + Math.sin(a) * len);
+          g2.addColorStop(0, rgba(0.38 * cur.dim + flash * 0.4, theme.lite)); g2.addColorStop(1, rgba(0));
+          ctx.strokeStyle = g2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len); ctx.stroke();
+        }
+      }
+
+      // --- sparks: speaking and thinking throw glowing embers outward
+      if (!small && (cur.amp > 0.3 || cur.arcs > 0.3) && sparks.length < 90 && Math.random() < dt * (18 + 60 * level)) {
+        const a = Math.random() * TAU, sp = R * (0.5 + Math.random() * 1.1);
+        sparks.push({ x: cx + Math.cos(a) * R * 1.1, y: cy + Math.sin(a) * R * 1.1, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 0.7 + Math.random() * 0.9, r: 0.8 + Math.random() * 1.8 });
+      }
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const sk = sparks[i]; sk.life += dt;
+        if (sk.life > sk.max) { sparks.splice(i, 1); continue; }
+        sk.x += sk.vx * dt; sk.y += sk.vy * dt; sk.vx *= 1 - dt * 1.1; sk.vy *= 1 - dt * 1.1;
+        const u = 1 - sk.life / sk.max;
+        ctx.fillStyle = rgba(u * 0.9, theme.lite);
+        ctx.beginPath(); ctx.arc(sk.x, sk.y, sk.r * (0.4 + u), 0, TAU); ctx.fill();
+        ctx.strokeStyle = rgba(u * 0.35, theme.lite); ctx.lineWidth = sk.r * 0.7;
+        ctx.beginPath(); ctx.moveTo(sk.x, sk.y); ctx.lineTo(sk.x - sk.vx * 0.04, sk.y - sk.vy * 0.04); ctx.stroke();
+      }
+
+      // --- white-hot flash when the state changes or the orb is poked
+      if (flash > 0.01) {
+        const fl = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * (1.3 + flash));
+        fl.addColorStop(0, `rgba(255,255,255,${Math.min(1, flash * 0.9)})`); fl.addColorStop(0.3, rgba(flash * 0.5)); fl.addColorStop(1, rgba(0));
+        ctx.fillStyle = fl; ctx.beginPath(); ctx.arc(cx, cy, R * (1.3 + flash), 0, TAU); ctx.fill();
+      }
+
+      // --- bloom: draw a tiny copy of the frame and stretch it back additively (cheap soft glow)
+      if (bloomOn) {
+        bloomX.clearRect(0, 0, bloomC.width, bloomC.height);
+        bloomX.drawImage(canvas, 0, 0, bloomC.width, bloomC.height);
+        ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 0.85 + 0.25 * beat + flash * 0.4;
+        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(bloomC, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }
       ctx.globalCompositeOperation = "source-over";
     }
 
@@ -290,6 +344,8 @@
         if (!STATES[name] || name === state) return;
         state = name;
         levelT = Math.max(levelT, 0.5); waves.push({ t0: t, s: 0.9 });   // state change: one clear shockwave
+        waves.push({ t0: t - 0.18, s: 0.6 }); flash = 1; kick = 1;
+        for (let i = 0; i < (small ? 0 : 26); i++) { const a = Math.random() * TAU, sp = (w / 5) * (0.8 + Math.random() * 1.6); sparks.push({ x: w / 2, y: h / 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 0.6 + Math.random() * 0.8, r: 1 + Math.random() * 2 }); }
         if (reduce) draw(0, true);
       },
       // a short burst of energy: call on each spoken word (strength 0..1)
@@ -297,6 +353,13 @@
         const v = Math.max(0, Math.min(1, strength == null ? 0.6 : strength));
         levelT = Math.max(levelT, 0.35 + 0.65 * v);
         if (waves.length < 6 && v > 0.45) waves.push({ t0: t, s: 0.35 + 0.65 * v });
+        if (v > 0.7) kick = Math.max(kick, 0.5);
+      },
+      // poke: a big visible burst (click on the orb)
+      poke() {
+        flash = 1; kick = 1; levelT = 1; waves.push({ t0: t, s: 1 }, { t0: t - 0.2, s: 0.7 }, { t0: t - 0.4, s: 0.45 });
+        if (!small) for (let i = 0; i < 40; i++) { const a = Math.random() * TAU, sp = (w / 5) * (0.8 + Math.random() * 2); sparks.push({ x: w / 2, y: h / 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 0.6 + Math.random(), r: 1 + Math.random() * 2.2 }); }
+        if (reduce) draw(0, true);
       },
       getLevel() { return level; },
       setLevel(v) { levelT = Math.max(0, Math.min(1, v)); },
