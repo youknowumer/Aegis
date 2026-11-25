@@ -205,7 +205,8 @@
       setStatus("Transcribing " + mmss(it.start) + "–" + mmss(it.end) + (queue.length ? " (" + queue.length + " more waiting)" : "") + "...");
       try {
         const prev = sortedLines().slice(-2).map((l) => l.text).join(" ").slice(-300);
-        const r = await G().transcribe(it.blob, { lang: prefs.lang, prompt: prev, best: true });
+        const vocab = (sget("aegis_meet_vocab") || "").slice(0, 100);
+        const r = await G().transcribe(it.blob, { lang: prefs.lang, prompt: (vocab ? vocab + ". " : "") + prev, best: true });
         failed = failed.filter((f) => f !== it);
         if (r.text) { addSegments(it.start, r); renderLive(); saveDraft(); }
         setStatus("Live transcript up to " + mmss(it.end) + ".");
@@ -362,6 +363,7 @@
     const det = $("mt-transcript-box");
     det.classList.toggle("hidden", !current.transcript);
     $("mt-transcript").textContent = current.transcript || "";
+    document.dispatchEvent(new CustomEvent("aegis-meeting-render"));
     $("mt-notes-meta").textContent = new Date(current.created * 1000).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) + (current.duration ? " · " + Math.max(1, Math.round(current.duration / 60)) + " min" : "");
   }
 
@@ -576,6 +578,7 @@
     document.querySelectorAll("#meetings .mt-tab").forEach((b) => { const on = b.dataset.tab === t; b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false"); });
     document.querySelectorAll("#meetings .mt-pane").forEach((p) => p.classList.toggle("hidden", p.dataset.pane !== t));
     if (t === "history") loadHistory();
+    document.dispatchEvent(new CustomEvent("aegis-meeting-tab", { detail: t }));
   }
   function open(t) {
     if (!dlg) return;
@@ -627,5 +630,5 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 
-  window.AegisMeetings = { open, start, stop, pause, resume, present: startPresent, extract, isPresent: () => present, state: () => phase, hasNotes: () => !!current, scriptFor };
+  window.AegisMeetings = { current: () => current, showTab, openSaved, open, start, stop, pause, resume, present: startPresent, extract, isPresent: () => present, state: () => phase, hasNotes: () => !!current, scriptFor };
 })();
