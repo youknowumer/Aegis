@@ -65,7 +65,7 @@
     ];
 
     function resize() {
-      const r = canvas.getBoundingClientRect();
+      const r = { width: canvas.clientWidth || canvas.getBoundingClientRect().width, height: canvas.clientHeight || canvas.getBoundingClientRect().height };   // layout size: not distorted by entrance transforms
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       w = Math.max(1, r.width); h = Math.max(1, r.height);
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
@@ -121,7 +121,7 @@
 
       // atmosphere glow
       const g = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 2.3);
-      g.addColorStop(0, rgba(0.34 * cur.glow)); g.addColorStop(0.45, rgba(0.09 * cur.glow)); g.addColorStop(1, rgba(0));
+      g.addColorStop(0, rgba(0.55 * cur.glow)); g.addColorStop(0.45, rgba(0.17 * cur.glow)); g.addColorStop(1, rgba(0));
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
 
       ctx.lineCap = "round"; ctx.lineJoin = "round";
@@ -278,7 +278,7 @@
           const a = (i / nR) * TAU + t * (0.18 + cur.spin * 0.12) * (i % 2 ? 1 : -1);
           const len = R * (0.55 + 0.35 * Math.sin(t * 1.7 + i * 1.9) + amp * 0.9 + flash * 1.1);
           const g2 = ctx.createLinearGradient(cx, cy, cx + Math.cos(a) * len, cy + Math.sin(a) * len);
-          g2.addColorStop(0, rgba(0.38 * cur.dim + flash * 0.4, theme.lite)); g2.addColorStop(1, rgba(0));
+          g2.addColorStop(0, rgba(0.6 * cur.dim + flash * 0.4, theme.lite)); g2.addColorStop(1, rgba(0));
           ctx.strokeStyle = g2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len); ctx.stroke();
         }
       }
@@ -313,6 +313,7 @@
         ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalAlpha = 0.85 + 0.25 * beat + flash * 0.4;
         ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(bloomC, 0, 0, canvas.width, canvas.height);
         ctx.drawImage(bloomC, 0, 0, canvas.width, canvas.height);
         ctx.restore();
       }
