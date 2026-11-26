@@ -6,9 +6,9 @@
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const fine = matchMedia("(hover: hover) and (pointer: fine)").matches;
   const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
-  if (!hero) return;
-  if (reduce) { hero.classList.add("go"); return; }
-
+  const heroFx = !!hero && !reduce;
+  if (hero && reduce) hero.classList.add("go");
+  if (heroFx) {
   // intro: wait one frame so the hidden start state paints first
   requestAnimationFrame(() => requestAnimationFrame(() => hero.classList.add("go")));
 
@@ -104,6 +104,8 @@
     hero.style.setProperty("--hp", clamp(scrollY / (innerHeight * 0.8)).toFixed(3));
   }); };
   addEventListener("scroll", onScroll, { passive: true });
+
+  } // end of hero-only effects (the old pastel hero; the current hero lives in landing-halora.js)
 
   // ---- reveal variants + stagger for sibling groups
   const groups = ".caps, .cmds, .plans, .steps, .proofs, .nodes, .cols, .ui-points, .faq-list";

@@ -12,20 +12,37 @@
   $$(".steps li").forEach((el, i) => { el.dataset.hue = String((i % 4) + 1); });
   $$(".plan:not(.feat)").forEach((el, i) => { el.dataset.hue = i ? "3" : "1"; });
 
-  // ------------------------------------------------------------ stickers: copy the hero's resolved, tinted icons
-  const stickers = $$(".stk");
-  function syncStickers() {
-    const heroIcons = $$(".hero-sec.vela .vic");
-    if (!heroIcons.length) return;
-    stickers.forEach((s) => {
-      const src = heroIcons[Number(s.dataset.ic) % heroIcons.length];
-      s.replaceChildren(src.cloneNode(true));
-      const v = s.firstElementChild; v.style.opacity = ""; v.style.transform = ""; v.style.filter = "";
-    });
-  }
-  syncStickers();
-  [500, 1600, 4500].forEach((ms) => setTimeout(syncStickers, ms));
-  addEventListener("load", syncStickers);
+  // ------------------------------------------------------------ stickers: glossy tinted 3D icons (self-hosted file first, CDN copy as a fallback)
+  const ICONS = [
+    { f: "message", tint: "#E9C22E", cdn: "83de7c35-dd91-4e56-bfb8-0ffafc83d0e0" },
+    { f: "browse",  tint: "#F2772F", cdn: "4d952211-0474-48cc-af48-58f68b3b7525" },
+    { f: "transact", tint: "#3FB874", cdn: "e2e91fca-5b3f-4e0e-a437-8a581592e407" },
+    { f: "web",     tint: "#C564C4", cdn: "6b32bb47-4ad6-4938-a637-c997b373c68b" },
+  ];
+  const CDN = "https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/";
+  const abs = (u) => new URL(u, document.baseURI).href;
+  const probe = (url, cors) => new Promise((res) => {
+    const t = new Image(); if (cors) t.crossOrigin = "anonymous";
+    t.onload = () => res(true); t.onerror = () => res(false); t.src = url;
+  });
+  $$(".stk").forEach((s) => {
+    const ic = ICONS[Number(s.dataset.ic) % ICONS.length];
+    const wrap = document.createElement("span"); wrap.className = "vic";
+    const img = document.createElement("img"); img.alt = ""; img.width = 320; img.height = 320; img.decoding = "async";
+    const tint = document.createElement("i"); tint.className = "tint"; tint.style.setProperty("--tint", ic.tint);
+    wrap.append(img, tint); s.replaceChildren(wrap);
+    const local = "assets/vela/" + ic.f + ".webp", cdn = CDN + ic.cdn + ".webp";
+    const use = (url, masked) => {
+      img.src = url;
+      if (masked) { tint.style.setProperty("--icon", `url("${abs(url)}")`); wrap.classList.add("ok"); }
+    };
+    (async () => {
+      if (await probe(local)) return use(local, true);
+      if (await probe(cdn, true)) return use(cdn, true);
+      if (await probe(cdn)) return use(cdn, false);
+      wrap.hidden = true;
+    })();
+  });
 
   // ------------------------------------------------------------ pointer highlight on cards
   if (fine) {
