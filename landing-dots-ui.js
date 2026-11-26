@@ -71,5 +71,10 @@
     const el = document.getElementById(a.getAttribute("href").slice(1));
     if (el && sheet.contains(el)) { e.preventDefault(); el.scrollIntoView({ behavior: "smooth", block: "start" }); }
   }));
+  sheet.addEventListener("pointermove", (e) => {
+    const c = e.target.closest && e.target.closest(".cap"); if (!c) return;
+    const r = c.getBoundingClientRect();
+    c.style.setProperty("--mx", (e.clientX - r.left) + "px"); c.style.setProperty("--my", (e.clientY - r.top) + "px");
+  });
   if (location.hash === "#details") open(null);
 })();
