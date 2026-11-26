@@ -45,7 +45,7 @@ async function boot(opts) {
       if (opts.studio) w.localStorage.setItem("aegis_token", "tok");
       w.fetch = async (url, init) => {
         calls.push({ url: String(url), body: init && init.body ? JSON.parse(init.body) : null });
-        if (String(url).endsWith("/api/tts/status")) return { ok: !!opts.studio, status: 200, json: async () => ({ available: true, provider: "openai", chars_left: 5000 }) };
+        if (String(url).endsWith("/api/tts/status")) return { ok: !!opts.studio, status: 200, json: async () => opts.ttsInfo || ({ available: true, provider: "openai", chars_left: 5000 }) };
         if (String(url).endsWith("/api/tts")) return { ok: opts.ttsStatus === undefined, status: opts.ttsStatus || 200, blob: async () => ({}) };
         return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
       };
@@ -170,6 +170,15 @@ T("studio voice failing (out of quota) falls back to the browser voice without l
   await wait(200);
   assert.strictEqual(calls.filter((c) => c.url.endsWith("/api/tts")).length, before);
   assert.ok(spoken.some((s) => s.text === "Third."));
+}));
+
+T("settings panel with local language voices: says so, counts the languages, and no longer claims one woman speaks every language", async () => withApp({ studio: true, ttsInfo: { available: true, provider: "mms", chars_left: 200000, languages: ["en", "ur", "hi"], roman_urdu: true } }, async ({ w }) => {
+  await wait(200);
+  const vp = w.document.querySelector(".vp");
+  assert.match(vp.textContent, /Local language voices are on \(3 languages \+ Roman Urdu\)/);
+  assert.match(vp.textContent, /Each language is spoken by its own local voice/);
+  assert.doesNotMatch(vp.textContent, /same woman in every language/);
+  assert.ok(w.AegisVoice.cloud.ready());
 }));
 
 T("settings panel: studio voice toggle and language sampler are there, and the toggle really switches the studio voice off", async () => withApp({ studio: true }, async ({ w }) => {

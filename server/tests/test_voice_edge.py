@@ -18,6 +18,7 @@ VOICES = [
 def edge_env(monkeypatch):
     for k in ("OPENAI_API_KEY", "ELEVENLABS_API_KEY", "AEGIS_TTS_PROVIDER", "AEGIS_TTS_CHARS_PER_DAY", "AEGIS_EDGE_TTS"):
         monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("AEGIS_MMS", "0")   # these tests are about the Edge voice, even on a machine that has local MMS voices installed
     monkeypatch.setattr(tts, "_edge_installed", lambda: True)
     monkeypatch.setattr(tts, "_list_edge_voices", lambda: VOICES)
     calls = []

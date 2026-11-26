@@ -1,0 +1,11 @@
+# Optional: local language voices (Meta MMS). Not needed for normal Aegis. See SETUP.md > "Local language voices".
+# Tested with torch 2.14, transformers 5.24, uroman 1.3, num2words 0.5 (Python 3.12).
+# Windows: pip install -r requirements-mms.txt   (the Windows wheel is CPU-only)
+# Linux / Docker: install CPU-only PyTorch FIRST so you do not download several GB of GPU libraries:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.1
+transformers>=4.40
+huggingface_hub>=0.23
+numpy>=1.26
+uroman>=1.3          # a few voices (for example Korean) need text converted to Latin letters first
+num2words>=0.5.13    # speaks digits as words ("3 pm"): MMS has no digits in its alphabet

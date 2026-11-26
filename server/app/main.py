@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import chief, emotion, extras, heart, meeting, otter, providers, settings, smarthome, tts
+from . import chief, emotion, extras, heart, meeting, mms, otter, providers, settings, smarthome, tts
 from .agent import Agent, Session
 from .auth import EMAIL_RE, hash_password, make_token, read_token_full, verify_password
 from .db import DB
@@ -587,7 +587,9 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     @app.get("/api/tts/status")
     def tts_status(user=Depends(current_user)):
         on = tts.available()
-        return {"available": on, "provider": tts.provider(), "chars_left": tts_quota.left(user["id"]) if on else 0, "max_chars": tts.MAX_CHARS}
+        local = tts.local_languages()
+        return {"available": on, "provider": tts.provider(), "chars_left": tts_quota.left(user["id"]) if on else 0, "max_chars": tts.MAX_CHARS,
+                "languages": local, "roman_urdu": bool(local) and mms.roman_ready()}
 
     @app.post("/api/tts")
     async def tts_speak(body: TTSIn, user=Depends(current_user)):
@@ -606,7 +608,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         except tts.TTSError as e:
             tts_quota.refund(user["id"], len(text))
             raise HTTPException(502, str(e))
-        return Response(content=audio, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+        return Response(content=audio, media_type=tts.content_type(audio), headers={"Cache-Control": "no-store"})
 
     # ---------- Groq: speech-to-text + meeting notes ----------
     stt_limiter = LoginLimiter(max_attempts=90, window=60)

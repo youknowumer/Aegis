@@ -6,16 +6,23 @@ studio voice at all. For the most human, emotional voice set ONE paid key (it th
   OPENAI_API_KEY       uses OpenAI gpt-4o-mini-tts. It follows spoken-style instructions, so each sentence can be
                        "joyful", "gentle and slow", "urgent"... in the language of the text.
   ELEVENLABS_API_KEY   uses ElevenLabs eleven_multilingual_v2 (pick the voice with AEGIS_ELEVENLABS_VOICE).
-Optional: AEGIS_TTS_PROVIDER (openai | elevenlabs), AEGIS_TTS_MODEL, AEGIS_TTS_VOICE, AEGIS_TTS_CHARS_PER_DAY (per user).
+Optional: AEGIS_TTS_PROVIDER (openai | elevenlabs | mms | edge | off), AEGIS_TTS_MODEL, AEGIS_TTS_VOICE, AEGIS_TTS_CHARS_PER_DAY (per user).
+Local language voices: when PyTorch and downloaded MMS models are present (see mms.py) and no paid key is set, each sentence is spoken
+by the voice of its own language on this machine ("mms"). A language without a local model falls back to the Edge voice.
 """
 import asyncio
 import json
+import logging
 import os
 import re
 import time
 import urllib.error
 import urllib.request
 from typing import Dict, Tuple
+
+from . import mms
+
+log = logging.getLogger("aegis.tts")
 
 MAX_CHARS = 700          # one request = a few sentences
 MAX_AUDIO_BYTES = 4_000_000
@@ -66,6 +73,8 @@ def provider() -> str:
         return ""
     if want == "edge":
         return "edge" if edge_enabled() else ""
+    if want == "mms":
+        return "mms" if mms.ready() else ""
     if want == "openai" and have_o:
         return "openai"
     if want == "elevenlabs" and have_e:
@@ -76,6 +85,8 @@ def provider() -> str:
         return "openai"
     if have_e:
         return "elevenlabs"
+    if mms.ready():  # downloaded local voices beat the free cloud voice; a paid key above still wins
+        return "mms"
     return "edge" if edge_enabled() else ""
 
 
@@ -84,7 +95,7 @@ def available() -> bool:
 
 
 def daily_chars() -> int:
-    default = "200000" if provider() == "edge" else "6000"  # the limit exists to protect paid keys; the free voice gets a generous one
+    default = "200000" if provider() in ("edge", "mms") else "6000"  # the limit exists to protect paid keys; free voices get a generous one
     try:
         return max(0, int(os.environ.get("AEGIS_TTS_CHARS_PER_DAY", default)))
     except ValueError:
@@ -195,6 +206,35 @@ def _edge_audio(text: str, voice: str, emotion: str, intensity: int = 3) -> byte
         raise TTSError("The voice service is not reachable right now.")
 
 
+# ---------------------------------------------------------------- MMS: local voice of the language being spoken
+def _mms_audio(text: str, lang: str, emotion: str, intensity: int = 3) -> bytes:
+    """Speak with the downloaded MMS voice of this language. Anything it cannot do (no model for the language, model busy or broken,
+    text it cannot read) goes to the Edge voice, so the user always hears an answer in their language."""
+    base = str(lang or "").split("-")[0].lower() or "en"
+    code = mms.code_for(base, _is_romanized(text, base))
+    why = "no local voice for this language"
+    if code:
+        rate, _pitch, volume = scale_prosody(*_EDGE_PROSODY.get(emotion, _EDGE_PROSODY["calm"]), intensity)  # MMS has speed and loudness, not pitch
+        try:
+            return mms.synthesize(text, code, base, int(rate.rstrip("%")), int(volume.rstrip("%")))
+        except mms.MMSError as e:
+            why = str(e)
+    if edge_enabled():
+        log.info("MMS fallback to the Edge voice (%s): %s", base, why)
+        return _edge_audio(text, edge_voice(text, lang), emotion, intensity)
+    raise TTSError("There is no local voice for this language yet." if code is None else "The local voice could not speak this sentence.")
+
+
+def local_languages() -> list:
+    """Languages spoken by their own local voice right now (for the settings panel). Empty unless the local voices are the active provider."""
+    return mms.languages() if provider() == "mms" else []
+
+
+def content_type(audio: bytes) -> str:
+    """Local voices answer with WAV, the cloud voices with MP3."""
+    return "audio/wav" if audio[:4] == b"RIFF" and audio[8:12] == b"WAVE" else "audio/mpeg"
+
+
 class Quota:
     """Characters spoken per user per day (in memory: one server process, resets on restart)."""
 
@@ -265,6 +305,8 @@ def synthesize(text: str, emotion: str = "calm", lang: str = "", intensity: int 
             {"xi-api-key": os.environ["ELEVENLABS_API_KEY"].strip()},
             {"text": text, "model_id": os.environ.get("AEGIS_TTS_MODEL", "eleven_multilingual_v2"), "voice_settings": {"stability": stability, "similarity_boost": 0.8, "style": style_amt, "use_speaker_boost": True}},
         )
+    elif which == "mms":
+        data = _mms_audio(text, lang, emo, intensity)
     elif which == "edge":
         data = _edge_audio(text, edge_voice(text, lang), emo, intensity)
     else:
