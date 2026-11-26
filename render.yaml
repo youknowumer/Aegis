@@ -38,3 +38,10 @@ services:
         sync: false
       - key: AEGIS_HA_TOKEN
         sync: false
+      # Optional (v16): local language voices (Meta MMS, non-commercial licence). Needs a plan with 2 GB+ RAM and a disk of 6 GB or more
+      # (raise `sizeGB` above). On a smaller plan the server turns them off by itself and keeps the free Edge voice, so this is safe to try.
+      # Models download themselves the first time each language is spoken. See SETUP.md > "Local language voices".
+      # - key: WITH_MMS
+      #   value: "1"             # also installs PyTorch at build time (Render passes service variables to Docker as build args; check your dashboard)
+      # - key: AEGIS_MMS_CACHE
+      #   value: "2"             # language models kept in memory

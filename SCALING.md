@@ -56,11 +56,13 @@ Steps 3 and 4 are a project of days, not hours. Do not start them before step 1 
 Setup is in SETUP.md. For capacity planning:
 
 - It is **CPU and RAM on your server**, not an API bill. Each loaded language is about 150 MB (`AEGIS_MMS_CACHE` models stay loaded, default 3, least recently used is dropped), plus PyTorch itself. Plan for 2 GB or more.
+- **A small server protects itself:** below `AEGIS_MMS_MIN_RAM_MB` (1500) the local voices stay off and the Edge voice speaks, instead of the server running out of memory. The container limit is what counts, not the host's RAM.
 - Speech is generated **one sentence at a time per slot**: `AEGIS_MMS_CONCURRENCY` (default 1). A sentence that waits longer than `AEGIS_MMS_QUEUE_SECONDS` (default 20) is
   spoken by the fallback voice instead, so a busy server slows down gracefully and never piles up. Raise concurrency together with CPU cores, and measure on your own machine before promising anything.
+- Voices **download themselves** on first use (one at a time, in the background, never twice, retried after 10 minutes if they fail, skipped when under 1 GB of disk is free). All 31 languages plus Roman Urdu are about 5 GB, so size the disk for the languages your users really speak.
 - Per-user daily allowance still applies (`AEGIS_TTS_CHARS_PER_DAY`, default 200,000 for free voices).
-- Models live on disk (`AEGIS_MMS_DIR`, `/data/mms_models` in Docker, so they survive redeploys). All 31 languages plus Roman Urdu are about 5 GB.
-- Two copies of the server each load their own models. That is another reason to stay at one process until you have moved shared state out (see below).
+- Models live on disk (`AEGIS_MMS_DIR`, `/data/mms_models` in Docker, so they survive redeploys).
+- Two copies of the server each load their own models and download their own copies. That is another reason to stay at one process until you have moved shared state out (see below).
 - **Licence: CC-BY-NC 4.0 = non-commercial.** This is the one scale limit that no hardware fixes. Before you charge money, switch to a voice you may use commercially (`AEGIS_MMS=0` plus `OPENAI_API_KEY` or `ELEVENLABS_API_KEY`).
 
 ## Money

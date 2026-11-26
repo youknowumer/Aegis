@@ -7,16 +7,16 @@
 **Talk to it, type to it, and let it do real work:** answer questions, remember your life, run your day,
 take meeting notes, send emails, and operate your laptop. Every risky action asks for your approval first.
 
-![Status](https://img.shields.io/badge/version-v17-6c63ff)
+![Status](https://img.shields.io/badge/version-v14-6c63ff)
 ![Backend](https://img.shields.io/badge/backend-FastAPI%20%2B%20SQLite-009688)
 ![Desktop](https://img.shields.io/badge/desktop-Electron%20(Windows)-47848f)
 ![AI](https://img.shields.io/badge/AI-Claude%20%7C%20Groq%20%7C%20OpenAI%20%7C%20Gemini%20%7C%20more-ff9800)
 ![Tools](https://img.shields.io/badge/agent%20tools-118-blue)
 ![Languages](https://img.shields.io/badge/voice-20%20languages-success)
-![Landing](https://img.shields.io/badge/landing-66%2C000%20dots%20(three.js)-0aa5c2)
-![Voices](https://img.shields.io/badge/local%20voices-31%20languages-2fe3ff)
+![Landing](https://img.shields.io/badge/landing-motion%20%2B%20scrollspy-0aa5c2)
+![Icons](https://img.shields.io/badge/icons-SVG%20%7C%20ICO%20%7C%20PWA-2fe3ff)
 ![License](https://img.shields.io/badge/license-proprietary-red)
-![Tests](https://img.shields.io/badge/tests-396%20server%20%7C%2043%20JS%20%7C%2059%20desktop-brightgreen)
+![Tests](https://img.shields.io/badge/tests-319%20server%20%7C%20JS%2043%20pass-brightgreen)
 
 </div>
 
@@ -47,23 +47,13 @@ take meeting notes, send emails, and operate your laptop. Every risky action ask
 
 ---
 
-## What is new in v15 to v17
-
-| Version | What changed |
-|---|---|
-| **v17** | **A completely new landing page**: a calm, full-screen point-cloud portrait drawn from **66,000 glowing dots** (three.js). A real download progress ring, the dots arc into place, a light follows your cursor and the head turns to look at it. A "What it does" sheet holds the real product facts, and the Windows download button lives on the page. See [2.11](#211-landing-page-66000-dots-v17). |
-| **v16** | **Local language voices** (Meta MMS): 31 languages plus Roman Urdu spoken by their own voice, with no key and no per-character cost. See [2.1](#21-voice-talk-like-siri-with-your-own-wake-word) and [SETUP.md](SETUP.md). |
-| **v15** | **Otter-style meetings**: interactive transcript, speaker labels, Ask AI across meetings, share links, exports and an AI follow-up email. See [2.6](#26-meeting-assistant). |
-
----
-
 ## 1. What is Aegis?
 
 Aegis is a **self-hostable personal assistant** with a futuristic HUD interface. It has three parts that work together:
 
 | Part | What it is | Where it runs |
 |---|---|---|
-| **Website** | The screen you see: the 66,000-dot landing page, login, animated orb, chat, side panels, voice and meeting UI. Plain HTML/CSS/JS, no build step. | GitHub Pages, Cloudflare Pages, or served by the Aegis server itself |
+| **Website** | The screen you see: landing page, login, animated orb, chat, side panels, voice and meeting UI. Plain HTML/CSS/JS, no build step. | GitHub Pages, Cloudflare Pages, or served by the Aegis server itself |
 | **Server** | The brain: accounts, memory, the AI agent loop, reminders, calendar, meetings, limits. Python (FastAPI) with a SQLite database. | Your PC, Render, Railway, Fly.io, or any VPS / Docker host |
 | **Desktop app** | The hands: lets the assistant open apps, read files, drive Chrome, work with Outlook and control Windows. Electron, and it ships its own bundled server. | Your Windows PC |
 
@@ -89,7 +79,6 @@ Aegis is a **self-hostable personal assistant** with a futuristic HUD interface.
 | **Accurate transcription** | After the wake word, speech is transcribed by **Groq Whisper** (`whisper-large-v3-turbo` for speed, `whisper-large-v3` for Urdu/Hindi and other non-English), which is far more accurate than the browser recogniser. The wake word itself stays on the free browser recogniser because it must listen continuously. |
 | **One expressive female voice** | Each *sentence* is spoken with its own feeling (joy, empathy, concern, urgency, curiosity, calm, warm, excited). Say "more emotion" or "less emotion" to adjust. The stronger the feeling (scale 1 to 5), the more speed, pitch, volume and expressiveness shift. |
 | **Voice engines** | Default: free neural voices via `edge-tts` (no key needed). Optional offline **local language voices** (Meta MMS, one model per language, non-commercial licence). Optional upgrade: **OpenAI** `gpt-4o-mini-tts` (follows spoken-style instructions) or **ElevenLabs** `eleven_multilingual_v2`. If the studio voice fails or the daily allowance ends, the browser's built-in voice takes over silently. |
-| **Local language voices (v16)** | Optional, off until you install them. Meta MMS speaks **31 languages plus Roman Urdu**, each in its own voice, on your own machine: no key and no per-character cost. Italian, Chinese, Japanese and Czech are not in MMS and keep the Edge voice. Anything MMS cannot speak (no model, busy, unreadable text) falls back to Edge. **The MMS models are non-commercial (CC-BY-NC 4.0).** Install with `install-voices.bat` or `./install-voices.sh`; details in [SETUP.md](SETUP.md). |
 | **Multilingual speech** | Each sentence is spoken with a voice of **its own language**, so mixed answers (English + Urdu) are read correctly. The page listens in 20 languages and "switch to Spanish" works. |
 | **Addressing you** | "Call me" sir, boss, or your name. |
 
@@ -179,22 +168,6 @@ Open it with the top-bar button or **Alt+M**.
 - Ask later: "What did we decide in my last meeting?".
 - Long transcripts are processed in chunks so they stay within free-tier token limits.
 
-**Otter-style tools (v15, need an Aegis server account)**
-
-| Tool | What it does |
-|---|---|
-| **Interactive transcript** | Timestamps, search inside the transcript, highlight lines (★), comment on lines, tags. |
-| **Speaker labels** | "Identify speakers" estimates who said each line from the conversation (Whisper does not mark speakers). Click a name to rename it. |
-| **Talk time, keywords, questions** | Computed locally for every meeting, with no AI call. |
-| **Ask AI** | Chat with one meeting or with all of them. Answers cite timestamps you can click to jump to that line. |
-| **Search every meeting** | Finds words in transcripts, notes and titles, with a snippet. |
-| **Share link** | A read-only public page at `/shared/<token>`, marked `noindex`, which you can switch off at any time. |
-| **Export** | `.txt`, `.srt`, `.vtt`, `.md` and `.json`, with speaker names and timestamps. |
-| **AI follow-up email** | Pick the tone and language, then copy it or open it in your mail app. |
-| **Custom vocabulary** | Names and jargon are given to Whisper as a spelling hint (Record tab). |
-
-Not included, because they need infrastructure this project does not have: a bot that auto-joins Zoom, Meet or Teams from your calendar (use "Microphone + browser tab audio" or Present mode), playback of the original audio (audio is not stored on the server) and voice-based speaker recognition (labels come from the text).
-
 ### 2.7 Email
 
 | Route | How it works |
@@ -235,104 +208,64 @@ Aegis can speak up without being asked (`AEGIS_PROACTIVE=0` turns it off):
 - **Live activity feed** of every tool the AI uses.
 - **Approval dialog** with a 60-second countdown.
 - **Command palette** (`Ctrl/⌘ K`), settings dialog, themes and accent colours (dark/light), compact orb once a chat starts, message actions (copy / read aloud / regenerate), conversation search, prompt history, slash quick-prompts, drag-and-drop a text file into the chat, export chat to Markdown, offline banner, responsive on phones.
-- **Landing page**: a full-screen point-cloud portrait made of 66,000 dots, with a cursor light, a "What it does" sheet and a Windows download button. See [2.11](#211-landing-page-66000-dots-v17).
+- **Landing page** with animated hero, live demo, voice mock, meeting mock, command list, FAQ, plans, light/dark toggle and a Windows download button. See [2.11](#211-landing-page-motion-and-navigation-v14).
 - **Sign-up form** with live validation, a progress checklist, password strength and a password suggester. See [2.12](#212-sign-up-form-v14).
 - **Brand icons** as SVG, ICO, PNG, Apple touch and installable-app (PWA) icons. See [2.13](#213-favicon-and-app-icons-v14).
 
-### 2.11 Landing page: 66,000 dots (v17)
+### 2.11 Landing page: motion and navigation (v14)
 
-`index.html` is a single full-screen scene. There is no scrolling page and no navigation bar: a dark moss-black room holds the head-and-shoulders bust of a figure wearing a wraparound visor, drawn entirely from about **66,000 soft glowing dots** in WebGL (three.js). The face is smooth and featureless, like a clay sculpture. The likeness lives in the silhouette, the hair, the leaf sprig and the visor.
-
-**What the visitor sees**
-
-1. A **ring of 96 dots** with a counter from `000` to `100`. The number is the **real download** of the 3D model (bytes received divided by the file size), not a timer.
-2. At 100 every dot leaves the ring and **arcs forward into place**, so the bust assembles itself in about 2.6 seconds.
-3. As the last dots land, **one diagonal band of light sweeps down the bust once**.
-4. From then on **the cursor is a small light**. It brightens whatever part of the bust it is near, and the head turns gently to look at it. On touch screens the light follows your finger, then returns to its slow orbit after 1.5 seconds.
-5. Every few seconds a **sage glint** runs across the visor and then across the leaves. Faint dust drifts upward and a fine film grain sits over everything.
-6. The name **Aegis**, the line "Asks before anything risky" and the hint "Move the light" fade in at about 1.4 seconds. The **Download for Windows** and **Open web app** buttons fade up at 4 seconds.
-
-**Buttons and the details sheet**
-
-| Control | Where | What it does |
-|---|---|---|
-| **Download for Windows ↓** | bottom left (bottom right on phones) | Starts the installer from `DOWNLOAD_URL` in `config.js`, then shows a short note about SmartScreen. If GitHub says no installer is published yet, it shows a friendly message instead of a 404 page. |
-| **Open web app →** | next to it | Opens `app.html`. |
-| **What it does** | top right | Opens the details sheet (`#details`, closes with Esc). |
-| **Sign in** · **Start free** | top right | `app.html` and `app.html?mode=register`. "Sign in" is hidden on phones; it stays in the sheet. |
-
-The sheet holds the real product facts: the four headline numbers (**118** agent tools, **26** that always wait for your Allow, **15** free messages a day, **31** local voice languages), the flow strip *Ask, Plan, Approve, Done*, six capability cards (Voice, Meetings, Your PC, Memory, Instant commands, Any AI), what runs without asking and what always waits for Allow, the three plans, installer details with the live version, size and date from GitHub, install steps, and a short FAQ. **The numbers in the sheet are typed into `index.html` by hand**, so update them when the tool count or the plans change (the sources are `server/app/tools.py` and `PLAN_LIMITS` in `server/app/settings.py`).
-
-**Files**
+The landing page (`index.html`) is plain HTML, CSS and JS with no build step. Motion is split into small files that load in order, so each layer can be changed or removed on its own:
 
 | File | What it does |
 |---|---|
-| `index.html` | The page: loader, text, buttons, the details sheet and the inline **import map** for three.js. |
-| `landing-dots.css` | Colour tokens, fonts, layout, loader, buttons, the sheet and the mobile rules. |
-| `landing-dots.js` | An ES module. Streams the model, builds the dots, runs the shaders and the timeline. |
-| `landing-dots-ui.js` | A plain script (not a module), so the buttons keep working even if the 3D scene cannot load. Download button, release info from GitHub and the sheet. |
-| `config.js` | `DOWNLOAD_URL` and `GITHUB_REPO` (shared with the rest of the site). |
+| `landing.css` · `landing.js` | Base layout, theme, reveal-on-scroll, the live demo |
+| `landing-pro.*` · `landing-fx.js` | Scroll-linked blur, word-by-word heading scrub, card spotlight, cursor light, demo tilt |
+| `landing-hero.*` | Particle shield that assembles into the logo |
+| `landing-vela*.{css,js}` | The cycling-verb hero (**Ask / Search / Automate / Connect**), tinted icons, stats strip, footer wordmark |
+| `landing-motion.{css,js}` | **v14 layer:** intro choreography, parallax, sparks, smooth scroll, scrollspy, rail, tilt, page transition |
 
-**Outside resources (the page needs internet)**
+**Hero (v14)**
 
-| What | From | Used for |
-|---|---|---|
-| three.js **0.170.0** and its addons | `cdn.jsdelivr.net` | Rendering, `GLTFLoader`, `MeshSurfaceSampler`. Loaded through the import map. |
-| The 3D bust (one untextured GLB, about 1.48 MB) | CloudFront (`GLB` constant at the top of `landing-dots.js`) | Streamed with `fetch` so the loader shows true progress. |
-| Geist, Geist Mono, Instrument Serif | `fonts.gstatic.com` | Name and text, counter and buttons, the "Aegis." logo. Each has a system fallback. |
-| Film grain | inline SVG data URI | A `feTurbulence` overlay at 5% opacity. |
+- The coloured panel wipes open, then the headline line, both buttons, the caption, the three stats and the sprout cascade in, in that order.
+- Pointer parallax moves the background, the verb icon and the word by different amounts. It uses the independent CSS `translate` property, so it never fights the clock-driven animation of the hero.
+- A soft spotlight and about 34 drifting sparks follow the pointer (16 on phones). The spark canvas pauses when the hero is off-screen or the tab is hidden.
+- On scroll the hero panel recedes (scales down, rounds its bottom corners) and the content fades up.
+- Buttons get a light sweep on hover and a small magnetic pull toward the pointer.
 
-**How the dots are made (all in the browser)**
+**Smoothness and navigation (v14)**
 
-1. The first mesh of the model is cloned with its world matrix applied and **330,000 candidate points** are sampled on its surface, with normals.
-2. **Even density.** Candidates are put into 0.022-unit voxels and the smallest per-voxel cap that still leaves 1.8 times the dots needed is used, so the hair does not swallow every dot while keeping some texture.
-3. **The leaf sprig.** Candidates in the sprig region skip the cap and 60% of them are kept, so it is denser than its area alone would give it.
-4. **The visor** is drawn as its own dots, one rigid curved shape fitted to the face: 3,110 dots made of a top bar, a lower edge with a notch over the nose, two ends, 1,500 lens dots and two short arms. Its curvature is fitted to a height map of the face so it never sinks into the skin.
-5. **Exactly 66,000 dots** are produced: the visor dots, the kept leaf dots and the thinned bust dots fill the rest.
-6. Each dot gets a random number and two **depth values**: *ridge* (stands proud of its neighbours, like a bun twist or a collar point, or sits in a crease) and *thin* (loose strands and leaf tips). The shader uses them to make edges catch light and creases fall into shadow.
+- **Eased anchor scrolling.** Clicks on `#section` links glide with a cubic ease (450 to 1200 ms depending on distance). The target is re-measured every frame, so late layout changes never make it land short. A wheel or touch input cancels the glide at once. The URL hash and keyboard focus are updated correctly.
+- **Scrollspy.** A sliding underline in the top nav and a dotted **section rail** on the right (screens 1280 px and wider) show the section you are in. Hover a dot for its name.
+- **Smart header.** Hides while you scroll down, returns on the first upward scroll or when something in it gets keyboard focus.
+- **Reading progress.** A glowing bar at the top and a progress ring around the back-to-top button.
+- **Page transition.** Links to the app fade the page out for 240 ms, and the app page is prefetched on hover or focus so it opens faster.
+- **FAQ.** Answers open and close with a height animation (Chrome 131+; other browsers open instantly) and only one answer stays open.
+- **Cards.** 3D tilt toward the pointer (max about 6 degrees), lift and glow on hover, staggered entrance (zoom, left or right).
+- **Details.** Heading underline sweeps in, eyebrow underlines draw in, the small 3D stickers float, selection colour and focus rings follow the accent colour.
 
-**Scene, timeline and interaction**
+**Section-wise colour (v14)**
 
-| Time or trigger | What happens |
+The four hero hues (yellow `#E9C22E`, orange `#F2772F`, green `#3FB874`, pink `#C564C4`) now colour the whole page, one per section, and teal stays for the brand chrome and the *Your control* and *Download* sections.
+
+| Where | Colour behaviour |
 |---|---|
-| While the model streams | Ring dots light up clockwise from 12 o'clock and the counter climbs. Without a file size the progress is estimated from 1.5 MB and capped at 95%. |
-| Download done | Parse, build the dots, show `100`, hold 380 ms. |
-| t = 0 | The renderer starts. Every dot leaves the ring (it starts on the exact radius of the SVG ring) and arcs into place over 2.6 s. |
-| t ≈ 1.4 s | The page becomes "ready": the loader fades out, the system cursor hides and the text fades in. |
-| t = 2.34 to 4.54 s | The shine: one diagonal band sweeps from above the bun to past the shoulders, once. |
-| t = 4.6 s, then every 4.2 s | The glint crosses the visor, then the leaves, in 0.9 s. |
-| Pointer or touch | The light eases to the pointer on a plane in front of the bust, and the head turns toward it. |
-| No pointer | The light orbits on its own and the head sways slightly. |
+| Hero sparks and spotlight | Follow the current verb: Ask is yellow, Search orange, Automate green, Connect pink, blended smoothly between words (reads the hero clock). |
+| Each `data-hue` section | A soft ambient glow in its hue breathes in as the section crosses the screen, and a hairline at the top draws left to right (scroll-driven, Chrome and Edge; others see the static glow). |
+| Page chrome | Nav underline, section rail dot, back-to-top ring, cursor light and selection cross-fade to the colour of the section you are in. |
+| Cards and lists | Capabilities, commands, steps, proofs and FAQ items cycle through the four hues for their dots, numbers, icons and hover glow. |
+| Plans | Free is green, Basic orange, Power pink, each with a coloured top edge. The featured plan and the demo window have a travelling colour light on their border. |
+| Hero stats | A coloured bar under each number. |
+| Stickers and eyebrow dots | Glow and pulse in their section colour. |
 
-Camera: field of view 30°, the view is always 4.7 units tall (or wider on narrow screens), so the whole bust fits at any size. The renderer uses pixel ratio up to 2, additive blending and no depth writes. A frame step is capped at 50 ms.
+To retune the palette, change `--h1` to `--h4` in `landing-motion.css` (and the matching `HUES` table in `landing-motion.js`). Everything works in light and dark themes, and reduced-motion users get the static colours without movement.
 
-**Mobile**
+**Performance and accessibility**
 
-At 700 px wide and below, the name and tagline sit side by side near the top and the hint moves up. At 600 px and below the buttons shrink and move to the bottom right. The hint also moves up at 960 px and below, so it never touches the two buttons.
-
-**Reduced motion and errors**
-
-With `prefers-reduced-motion: reduce` there is no entrance (the bust is already assembled), no breathing, no drifting dust, no shine, no glint, and the head stays still. The light snaps to its target and the CSS transitions are off. If the model cannot be loaded, the counter shows **"Could not load"** and the label **"Refresh to try again"**; the buttons and the sheet still work.
-
-**Hosting and security**
-
-- The server serves only the files listed in `WEB_FILES` in `server/app/settings.py`. The three new files are already listed there.
-- The server's strict policy (`default-src 'self'`) would block the CDN, the fonts and the model, so **only for `/` and `/index.html`** `server/app/main.py` sends a slightly wider Content-Security-Policy: scripts from `'self'` and `cdn.jsdelivr.net`, the model from CloudFront, and fonts from `fonts.gstatic.com`. Every other page keeps the strict policy.
-- The inline import map is allowed by its **SHA-256 hash**. `landing_importmap_hash()` computes it from the real `index.html`, so you can change the three.js version without touching the server. Keep it as one inline `<script type="importmap">`.
-- On GitHub Pages and Cloudflare Pages there is no such header, so the page works as it is.
-
-**Making changes**
-
-| To change | Edit |
-|---|---|
-| The 3D model | The `GLB` constant at the top of `landing-dots.js`. A new model usually needs the voxel size, the leaf region and the visor numbers retuned. |
-| The number of dots | `N` at the top of `landing-dots.js`. |
-| Colours | The `--color-*` tokens in `landing-dots.css`; the dot colours are `uInk`, `uBlue` and `uCream` in `landing-dots.js`. |
-| Name, tagline, hint | The `.name`, `.tagline` and `.hint` elements in `index.html`. |
-| Download link and release lookup | `DOWNLOAD_URL` and `GITHUB_REPO` in `config.js`. |
-| three.js version | The import map in `index.html` (pin an exact version). |
-
-The older landing layers (`landing.*`, `landing-pro.*`, `landing-hero.*`, `landing-vela*.*`, `landing-motion.*`, `landing-ultra.*`, `landing-fx.js`, `landing-download.js`) are no longer loaded by `index.html`. They stay in the project so nothing else breaks (an existing test still reads `landing.css` and `landing.js`); you can delete them together with `assets/vela/` and `scripts/fetch-vela-icons.sh` when you no longer need the old design.
+- One `requestAnimationFrame`-throttled scroll handler drives the header, rail, progress ring and scrollspy. Scroll listeners are passive.
+- All canvas loops stop when off-screen (`IntersectionObserver`) or when the tab is hidden.
+- `prefers-reduced-motion: reduce` turns off every animation above. The hero shows its still state and anchor jumps are instant.
+- Touch devices (`hover: none`) skip parallax, tilt, magnetic buttons and the cursor light.
+- Measured in headless Chrome at 1440 x 900: **61 fps** while scrolling the full page, with no console errors.
 
 ### 2.12 Sign-up form (v14)
 
@@ -400,8 +333,6 @@ Both `index.html` and `app.html` link the full set. The server serves `favicon.s
    │  outlook.js  local-server.js   │
    └────────────────────────────────┘
 ```
-
-Two modules are not drawn in the box above: `otter.py` (v15, the Otter-style meeting tools and share pages) and `mms.py` (v16, the local language voices, used through `tts.py`).
 
 ### 3.1 Lifecycle of one request
 
@@ -672,6 +603,8 @@ Users who paste their own Groq key in the app are not limited by these caps.
 | `AEGIS_MMS_DIR` | Where the MMS models are (default `server/mms_models`, Docker `/data/mms_models`). Download with `python scripts/mms_download.py` |
 | `AEGIS_MMS_CACHE` / `AEGIS_MMS_CONCURRENCY` / `AEGIS_MMS_QUEUE_SECONDS` | Models kept in memory (3), sentences synthesised at once (1), seconds a sentence waits before the fallback voice speaks it (20) |
 | `AEGIS_MMS_ROMAN` | `0` keeps Roman Urdu on the fallback voice instead of the Latin-script Urdu model |
+| `AEGIS_MMS_AUTO` | `1` (default): a voice downloads itself the first time its language is spoken. `0` never; or a list such as `ur,en,roman` |
+| `AEGIS_MMS_MIN_RAM_MB` / `AEGIS_MMS_FORCE` / `AEGIS_MMS_MIN_FREE_MB` | Local voices stay off below this much memory (1500; `FORCE=1` ignores it). No automatic download below this much free disk (1000 MB) |
 
 One request speaks at most 700 characters (a few sentences).
 
@@ -895,14 +828,6 @@ All `/api/*` routes (except register, login, config, providers and health) need 
 | POST / GET | `/api/meetings` | Create (audio, upload or text) / list |
 | GET / DELETE | `/api/meetings/{id}` | Read / delete |
 | POST | `/api/meetings/{id}/tasks` | Turn action items into tasks |
-| GET | `/api/meetings/search` | Search words in every meeting (transcripts, notes, titles) |
-| POST | `/api/meetings/ask` | Ask AI about one meeting or all of them (answers cite timestamps) |
-| GET / PUT | `/api/meetings/{id}/extra` | Highlights, comments, tags and speaker names |
-| POST | `/api/meetings/{id}/speakers` | Estimate who said each line |
-| POST | `/api/meetings/{id}/followup` | AI follow-up email (tone and language) |
-| POST / DELETE | `/api/meetings/{id}/share` | Create or switch off a read-only share link |
-| GET | `/api/meetings/{id}/export?fmt=` | Export as `txt`, `srt`, `vtt`, `md` or `json` |
-| GET | `/shared/{token}` | The public read-only meeting page (no login, `noindex`) |
 
 ### 13.4 Account
 
@@ -948,23 +873,20 @@ When you outgrow it (sustained CPU, zero-downtime deploys, roughly more than 5,0
 Everything below runs with fake AI and fake services. **No API key is needed.**
 
 ```bash
-# Server (FastAPI, database, agent loop, voice, meetings, emotion, heart, scaling, landing page and security headers)
+# Server (FastAPI, database, agent loop, voice, meetings, emotion, heart, scaling)
 cd server && pip install -r requirements.txt pytest && python -m pytest -q
-#   396 passed, 1 skipped
+#   319 passed
 
-# Browser logic: voice router, multilingual engine, meetings, static checks of the v11 to v13 UI
+# Browser logic: voice router, multilingual engine, meetings, static checks of v11/v12/v13 UI
 node --test tests/*.test.js
-#   55 tests: 43 pass, 0 fail, 12 skipped (the UI smoke test needs: npm install --no-save jsdom)
+#   54 tests: 43 pass, 0 fail, 11 skipped (the UI smoke test needs: npm install --no-save jsdom)
 
 # Desktop tools: files, Chrome, Outlook (against a pretend Outlook), PC pro, YouTube, local server
 cd desktop && npm install && npm test
-#   71 tests: 59 pass, 0 fail, 12 skipped (the skipped ones need real Chrome, Windows or Outlook)
+#   71 tests: 60 pass, 11 skipped (the skipped ones need real Chrome, Windows or Outlook)
 ```
 
 Counts above come from a real run of this version of the project. Run `npm install --no-save jsdom && node --test tests/ui-smoke.test.js` to load the real `app.html` in a simulated browser.
-
-**What the landing tests cover:** `test_server.py` checks that `/` serves the new page (the 66,000-dot text, the download button, `landing-dots.js`), that its Content-Security-Policy allows jsDelivr, CloudFront and the import-map hash while `app.html` keeps the strict policy, and that the three new landing files are served. The 3D scene itself needs a real browser with WebGL, so open `index.html` once after a change and check that the dots assemble.
-
 
 ---
 
@@ -972,39 +894,33 @@ Counts above come from a real run of this version of the project. Run `npm insta
 
 ```
 Aegis/
-├─ index.html                 Landing page: the 66,000-dot scene, buttons and the details sheet (v17)
-├─ landing-dots.css           Landing styles: tokens, fonts, loader, buttons, sheet, mobile rules
-├─ landing-dots.js            Landing scene (ES module): model streaming, dot building, shaders, timeline
-├─ landing-dots-ui.js         Landing buttons: download, release info, details sheet (plain script)
-├─ favicon.svg · favicon.ico · site.webmanifest     Brand icon set
+├─ index.html                 Landing page
+├─ landing.css · landing-pro.css · landing-hero.css · landing-vela.css · landing-vela-page.css
+├─ landing-motion.css         v14 motion layer: intro, parallax, rail, tilt, smooth-scroll styles
+├─ landing.js · landing-pro.js · landing-hero.js · landing-fx.js · theme-boot.js
+├─ landing-vela.js · landing-vela-page.js
+├─ landing-motion.js          v14 motion layer: hero intro, sparks, eased scroll, scrollspy, tilt
+├─ favicon.svg · favicon.ico · site.webmanifest     Brand icon set (v14)
 ├─ icons/                     PNG icons: 16 / 32 / 48 / 180 / 192 / 512 / maskable
-├─ fonts/                     Self-hosted Inter Tight (used by the older landing layers)
 ├─ app.html                   The assistant (login, HUD, chat, voice, settings)
-├─ style.css · app-fx.css · app-holo.css      App styles (base, depth and motion, holo HUD)
-├─ meetings.css · meetings-plus.css           Meeting assistant styles (plus the v15 Otter-style tools)
+├─ style.css · app-fx.css · meetings.css
 ├─ app.js                     Core: auth, websocket, chat, voice mode, wake word, settings
 ├─ orb.js                     Canvas arc-reactor orb and its states
-├─ voice.js                   Female voice, emotion shaping, language detection, studio and local voice client
+├─ voice.js                   Female voice, emotion shaping, language detection, studio-voice client
 ├─ commands.js                Instant commands (open, search, math, timers, notes, UI control)
 ├─ tabs.js · dock.js · hud.js Side tabs, live docks, clock / gauges / weather
 ├─ ui-plus.js · features.js   Palette, shortcuts, slash prompts, history, search, focus timer, scratchpad
-├─ app-fx.js · app-holo.js · auth-fx.js     Visual effects (app, holo HUD, sign-up form)
+├─ app-fx.js · auth-fx.js     Visual effects
 ├─ account.js                 Settings > Account & data
-├─ meetings.js · meetings-plus.js · groq.js Meeting assistant, Otter-style tools, Groq client
-├─ config.js                  ★ The one file that links website to server (API_BASE, DOWNLOAD_URL, GITHUB_REPO)
-│
-├─ (older theme layers, kept but not linked by app.html or index.html)
-│   app-aurora.* · app-ultra.* · app-glass.css        Earlier app looks
-│   theme-boot.js · landing.* · landing-pro.* · landing-hero.* · landing-vela*.* · landing-motion.* · landing-ultra.* · landing-fx.js · landing-download.js
-│   assets/vela/ · scripts/fetch-vela-icons.sh        Icons of the old hero
+├─ meetings.js · groq.js      Meeting assistant, Groq client (transcription, read-out)
+├─ config.js                  ★ The one file that links website to server (API_BASE, DOWNLOAD_URL)
 │
 ├─ server/
 │  ├─ requirements.txt        fastapi, uvicorn, pyjwt, anthropic, httpx, edge-tts, tzdata
-│  ├─ requirements-mms.txt    Optional: PyTorch-based local voices (v16)
 │  ├─ app/
-│  │  ├─ main.py              REST + websocket, CORS, security headers (strict, wider only for the landing page), admin, metrics, static hosting
+│  │  ├─ main.py              REST + websocket, CORS, security headers, admin, metrics, static hosting
 │  │  ├─ agent.py             Persona and the tool-use loop (streaming, parallel tools, approvals)
-│  │  ├─ tools.py             Tool catalogue (single source of truth, 118 tools)
+│  │  ├─ tools.py             Tool catalogue (single source of truth)
 │  │  ├─ providers.py         Provider catalogue, key and URL validation, SSRF guard
 │  │  ├─ hub.py               Live chats, devices, pending approvals
 │  │  ├─ db.py                SQLite schema and all queries
@@ -1014,15 +930,13 @@ Aegis/
 │  │  ├─ chief.py             Proactive alerts, free time, evening review, deep research
 │  │  ├─ extras.py            Habits, spending, prayer times
 │  │  ├─ meeting.py           Groq Whisper and structured meeting notes
-│  │  ├─ otter.py             Otter-style tools: speakers, Ask AI, search, share pages, exports, follow-up (v15)
-│  │  ├─ tts.py               edge / OpenAI / ElevenLabs / MMS speech with quotas
-│  │  ├─ mms.py               Local language voices (Meta MMS), 31 languages + Roman Urdu (v16)
+│  │  ├─ tts.py               edge / OpenAI / ElevenLabs speech with quotas
 │  │  ├─ mail.py              SMTP send / IMAP read with safety checks
 │  │  ├─ smarthome.py         Home Assistant with approval rules
 │  │  ├─ utilities.py         Safe calculator, weather, fetch_url, Wikipedia, currency, time helpers
-│  │  └─ settings.py          Environment variables and the list of files the server may serve
-│  ├─ scripts/                backup.py · restore_check.py · set_plan.py · mms_download.py
-│  └─ tests/                  pytest suites (396 tests)
+│  │  └─ settings.py          Environment variables
+│  ├─ scripts/                backup.py · restore_check.py · set_plan.py
+│  └─ tests/                  pytest suites
 │
 ├─ desktop/
 │  ├─ main.js                 Electron main process, device websocket, encrypted token storage
@@ -1033,16 +947,15 @@ Aegis/
 │  ├─ outlook.js · outlook.ps1  Classic Outlook through PowerShell
 │  ├─ local-server.js         Starts the bundled server
 │  ├─ updater.js              Auto-update from GitHub Releases
-│  ├─ assets/                 Installer icons and sidebar images
 │  ├─ scripts/                prepare-bundle.js · build-installer.js · make-assets.py
 │  └─ test/                   Node test suites
 │
 ├─ tests/                     Browser-logic tests (node --test)
 ├─ Dockerfile · docker-compose.yml · Caddyfile · render.yaml
-├─ start-local.sh · start-local.bat · install-voices.sh · install-voices.bat
+├─ start-local.sh · start-local.bat
 ├─ .github/workflows/static.yml   Publishes the website to GitHub Pages
-├─ README.md · SETUP.md · SCALING.md · SECURITY.md · START_HERE_UR.txt · LICENSE
-└─ CHANGES-v4.md … CHANGES-v17.md   Per-version release notes
+├─ SETUP.md · SCALING.md
+└─ CHANGES-v4.md … CHANGES-v14.md   Per-version release notes
 ```
 
 ---
@@ -1065,10 +978,6 @@ Aegis/
 | SmartScreen warning on install | The installer is not code-signed. **More info > Run anyway**. |
 | `send_email` is not offered | SMTP is not configured; Aegis drafts instead. Set `AEGIS_SMTP_*`. |
 | Phone in portrait looks cramped | Use the side tabs; the layout is responsive. |
-| Landing page stays on the ring or says "Could not load" | The page needs internet for three.js, the fonts and the 3D model. Check the connection and refresh. If you host it yourself behind your own security headers, allow `cdn.jsdelivr.net` (scripts), the CloudFront model host (connect) and `fonts.gstatic.com` (fonts). |
-| Landing page is a black screen with no dots | The browser has WebGL switched off or the graphics driver is blocked. Turn on hardware acceleration, or try another browser. |
-| Landing page stutters on an old laptop | It draws 66,000 points. Lower `N` in `landing-dots.js` (for example 40,000) or use a device with a better graphics chip. |
-| "Download for Windows" says the installer is not uploaded yet | GitHub reports no release with an `.exe`. Publish a release in `GITHUB_REPO` (see section 10.3), or point `DOWNLOAD_URL` in `config.js` somewhere else. |
 
 ---
 
@@ -1085,12 +994,9 @@ Honest list, so there are no surprises:
 - **Studio voice, live markets and Home Assistant** were written against the providers' documented APIs and tested with fake responses, not live accounts. Try each once.
 - **Single process**: no horizontal scaling yet (see Section 14).
 - **Not built yet**: payments, Google sign-in, installer code-signing, multi-instance scaling, a GitHub Actions workflow that builds the Windows installer (build it locally with `npm run dist`).
-- **Landing page** needs internet (three.js from jsDelivr, the 3D model from CloudFront, fonts from Google Fonts' CDN) and a browser with WebGL. Without them the counter shows "Could not load", though the download button and the details sheet still work. It draws 66,000 points, so very old graphics chips may drop frames.
-- **Landing numbers** in the details sheet (118 tools, 26 approvals, plans) are typed into `index.html`; update them by hand when the product changes.
+- **Landing page motion** uses modern CSS (`animation-timeline`, `interpolate-size`, `@property`). Older browsers fall back to instant, still fully usable pages.
 - **Sign-up checklist** and the guess-time sentence are guidance in the browser. The server still enforces its own rules (8+ characters, unique email).
-- **Old landing layers** (`landing-*.css/js`, `assets/vela/`) are no longer used by `index.html`. They remain only so older tests and links do not break.
-- **Local MMS voices** are non-commercial (CC-BY-NC 4.0), need PyTorch and about 150 MB of RAM per loaded language, and use one fixed speaker per language with speed and loudness feeling rather than full emotion. They were built without access to the real models, so listen to a few languages after installing.
-- **Meetings** cannot join calls by themselves, do not keep the original audio and infer speaker names from the text (see 2.6).
+- **Hero icons**: the four `assets/vela/*.webp` icons are fetched with `scripts/fetch-vela-icons.sh` (see `assets/vela/README.md`). Without them the hero shows a broken-image box.
 - **Free Edge voice** is not an official paid API. For a commercial product use an OpenAI or ElevenLabs key.
 
 ---
@@ -1110,10 +1016,7 @@ Honest list, so there are no surprises:
 | v11 | Bug fixes, account safety, readiness for many users, spending, habits, prayer times | [CHANGES-v11.md](CHANGES-v11.md) |
 | v12 | Proactive chief-of-staff, deep research, deeper PC control | [CHANGES-v12.md](CHANGES-v12.md) |
 | v13 | A deeper heart: feelings on a 1 to 5 scale, person-like memory, the bond | [CHANGES-v13.md](CHANGES-v13.md) |
-| v14 | Landing motion and smooth navigation, detailed sign-up form, new favicon and app icons | [CHANGES-v14.md](CHANGES-v14.md) |
-| v15 | Otter-style meeting tools (transcript, speakers, Ask AI, share links, exports), landing "ultra" layer | [CHANGES-v15.md](CHANGES-v15.md) |
-| v16 | Local language voices (Meta MMS): 31 languages + Roman Urdu | [CHANGES-v16.md](CHANGES-v16.md) |
-| **v17** | **New landing page: a point-cloud portrait of 66,000 dots, a "What it does" sheet and the download button on the page** | [CHANGES-v17.md](CHANGES-v17.md) |
+| **v14** | **Landing motion and smooth navigation, detailed sign-up form, new favicon and app icons** | [CHANGES-v14.md](CHANGES-v14.md) |
 
 ---
 

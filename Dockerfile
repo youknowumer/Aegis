@@ -3,7 +3,8 @@ WORKDIR /srv/server
 COPY server/requirements.txt server/requirements-mms.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 # Optional local language voices (Meta MMS, non-commercial licence): docker compose build --build-arg WITH_MMS=1
-# The models are NOT in the image: they live on the /data volume (docker compose exec aegis python scripts/mms_download.py).
+# The models are NOT in the image: they download themselves onto the /data volume the first time each language is spoken
+# (or in advance: docker compose exec aegis python scripts/mms_download.py). Too little memory? The local voices switch themselves off.
 ARG WITH_MMS=0
 RUN if [ "$WITH_MMS" = "1" ]; then pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && pip install --no-cache-dir -r requirements-mms.txt; fi
 COPY server/ /srv/server/

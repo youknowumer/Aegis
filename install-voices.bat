@@ -1,5 +1,6 @@
 @echo off
 REM Adds Aegis's local language voices (Meta MMS): Aegis then answers in the voice of the language you speak.
+REM Optional pre-download: without it Aegis fetches each voice by itself the first time that language is spoken.
 REM Needs Python 3.10+, internet once, about 5 GB of disk for all languages, and a non-commercial purpose (CC-BY-NC 4.0).
 REM   install-voices.bat                    -> every language Aegis knows (31 + Roman Urdu)
 REM   install-voices.bat --langs ur,en,roman -> only these

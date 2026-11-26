@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Adds Aegis's local language voices (Meta MMS): Aegis then answers in the voice of the language you speak.
+# Optional pre-download: without it Aegis fetches each voice by itself the first time that language is spoken.
 # Needs Python 3.10+, internet once, about 5 GB of disk for all languages, and a non-commercial purpose (CC-BY-NC 4.0).
 #   ./install-voices.sh                     -> every language Aegis knows (31 + Roman Urdu)
 #   ./install-voices.sh --langs ur,en,roman -> only these

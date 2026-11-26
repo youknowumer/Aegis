@@ -95,21 +95,31 @@ Restart the server, open the app, then Settings > Voice shows "Studio voice is o
 (`AEGIS_TTS_CHARS_PER_DAY`, default 6000 characters) so cost stays under control; when it is used up, or the service fails, the
 browser voice takes over without interruption. Untick "Studio voice" in the same place to switch it off.
 
-### Local language voices (MMS): the voice follows the language you speak (optional, free, offline)
+### Local language voices (MMS): the voice follows the language you speak (optional, free, installs itself)
 
 Aegis already answers in the language and script you write or speak. This adds a **voice per language** that runs on your own
-machine: Urdu, Hindi, Arabic, English, Spanish and 27 more are each spoken by their own Meta MMS model, with no key and no per-character cost.
+server or PC: Urdu, Hindi, Arabic, English, Spanish and 27 more are each spoken by their own Meta MMS model, with no key and no per-character cost.
 Roman Urdu ("kya haal hai") has its own model too.
 
-1. **Install** (once, about 5 GB for all languages; Python 3.10+): Windows `install-voices.bat`, Mac/Linux `./install-voices.sh`.
-   Only some languages: `install-voices.bat --langs ur,en,hi,roman`.
-   Docker: `docker compose build --build-arg WITH_MMS=1`, then `docker compose exec aegis python scripts/mms_download.py --langs ur,en`.
-2. **Start Aegis as usual.** Settings > Voice says "Local language voices are on (N languages)". Nothing else to configure.
-3. Check what is installed any time: `python scripts/mms_download.py --status` (run it inside `server`).
+**The same files work everywhere.** Aegis checks the machine it is running on:
+- **PC or a server with 1.5 GB+ of memory and PyTorch installed:** local voices switch on, and **each voice downloads itself the first time you speak that language**
+  (about 150 MB). That first sentence is spoken by the free Edge voice; the next ones by the local voice. Nothing to run by hand.
+- **Small server (for example Render Starter, 512 MB) or no PyTorch:** local voices stay off by themselves, and the free Edge voice, which also follows your language, keeps working.
+  Settings > Voice says why ("this server has about 512 MB of memory...").
+
+**On your PC (Windows):** run `install-voices.bat` once. It installs PyTorch and pre-downloads every language (about 5 GB) so even the first sentence is local.
+Only some languages: `install-voices.bat --langs ur,en,hi,roman`. Then start Aegis with `start-local.bat`. Mac/Linux: `./install-voices.sh`.
+You can skip the pre-download: install PyTorch only (`pip install -r requirements-mms.txt` inside `server`) and let the voices download as you speak.
+
+**On the web (Render + Docker):** use a plan with 2 GB+ of RAM, raise the disk `sizeGB` to 6 or more, and add the variable `WITH_MMS=1` (see the commented lines in `render.yaml`).
+That installs PyTorch in the image; the models then download themselves onto the `/data` disk. On a smaller plan the same setting is harmless: the memory check keeps the local voices off.
+GitHub Pages only serves the page; the voice always comes from the server.
+
+Check what is installed any time (inside `server`): `python scripts/mms_download.py --status`.
 
 How it chooses: each sentence is spoken by the voice of its own language. A paid key (`OPENAI_API_KEY` / `ELEVENLABS_API_KEY`) still wins if you set
-one. A language with no local voice falls back to the free Edge voice, so Aegis never goes silent: **Italian, Chinese, Japanese and Czech have no
-MMS model**, and any language you did not download uses the fallback.
+one. A language with no local voice yet falls back to the free Edge voice, so Aegis never goes silent: **Italian, Chinese, Japanese and Czech have no
+MMS model**, and any voice still downloading (or that failed to download) uses the fallback.
 
 Good to know:
 - **Licence: the MMS models are CC-BY-NC 4.0, non-commercial use only.** If Aegis becomes a paid product, set `AEGIS_MMS=0` and use a paid voice key.
@@ -118,7 +128,9 @@ Good to know:
 - Roman Urdu uses the model trained on Latin-script Urdu. It was trained on standard spellings, so casual chat spellings may sound less natural.
   If you prefer the old voice for it, set `AEGIS_MMS_ROMAN=0`.
 - Memory and speed: each loaded language is about 150 MB of RAM (the 3 most recent stay loaded: `AEGIS_MMS_CACHE`). The first sentence in a language takes a
-  moment while its model loads. Use a machine with 2 GB+ of RAM; the free Render tier (512 MB) is too small.
+  moment while its model loads.
+- Automatic downloads: `AEGIS_MMS_AUTO=0` turns them off, `AEGIS_MMS_AUTO=ur,en,roman` limits them to those languages. A download that fails is retried after 10 minutes, and none starts when less than 1 GB of disk is free.
+- Memory check: below 1500 MB the local voices stay off (`AEGIS_MMS_MIN_RAM_MB`; `AEGIS_MMS_FORCE=1` ignores it).
 - Already downloaded the older MMS voice pack (folders `english`, `urdu`, ...)? Set `AEGIS_MMS_DIR` to its `models` folder and those voices are used as they are.
 - The Windows installer (`Aegis-Setup.exe`) does not bundle PyTorch; use `start-local.bat` after `install-voices.bat` for local voices.
 

@@ -533,7 +533,9 @@
         : !i.available ? "Studio voice is not set up on this server, so your device voices are used."
         : i.provider === "mms" ? "Local language voices are on" + (i.languages && i.languages.length ? " (" + i.languages.length + " languages" + (i.roman_urdu ? " + Roman Urdu" : "") + ")" : "")
           + ". Aegis speaks each sentence in its own language; any other language uses the fallback voice."
-        : "Studio voice is on (" + i.provider + "). " + (i.chars_left != null ? Number(i.chars_left).toLocaleString() + " characters left today." : "");
+          + (i.downloading && i.downloading.length ? " Downloading " + i.downloading.length + " more voice" + (i.downloading.length > 1 ? "s" : "") + " in the background: the fallback voice speaks that language until it is ready." : "")
+        : "Studio voice is on (" + i.provider + "). " + (i.chars_left != null ? Number(i.chars_left).toLocaleString() + " characters left today." : "")
+          + (i.local_reason ? " Local language voices are off: " + i.local_reason + "." : "");
     };
     refreshStudio(); listeners.add(refreshStudio); cloud.refresh();
     const world = document.createElement("button"); world.type = "button"; world.className = "btn ghost small-btn"; world.textContent = "Hear another language";
