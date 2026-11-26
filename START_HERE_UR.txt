@@ -1,0 +1,29 @@
+AEGIS + LOCAL LANGUAGE VOICES (MMS): START HERE
+================================================
+
+Ye zip poora Aegis hai. Jis language mein aap baat karen, Aegis usi language ki apni awaaz mein jawab deta hai
+(Urdu, Roman Urdu, Hindi, Arabic, English, Spanish, French, German, Korean aur 20+ aur).
+
+3 STEPS (Windows)
+1. install-voices.bat par double click. (Python 3.10+ chahiye. Internet sirf ek baar, lagbhag 5 GB.)
+   Kuch hi languages chahiye to Command Prompt mein:  install-voices.bat --langs ur,en,hi,roman
+2. start-local.bat par double click.
+3. Browser mein http://localhost:8000/app.html kholen. Settings > Voice mein likha hoga:
+   "Local language voices are on (N languages)".
+
+Mac / Linux: ./install-voices.sh phir ./start-local.sh
+Docker:      docker compose build --build-arg WITH_MMS=1  (phir SETUP.md dekhein)
+
+KHAAS BAATEN
+- Italian, Chinese, Japanese, Czech ke MMS models hain hi nahi: inke liye purani Edge awaaz chalti hai.
+  Jo language download nahi ki, wo bhi Edge par chali jati hai, Aegis chup nahi hota.
+- Har language ka ek fixed speaker hai (kisi ka mard, kisi ka aurat). Jazbaat speed aur loudness se aate hain.
+- License: MMS models CC-BY-NC 4.0 hain, yaani sirf NON-COMMERCIAL. Paise charge karne se pehle
+  AEGIS_MMS=0 karein aur OpenAI / ElevenLabs key lagayein.
+- Har language ~150 MB RAM leti hai. 2 GB+ RAM wali machine chahiye (Render ka free tier chhota hai).
+- Pehle se download kiye hue MMS models hain? AEGIS_MMS_DIR ko unke "models" folder par point karein.
+- Roman Urdu ka model standard spelling par train hua hai. Pasand na aaye to AEGIS_MMS_ROMAN=0.
+- Is zip mein models shamil nahi (5 GB): install-voices.bat unhe aapke PC par download karta hai.
+
+Poori tafseel: SETUP.md ("Local language voices"), SCALING.md, CHANGES-v16.md
+Status dekhne ke liye (server folder mein):  python scripts/mms_download.py --status
