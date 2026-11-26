@@ -121,6 +121,15 @@ def test_security_headers(env):
     assert "default-src 'self'" in r.headers["content-security-policy"]
 
 
+def test_landing_hero_assets_are_served(env):
+    r = env.client.get("/healthz")
+    assert "media-src 'self' https://d2ol7oe51mr4n9.cloudfront.net" in r.headers["content-security-policy"]
+    for path in ("/landing-halora.css", "/landing-halora.js", "/fonts/outfit-latin-wght-normal.woff2", "/fonts/inter-tight-latin-wght-normal.woff2"):
+        assert env.client.get(path).status_code == 200, path
+    assert env.client.get("/fonts/../app/main.py").status_code == 404
+    assert env.client.get("/assets/vela/README.md").status_code == 404  # only image/video/font types are served
+
+
 # ---------- websocket auth ----------
 def test_ws_rejects_bad_token(env):
     with env.client.websocket_connect("/ws") as s:

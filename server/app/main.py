@@ -362,6 +362,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         resp.headers["Content-Security-Policy"] = (
             "default-src 'self'; connect-src 'self' ws: wss: https://api.open-meteo.com https://geocoding-api.open-meteo.com https://api.github.com; "
             "img-src 'self' data: https://d2ol7oe51mr4n9.cloudfront.net; "
+            "media-src 'self' https://d2ol7oe51mr4n9.cloudfront.net; "
             "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
         )
         return resp
@@ -1176,6 +1177,18 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     raise HTTPException(404)
                 return FileResponse(p)
             app.add_api_route("/icons/{name}", icon_file, include_in_schema=False)
+        # fonts/ and assets/ (hero photo, glossy icons) are static files too; without these routes the Aegis server answers 404
+        # for them (only GitHub Pages / AEGIS_WEB_DIR served them), so the page silently fell back to system fonts and CDN copies.
+        for folder, exts in (("fonts", (".woff2", ".woff")), ("assets", (".webp", ".jpg", ".jpeg", ".png", ".avif", ".mp4", ".webm"))):
+            root = (settings.WEB_DIR / folder).resolve()
+            if not root.is_dir():
+                continue
+            def static_file(path: str, _root=root, _exts=exts):
+                p = (_root / path).resolve()
+                if _root not in p.parents or p.suffix.lower() not in _exts or not p.is_file():
+                    raise HTTPException(404)
+                return FileResponse(p, headers={"Cache-Control": "public, max-age=86400"})
+            app.add_api_route("/" + folder + "/{path:path}", static_file, include_in_schema=False)
         if (settings.WEB_DIR / "index.html").is_file():
             app.add_api_route("/", serve("index.html"), include_in_schema=False)
     return app
