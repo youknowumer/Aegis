@@ -190,7 +190,8 @@ class DB:
             self.conn.execute("ALTER TABLE facts ADD COLUMN weight INTEGER NOT NULL DEFAULT 1")
         # v13: memories remember how the user felt, how often they mattered, where they came from, and yearly dates
         for col, ddl in (("last_used", "REAL NOT NULL DEFAULT 0"), ("uses", "INTEGER NOT NULL DEFAULT 0"), ("mood", "TEXT NOT NULL DEFAULT ''"),
-                         ("mood_level", "INTEGER NOT NULL DEFAULT 0"), ("source", "TEXT NOT NULL DEFAULT 'ai'"), ("when_md", "TEXT NOT NULL DEFAULT ''")):
+                         ("mood_level", "INTEGER NOT NULL DEFAULT 0"), ("source", "TEXT NOT NULL DEFAULT 'ai'"), ("when_md", "TEXT NOT NULL DEFAULT ''"),
+                         ("pinned", "INTEGER NOT NULL DEFAULT 0")):  # v17: pinned memories never fade and are always on Aegis's mind
             if col not in fcols:
                 self.conn.execute(f"ALTER TABLE facts ADD COLUMN {col} {ddl}")
 
@@ -365,7 +366,7 @@ class DB:
         )
 
     # ---- memory ----
-    FACT_KINDS = ("fact", "preference", "person", "event", "goal", "emotion", "episode")
+    FACT_KINDS = ("fact", "preference", "person", "event", "goal", "emotion", "episode", "insight")
 
     @staticmethod
     def _words(text):
@@ -373,7 +374,7 @@ class DB:
 
         return set(re.findall(r"\w+", str(text).lower()))
 
-    def add_fact(self, uid, text, kind="fact", important=False, mood="", level=0, source="ai", when_md=""):
+    def add_fact(self, uid, text, kind="fact", important=False, mood="", level=0, source="ai", when_md="", pinned=False):
         """Save a memory. A near-duplicate (80% same words) is merged into the old one instead of piling up.
         mood/level: how the user felt when it was shared (so strong moments are remembered more strongly)."""
         text = text.strip()
@@ -385,20 +386,67 @@ class DB:
             if new and old and len(new & old) / len(new | old) >= 0.8:
                 keep_mood = (mood, level) if (mood and level >= r["mood_level"]) else (r["mood"], r["mood_level"])
                 self.execute(
-                    "UPDATE facts SET text = ?, kind = ?, weight = ?, created = ?, mood = ?, mood_level = ?, when_md = ? WHERE id = ? AND user_id = ?",
-                    (text, kind, min(5, max(r["weight"] + 1, 3 if important else 1)), time.time(), keep_mood[0], keep_mood[1], when_md or r["when_md"], r["id"], uid),
+                    "UPDATE facts SET text = ?, kind = ?, weight = ?, created = ?, mood = ?, mood_level = ?, when_md = ?, pinned = MAX(pinned, ?) WHERE id = ? AND user_id = ?",
+                    (text, kind, min(5, max(r["weight"] + 1, 3 if important else 1)), time.time(), keep_mood[0], keep_mood[1], when_md or r["when_md"], 1 if pinned else 0, r["id"], uid),
                 )
                 return r["id"]
         weight = 3 if important else 1
         if level >= 4:
             weight = max(weight, 3)  # something they felt strongly about matters
+        if pinned:
+            weight = max(weight, 4)
         return self.execute(
-            "INSERT INTO facts (user_id, text, created, kind, weight, mood, mood_level, source, when_md) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (uid, text, time.time(), kind, weight, mood or "", level, source if source in ("ai", "auto", "user") else "ai", when_md or ""),
+            "INSERT INTO facts (user_id, text, created, kind, weight, mood, mood_level, source, when_md, pinned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (uid, text, time.time(), kind, weight, mood or "", level, source if source in ("ai", "auto", "user") else "ai", when_md or "", 1 if pinned else 0),
         ).lastrowid
 
     def facts(self, uid):
-        return self.all("SELECT id, text, created, kind, weight, last_used, uses, mood, mood_level, source, when_md FROM facts WHERE user_id = ? ORDER BY id DESC", (uid,))
+        return self.all("SELECT id, text, created, kind, weight, last_used, uses, mood, mood_level, source, when_md, pinned FROM facts WHERE user_id = ? ORDER BY id DESC", (uid,))
+
+    def set_pinned(self, uid, fact_id, pinned=True):
+        """Pin a memory: it is always on Aegis's mind and never fades away."""
+        return self.execute("UPDATE facts SET pinned = ?, weight = CASE WHEN ? THEN MAX(weight, 4) ELSE weight END WHERE id = ? AND user_id = ?",
+                            (1 if pinned else 0, 1 if pinned else 0, fact_id, uid)).rowcount
+
+    def delete_facts_by_prefix(self, uid, prefix):
+        return self.execute("DELETE FROM facts WHERE user_id = ? AND kind = 'insight' AND text LIKE ?", (uid, prefix + "%")).rowcount
+
+    def export_memory(self, uid):
+        """Everything Aegis remembers about this user, as plain data they can keep, move or inspect."""
+        facts = [dict(r) for r in self.facts(uid)]
+        keep = ("text", "kind", "weight", "mood", "mood_level", "when_md", "pinned", "created", "source")
+        return {
+            "version": 17,
+            "exported": time.time(),
+            "facts": [{k: f[k] for k in keep} for f in reversed(facts)],
+            "moods": [{k: m[k] for k in ("mood", "intensity", "note", "created")} for m in self.moods(uid, limit=2000)],
+            "bond": self.bond_row(uid),
+        }
+
+    def import_memory(self, uid, data, limit=1000):
+        """Merge an export (or a hand-made list) into this user's memory. Duplicates merge; nothing is deleted. Returns how many were added."""
+        items = data.get("facts") if isinstance(data, dict) else data
+        if not isinstance(items, list):
+            return 0
+        added = 0
+        for it in items[:limit]:
+            if isinstance(it, str):
+                it = {"text": it}
+            if not isinstance(it, dict):
+                continue
+            text = " ".join(str(it.get("text", "")).split())[:500]
+            if len(text) < 2:
+                continue
+            try:
+                level = int(it.get("mood_level") or 0)
+            except (TypeError, ValueError):
+                level = 0
+            weight = it.get("weight")
+            fid = self.add_fact(uid, text, str(it.get("kind") or "fact"), bool(isinstance(weight, int) and weight >= 3), mood=str(it.get("mood") or "")[:20],
+                                level=level, source="user", when_md=str(it.get("when_md") or "")[:5], pinned=bool(it.get("pinned")))
+            if fid:
+                added += 1
+        return added
 
     def touch_facts(self, uid, ids):
         """A memory that gets used again matters more: remember when and how often."""

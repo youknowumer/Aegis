@@ -18,9 +18,9 @@ from collections import defaultdict, deque
 
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -40,6 +40,14 @@ class MemoryIn(BaseModel):
     text: str
     kind: str = "fact"
     important: bool = False
+
+
+class MemoryPin(BaseModel):
+    pinned: bool = True
+
+
+class MemoryEdit(BaseModel):
+    text: str
 
 
 class TaskIn(BaseModel):
@@ -280,6 +288,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
 
     app = FastAPI(title=settings.APP_NAME, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.db = db
+    app.state.hub = hub
     app.state.deliver_reminders = deliver_reminders
     app.state.deliver_alerts = deliver_alerts
     app.state.run_maintenance = run_maintenance
@@ -314,6 +323,10 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             return True
         if origin_allowed(origin):
             return True
+        if origin.startswith(("chrome-extension://", "moz-extension://")):
+            # v17: the Aegis Web Hands browser extension. It still needs a valid token. Set AEGIS_EXTENSION_IDS=id1,id2 to allow only yours.
+            ids = [x.strip() for x in os.environ.get("AEGIS_EXTENSION_IDS", "").split(",") if x.strip()]
+            return not ids or origin.split("://", 1)[1].split("/")[0] in ids
         return urlparse(origin).netloc == host  # the UI served by this very server
 
     def friendly_ai_error(e: Exception) -> str:
@@ -362,7 +375,6 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         resp.headers["Content-Security-Policy"] = (
             "default-src 'self'; connect-src 'self' ws: wss: https://api.open-meteo.com https://geocoding-api.open-meteo.com https://api.github.com; "
             "img-src 'self' data: https://d2ol7oe51mr4n9.cloudfront.net; "
-            "media-src 'self' https://d2ol7oe51mr4n9.cloudfront.net; "
             "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
         )
         return resp
@@ -485,6 +497,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             "used": db.used_today(user["id"]),
             "limit": limit_for(user),
             "device": hub.device_connected(user["id"]),
+            "browser": hub.browser_connected(user["id"]),
             "app_name": settings.APP_NAME,
             "web_search": settings.WEB_SEARCH,
         }
@@ -493,7 +506,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     def list_memory(user=Depends(current_user)):
         now = time.time()
         return [{"id": r["id"], "text": r["text"], "kind": r["kind"], "important": r["weight"] >= 3, "weight": r["weight"], "mood": r["mood"],
-                 "mood_level": r["mood_level"], "source": r["source"], "uses": r["uses"], "when": heart.ago(r["created"], now)} for r in db.facts(user["id"])]
+                 "mood_level": r["mood_level"], "source": r["source"], "uses": r["uses"], "pinned": bool(r["pinned"]), "when": heart.ago(r["created"], now)} for r in db.facts(user["id"])]
 
     @app.post("/api/memory")
     def add_memory(m: MemoryIn, user=Depends(current_user)):
@@ -502,6 +515,41 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             raise HTTPException(400, "Write what to remember")
         fid = db.add_fact(user["id"], text, m.kind, m.important, source="user", when_md=heart.parse_month_day(text) if m.kind == "event" else "")
         return {"id": fid}
+
+    # ---- v17: take memory with you, pin what matters, see the people and rhythms Aegis has noticed ----
+    @app.get("/api/memory/export")
+    def export_memory(user=Depends(current_user)):
+        return JSONResponse(db.export_memory(user["id"]), headers={"Content-Disposition": 'attachment; filename="aegis-memory.json"'})
+
+    @app.post("/api/memory/import")
+    def import_memory(payload: dict = Body(...), user=Depends(current_user)):
+        n = db.import_memory(user["id"], payload)
+        return {"added": n}
+
+    @app.post("/api/memory/{fact_id}/pin")
+    def pin_memory(fact_id: int, p: MemoryPin, user=Depends(current_user)):
+        if not db.set_pinned(user["id"], fact_id, p.pinned):
+            raise HTTPException(404, "Not found")
+        return {"ok": True, "pinned": p.pinned}
+
+    @app.patch("/api/memory/{fact_id}")
+    def edit_memory(fact_id: int, p: MemoryEdit, user=Depends(current_user)):
+        text = " ".join(p.text.split())[:500]
+        if len(text) < 2:
+            raise HTTPException(400, "Write what to remember")
+        if not db.update_fact_text(user["id"], fact_id, text):
+            raise HTTPException(404, "Not found")
+        return {"ok": True}
+
+    @app.get("/api/people")
+    def get_people(user=Depends(current_user)):
+        return heart.people(db.facts(user["id"]))
+
+    @app.get("/api/mood/insights")
+    def mood_insights(tz: str = "", user=Depends(current_user)):
+        rows = db.moods(user["id"], since=time.time() - 60 * 86400, limit=600)
+        t = heart.trend(rows[:300], tz)
+        return {"patterns": heart.patterns(rows, tz), "trend": t["direction"], "rough_patch": t["rough_patch"], "bright_streak": t["bright_streak"]}
 
     @app.get("/api/bond")
     def get_bond(user=Depends(current_user)):
@@ -590,8 +638,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         on = tts.available()
         local = tts.local_languages()
         return {"available": on, "provider": tts.provider(), "chars_left": tts_quota.left(user["id"]) if on else 0, "max_chars": tts.MAX_CHARS,
-                "languages": local, "roman_urdu": bool(local) and mms.roman_ready(),
-                "downloading": mms.downloading() if tts.provider() == "mms" else [], "local_reason": mms.reason()}
+                "languages": local, "roman_urdu": bool(local) and mms.roman_ready()}
 
     @app.post("/api/tts")
     async def tts_speak(body: TTSIn, user=Depends(current_user)):
@@ -988,6 +1035,8 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         try:
             if first.get("role") == "device":
                 await run_device(ws, user["id"])
+            elif first.get("role") == "browser":
+                await run_browser(ws, user["id"])
             else:
                 await run_chat(ws, user, str(first.get("tz", ""))[:64])
         except WebSocketDisconnect:
@@ -1005,6 +1054,20 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             pass
         finally:
             await hub.drop_device(uid, ws)
+
+    async def run_browser(ws: WebSocket, uid: int):
+        """The browser extension: same request/response protocol as the desktop app, but it only answers chrome_* tools."""
+        await hub.set_browser(uid, ws)
+        try:
+            await ws.send_json({"type": "ready"})
+            while True:
+                msg = await ws.receive_json()
+                if isinstance(msg, dict) and msg.get("type") == "tool_result":
+                    hub.resolve(msg.get("id"), str(msg.get("result", "")), uid)
+        except (WebSocketDisconnect, ValueError):
+            pass
+        finally:
+            await hub.drop_browser(uid, ws)
 
     async def run_chat(ws: WebSocket, user, tz: str = ""):
         uid = user["id"]
@@ -1073,6 +1136,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     "used": db.used_today(uid),
                     "limit": limit_for(user),
                     "device": hub.device_connected(uid),
+                    "browser": hub.browser_connected(uid),
                     "history": db.recent_messages(uid, 30),
                     "brief": chief.brief(db, uid, tz),
                     "bond": {k: v for k, v in heart.bond_level(db.bond_row(uid), len(db.facts(uid))).items() if k != "tone"},
@@ -1177,18 +1241,6 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     raise HTTPException(404)
                 return FileResponse(p)
             app.add_api_route("/icons/{name}", icon_file, include_in_schema=False)
-        # fonts/ and assets/ (hero photo, glossy icons) are static files too; without these routes the Aegis server answers 404
-        # for them (only GitHub Pages / AEGIS_WEB_DIR served them), so the page silently fell back to system fonts and CDN copies.
-        for folder, exts in (("fonts", (".woff2", ".woff")), ("assets", (".webp", ".jpg", ".jpeg", ".png", ".avif", ".mp4", ".webm"))):
-            root = (settings.WEB_DIR / folder).resolve()
-            if not root.is_dir():
-                continue
-            def static_file(path: str, _root=root, _exts=exts):
-                p = (_root / path).resolve()
-                if _root not in p.parents or p.suffix.lower() not in _exts or not p.is_file():
-                    raise HTTPException(404)
-                return FileResponse(p, headers={"Cache-Control": "public, max-age=86400"})
-            app.add_api_route("/" + folder + "/{path:path}", static_file, include_in_schema=False)
         if (settings.WEB_DIR / "index.html").is_file():
             app.add_api_route("/", serve("index.html"), include_in_schema=False)
     return app

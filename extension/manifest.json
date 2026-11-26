@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Aegis Web Hands",
+  "version": "1.0.0",
+  "description": "Lets your Aegis assistant use your real browser by voice: open pages, read them, click, type and scroll. Passwords are never typed; buying, sending and deleting always ask you first.",
+  "minimum_chrome_version": "116",
+  "permissions": ["tabs", "scripting", "storage", "alarms", "downloads"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Aegis Web Hands", "default_popup": "popup.html", "default_icon": { "16": "icons/icon-16.png", "48": "icons/icon-48.png" } },
+  "icons": { "16": "icons/icon-16.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" }
+}

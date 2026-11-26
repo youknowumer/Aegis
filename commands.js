@@ -620,5 +620,12 @@
     return null;
   }
 
-  window.AegisCommands = { match, norm, calc, convert, parseDuration, HELP, THEMES };
+  // v17: other files (webctl.js) add their own commands. {first:true} puts them before the built-in ones.
+  function extend(list, opts) {
+    const fresh = [];
+    for (const e of list || []) fresh.push({ name: e.name, test: e.test, run: e.run, offlineOnly: !!e.offlineOnly });
+    if (opts && opts.first) C.unshift(...fresh); else C.push(...fresh);
+  }
+
+  window.AegisCommands = { match, norm, calc, convert, parseDuration, HELP, THEMES, extend };
 })();

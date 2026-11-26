@@ -1,40 +1,41 @@
 AEGIS + LOCAL LANGUAGE VOICES (MMS): START HERE
 ================================================
 
-Ye poora Aegis hai. Jis language mein aap baat karen, Aegis usi language ki apni awaaz mein jawab deta hai
+Ye zip poora Aegis hai. Jis language mein aap baat karen, Aegis usi language ki apni awaaz mein jawab deta hai
 (Urdu, Roman Urdu, Hindi, Arabic, English, Spanish, French, German, Korean aur 20+ aur).
 
-SAB KUCH KHUD HOTA HAI
-- Awaazein (MMS models) zip mein nahi hain (5 GB). Aegis unhe khud download kar leta hai: jis language mein pehli
-  baar baat karen, us ka model background mein utarta hai (~150 MB). Us pehle jumle ko Edge awaaz bolti hai,
-  agle jumlon se local awaaz.
-- Chhota server (jaise Render Starter, 512 MB): Aegis khud dekh leta hai ke memory kam hai, local voices band rakhta
-  hai aur Edge awaaz chalata hai (wo bhi language ke hisaab se badalti hai). Crash nahi hota.
-  Settings > Voice mein wajah likhi hoti hai.
-- Isi liye ye ek hi zip PC par bhi aur web par bhi chalta hai.
-
-PC PAR (Windows)
-1. install-voices.bat par double click (Python 3.10+ chahiye). Ye PyTorch install karta hai aur saari languages
-   pehle se download kar deta hai (~5 GB). Kuch hi languages: install-voices.bat --langs ur,en,hi,roman
+3 STEPS (Windows)
+1. install-voices.bat par double click. (Python 3.10+ chahiye. Internet sirf ek baar, lagbhag 5 GB.)
+   Kuch hi languages chahiye to Command Prompt mein:  install-voices.bat --langs ur,en,hi,roman
 2. start-local.bat par double click.
-3. Browser mein http://localhost:8000/app.html. Settings > Voice: "Local language voices are on".
-   (Pre-download zaroori nahi: sirf  pip install -r requirements-mms.txt  (server folder mein) kafi hai, baaqi khud.)
-Mac / Linux: ./install-voices.sh phir ./start-local.sh
+3. Browser mein http://localhost:8000/app.html kholen. Settings > Voice mein likha hoga:
+   "Local language voices are on (N languages)".
 
-WEB PAR (Render + Docker)
-- Edge awaaz abhi bhi chalegi, kuch badalne ki zaroorat nahi.
-- MMS web par chahiye: Render plan 2 GB+ RAM wala, disk sizeGB 6 ya zyada, aur environment mein WITH_MMS=1
-  (render.yaml mein commented lines hain). Models /data disk par khud download hote hain.
-- GitHub Pages sirf page dikhata hai; awaaz hamesha server se aati hai.
+Mac / Linux: ./install-voices.sh phir ./start-local.sh
+Docker:      docker compose build --build-arg WITH_MMS=1  (phir SETUP.md dekhein)
 
 KHAAS BAATEN
-- Italian, Chinese, Japanese, Czech ke MMS models hain hi nahi: inke liye Edge awaaz chalti hai.
+- Italian, Chinese, Japanese, Czech ke MMS models hain hi nahi: inke liye purani Edge awaaz chalti hai.
+  Jo language download nahi ki, wo bhi Edge par chali jati hai, Aegis chup nahi hota.
 - Har language ka ek fixed speaker hai (kisi ka mard, kisi ka aurat). Jazbaat speed aur loudness se aate hain.
 - License: MMS models CC-BY-NC 4.0 hain, yaani sirf NON-COMMERCIAL. Paise charge karne se pehle
   AEGIS_MMS=0 karein aur OpenAI / ElevenLabs key lagayein.
-- Har language ~150 MB RAM leti hai (pehli baar load hone mein kuch second).
+- Har language ~150 MB RAM leti hai. 2 GB+ RAM wali machine chahiye (Render ka free tier chhota hai).
+- Pehle se download kiye hue MMS models hain? AEGIS_MMS_DIR ko unke "models" folder par point karein.
 - Roman Urdu ka model standard spelling par train hua hai. Pasand na aaye to AEGIS_MMS_ROMAN=0.
-- Auto download band karna ho: AEGIS_MMS_AUTO=0. Sirf kuch languages: AEGIS_MMS_AUTO=ur,en,roman
+- Is zip mein models shamil nahi (5 GB): install-voices.bat unhe aapke PC par download karta hai.
 
 Poori tafseel: SETUP.md ("Local language voices"), SCALING.md, CHANGES-v16.md
 Status dekhne ke liye (server folder mein):  python scripts/mms_download.py --status
+
+
+==================== v17: NAYA (Roman Urdu) ====================
+1) Web voice control: folder "extension" ko Chrome/Edge mein load karein
+   (chrome://extensions > Developer mode > Load unpacked > extension folder).
+   Phir Aegis > Settings > Browser control > "Copy connection code" > extension ke popup mein paste > Connect.
+   Ab bolein: "Hey Aegis, YouTube kholo aur Kesariya chalao", "ye page padho", "neeche scroll karo".
+   Password Aegis kabhi nahi likhta; kharidna/bhejna/delete karna pehle aap se poochta hai.
+2) Aegis page par foran voice commands: "show numbers", "click 3", "click settings", "zoom in", "type hello", "press enter".
+3) Emotions: ab Aegis samajhta hai aap ko kya chahiye (sunna, hal, tasalli, khushi mein shirkat) aur "theek hoon" ke peechay chhupa dukh bhi.
+4) Memory: "yeh kabhi na bhoolna" bolein to pin ho jati hai. Memory export/import, logon ki yaadein, aur mood ke rhythms (jaise Sunday ko udaasi).
+Details: CHANGES-v17.md

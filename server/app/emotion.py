@@ -3,6 +3,13 @@
 Everything here is plain Python (no extra AI call): a multilingual word list (English, Roman Urdu, Urdu, Hindi, Arabic)
 gives a quick read of each message. The AI can add its own reading with the `note_mood` tool for anything the list misses.
 Only the mood name, its strength and the time are stored automatically, never the user's words.
+
+v17: reads feelings more like a person does:
+- contrast ("I'm fine, but honestly exhausted": the part after "but" is what they mean), laughter, Roman Urdu / Hindi negation that
+  comes AFTER the word ("khush nahi hoon"), and four more moods (playful, nostalgic, curious, apologetic);
+- what the person NEEDS from you (to be heard, helped, reassured, celebrated with, given space, or distracted), not just the label;
+- `Tracker`: a per-conversation memory of the last few readings, so Aegis notices someone masking ("no, it's fine" right after a bad
+  moment), a feeling that will not lift, a sudden swing, or a mood that is getting better, and can blend in how the voice sounded.
 """
 import re
 import time
@@ -41,7 +48,19 @@ MOODS: Dict[str, tuple] = {
     "calm": ("positive", "warm"),
     "surprised": ("neutral", "curious"),
     "determined": ("positive", "confident"),
+    "playful": ("positive", "joy"),
+    "nostalgic": ("neutral", "warm"),
+    "curious": ("neutral", "curious"),
+    "apologetic": ("negative", "warm"),
     "neutral": ("neutral", "calm"),
+}
+
+# mood -> how much it stirs the body: the voice should be slower and softer for low arousal, brighter for high
+AROUSAL: Dict[str, str] = {
+    "excited": "high", "angry": "high", "anxious": "high", "stressed": "high", "distressed": "high", "surprised": "high", "playful": "high",
+    "overwhelmed": "high", "proud": "medium", "happy": "medium", "determined": "medium", "jealous": "medium", "embarrassed": "medium",
+    "sad": "low", "tired": "low", "lonely": "low", "grief": "low", "bored": "low", "hopeless": "low", "calm": "low", "relieved": "low",
+    "nostalgic": "low", "disappointed": "low", "guilty": "low", "apologetic": "low",
 }
 
 # Single words (matched as whole words) and phrases (matched inside the text).
@@ -72,6 +91,10 @@ _WORDS = {
     "surprised": "surprised shocked astonished stunned wow omg hairan hairaan herat حیران हैरान مصدوم",
     "determined": "determined focused motivated driven committed ready himmat hausla عزم حوصلہ ہمت दृढ़ हौसला",
     "angry_ugh": "ugh argh grr",
+    "playful": "haha hahaha hehe lol lmao rofl jk kidding mazak mazaak maza-aya شرارت مذاق हंसी मज़ाक",
+    "nostalgic": "nostalgic nostalgia remember-when old-days purane-din yaadein yaad-aate pichle-din یادیں پرانے-دن यादें",
+    "curious": "curious wondering intrigued tajassus جستجو تجسس जिज्ञासा",
+    "apologetic": "apologize apologise apologies maafi maaf muaafi معافی معذرت माफ़ी माफी",
     "tired": "tired exhausted sleepy drained burnt burned-out burnout thak thaka thaki thakan neend تھکا تھکی تھکاوٹ نیند थका थकान تعبان مرهق",
 }
 _PHRASES = {
@@ -99,17 +122,39 @@ _PHRASES = {
     "calm": ["at peace", "feeling calm", "feeling better", "much better now", "sukoon mil"],
     "surprised": ["can't believe", "cant believe", "no way", "did not expect", "didn't expect", "yakeen nahi"],
     "determined": ["i will do it", "i'm going to make", "im going to make", "not giving up", "won't stop", "wont stop", "hausla hai", "kar ke rahunga", "kar ke rahungi"],
-    "sad": ["i'm fine i guess", "im fine i guess", "i guess i'm fine", "whatever, it's fine", "it's whatever"],
     "tired": ["worn out", "no energy", "need sleep", "bohat thak", "bahut thak", "thak gaya", "thak gayi", "thak gaya hoon"],
 }
+
+_PHRASES_V17 = {
+    # (fixed in v17: this list used to be a second "sad" key that silently replaced all the other sad phrases)
+    "sad_masked": ["i'm fine i guess", "im fine i guess", "i guess i'm fine", "whatever, it's fine", "it's whatever"],
+    "happy": ["mazaa aa gaya", "maza aa gaya", "bohat acha laga", "bahut accha laga", "dil khush", "made my day", "so happy", "feeling great"],
+    "stressed": ["pareshan hoon", "pareshan hun", "tension hai", "tension ho rahi", "stressed out", "under pressure", "pressure hai", "kaam bohat hai"],
+    "anxious": ["dil ghabra", "ghabrahat ho rahi", "bechaini", "can't sleep", "cant sleep", "neend nahi aa rahi", "so nervous", "overthinking", "over thinking"],
+    "sad": ["dil nahi lag raha", "kuch acha nahi lag raha", "rona aa raha", "ro padi", "ro pada", "feel like crying", "feeling empty", "heart is heavy"],
+    "lonely": ["koi samajhta nahi", "koi nahi samajhta", "feel alone", "feeling alone", "kisi se baat nahi", "no one to talk"],
+    "hopeless": ["why do i always", "i always fail", "i never get anything right", "hamesha fail", "mujhse kuch nahi hota", "kuch nahi ho sakta mujhse", "main kisi kaam ka nahi", "i'm a failure", "im a failure"],
+    "angry": ["so annoying", "driving me crazy", "dimagh kharab", "bohat bura laga", "how dare", "kitna zaleel", "disrespect"],
+    "nostalgic": ["good old days", "those days", "purane din", "bachpan yaad", "miss those", "yaad aate hain wo din", "takes me back"],
+    "curious": ["i wonder", "how come", "kya aisa hota hai", "mujhe jan-na hai", "tell me more about", "i'm curious", "im curious"],
+    "apologetic": ["i'm sorry", "im sorry", "i am sorry", "my bad", "sorry yaar", "maafi chahta", "maafi chahti", "maaf kar do", "forgive me"],
+    "playful": ["just kidding", "just joking", "mazak kar raha", "mazak kar rahi", "kidding yaar", "😜", "😝"],
+}
+# v17: everyday Roman Urdu / Hinglish / English ways people really say it (merged into the lists above)
+for _m, _ps in _PHRASES_V17.items():
+    _PHRASES.setdefault("sad" if _m == "sad_masked" else _m, []).extend(_ps)
+
 # Danger signs. These beat everything else: the reply must be about the person, not the task.
 _DISTRESS = [
     "kill myself", "end my life", "want to die", "wanna die", "suicide", "suicidal", "hurt myself", "harm myself", "self harm",
     "no reason to live", "better off without me", "khud kushi", "khudkushi", "khudkushi", "jaan de", "marna chahta", "marna chahti",
     "mar jana chahta", "mar jana chahti", "zindagi khatam", "خودکشی", "مرنا چاہتا", "مرنا چاہتی", "जान दे", "आत्महत्या", "मरना चाहता", "انتحار", "اقتل نفسي",
 ]
+_CONTRAST = set("but however though yet although lekin magar lakin lekn mgr but-honestly لیکن مگر लेकिन मगर".split())
+_URDU_NEG_AFTER = set("nahi nahin nai nhi nahee نہیں نہ नहीं".split())
+_LAUGH = re.compile(r"\b(?:ha){2,}h?\b|\bhe(?:he)+\b|\blol+\b|\blmao\b|\brofl\b|😂|🤣|😆", re.I)
 _EMOJI = {
-    "sad": "😢😭😞😔☹️🥺💔", "angry": "😡🤬😠👿", "loving": "😍🥰❤️💕💖😘🤗", "happy": "😀😁😄😊🙂😂🤣🥳", "anxious": "😰😨😱😟",
+    "playful": "😜😝😏😎", "sad": "😢😭😞😔☹️🥺💔", "angry": "😡🤬😠👿", "loving": "😍🥰❤️💕💖😘🤗", "happy": "😀😁😄😊🙂😂🤣🥳", "anxious": "😰😨😱😟",
     "tired": "😴🥱😩😫", "excited": "🤩🎉🔥", "embarrassed": "😳🙈", "confused": "🤔😕😵", "grief": "🕊️🖤", "relieved": "😮‍💨😌",
 }
 _INTENSIFIERS = set(
@@ -131,6 +176,14 @@ class Reading:
     intensity: int = 0  # 0 none, 1 mild .. 5 overwhelming
     distress: bool = False
     secondary: str = ""  # a second, different feeling in the same message ("happy but nervous")
+    masked: bool = False  # they said "it's fine" right after a bad moment: probably not fine (set by Tracker)
+    need: str = ""  # what they need from Aegis right now: listen / solve / reassure / celebrate / space / distract / safety / ""
+    note: str = ""  # a one-line observation for the AI ("this is the third low message in a row")
+    confidence: float = 0.0  # 0..1: how sure the reading is (0 = no evidence)
+
+    @property
+    def arousal(self) -> str:
+        return AROUSAL.get(self.mood, "medium" if self.mood != "neutral" else "low")
 
     @property
     def valence(self) -> str:
@@ -153,22 +206,32 @@ def detect(text: str) -> Reading:
 
     tokens = re.findall(r"[\w']+", low)
     score: Counter = Counter()
+    # "I'm fine, but honestly exhausted": whatever comes after the last "but" is what they really mean
+    cut = max((i for i, t in enumerate(tokens) if t in _CONTRAST), default=-1)
     for i, tok in enumerate(tokens):
         mood = _WORD_INDEX.get(tok)
         if not mood:
             continue
         window = tokens[max(0, i - 3):i]
-        if any(w in _NEGATIONS for w in window):
+        after = tokens[i + 1:i + 3]
+        if any(w in _NEGATIONS for w in window) or any(w in _URDU_NEG_AFTER for w in after):
             if MOODS[mood][0] == "positive":
-                score["sad"] += 1  # "not happy"
+                score["sad"] += 1  # "not happy" / "khush nahi hoon"
             continue  # "not sad" is simply not counted
         weight = 1 + (1 if any(w in _INTENSIFIERS for w in window) else 0)
-        score[mood] += weight
+        if cut >= 0 and i > cut:
+            weight += 1
+        elif cut >= 0 and i < cut and MOODS[mood][0] == "positive" and score:
+            weight = 0  # the polite "fine / good" before the "but" is overruled
+        if weight:
+            score[mood] += weight
     for mood, phrases in _PHRASES.items():
         for p in phrases:
             if p in low:
                 score[mood] += 2
     raw = str(text or "")
+    if _LAUGH.search(raw):
+        score["playful"] += 2
     for mood, chars in _EMOJI.items():
         for ch in chars:
             n = raw.count(ch)
@@ -196,7 +259,39 @@ def detect(text: str) -> Reading:
     # a long trailing "..." or a message that is just a sigh reads as heavier than the words alone
     if reading_trails(raw) and MOODS[mood][0] == "negative":
         intensity = min(5, intensity + 1)
-    return Reading(mood, intensity, False, second)
+    r = Reading(mood, intensity, False, second)
+    r.confidence = round(min(1.0, 0.25 + top * 0.18 + (0.1 if second else 0)), 2)
+    r.need = need_for(r, raw)
+    return r
+
+
+_ASK_HELP = re.compile(r"\b(?:what should i do|what do i do|how (?:do|can|should) i|help me|any (?:advice|tips|ideas)|kya karun|kya karoon|kaise karun|kaise karoon|mashwara|koi hal|madad)\b", re.I)
+
+
+def need_for(reading: "Reading", text: str = "") -> str:
+    """What this person most likely needs from Aegis right now. Feeling is not always a request: a sad person who is venting
+    wants to be heard, not fixed; a stressed one who asks 'what should I do' wants a plan."""
+    m = reading.mood
+    if reading.distress or m == "distressed":
+        return "safety"
+    if m == "neutral" or not reading.intensity:
+        return ""
+    asks = bool(_ASK_HELP.search(text or ""))
+    if MOODS[m][0] == "positive":
+        return "distract" if m == "bored" else "celebrate"
+    if m in ("angry", "jealous"):
+        return "space" if reading.intensity >= 4 else "listen"
+    if m in ("anxious", "stressed", "overwhelmed"):
+        return "solve" if asks else "reassure"
+    if m in ("grief", "lonely", "hopeless"):
+        return "listen"
+    if m in ("sad", "disappointed", "guilty", "embarrassed", "tired", "apologetic"):
+        return "solve" if asks and reading.intensity <= 3 else "listen"
+    if m == "bored":
+        return "distract"
+    if m == "confused":
+        return "solve"
+    return ""
 
 
 # ---------------------------------------------------------------- what the AI is told
@@ -227,6 +322,10 @@ _STYLE = {
     "calm": "They feel calm and at peace. Keep the tone easy and unhurried, do not stir things up.",
     "surprised": "They are surprised. React naturally to the news first, with real curiosity, then help.",
     "determined": "They are determined. Back them, be practical and encouraging, and help them take the very next step.",
+    "playful": "They are joking around or being playful. Play along lightly, be witty without being sarcastic at their expense, and let some fun show.",
+    "nostalgic": "They are remembering the past fondly. Slow down, ask about the memory, and let them enjoy it; do not rush back to tasks.",
+    "curious": "They are curious and exploring. Feed that curiosity: give the answer, then one interesting thing they did not ask about.",
+    "apologetic": "They are apologising. Accept it graciously and simply, tell them it is okay if it is, and do not make them feel worse or lecture.",
     "distressed": (
         "IMPORTANT: they may be in real danger or talking about hurting themselves. Drop any task. Respond with warmth and calm, say you are "
         "glad they told you, ask gently if they are safe right now, encourage them to reach someone they trust or local emergency services "
@@ -251,7 +350,24 @@ def style_for(reading: Reading) -> str:
             out += " The feeling is intense: give it room before anything else. Keep your reply short, slow and human, no lists, no fixing yet, and ask one soft question or just stay with them."
         else:
             out += " The feeling is big: match it with real energy, let your delight show, and stay in the moment with them."
+    if reading.need in _NEED:
+        out += " " + _NEED[reading.need]
+    if reading.masked:
+        out += (" They said they are fine, but it follows a harder moment, so it may not be true. Do not call them out or insist: leave a soft, open door "
+                "(\"you can tell me if it is more than that\") and stay warm.")
+    if reading.note:
+        out += " " + reading.note
     return out
+
+
+_NEED = {
+    "listen": "What they need now is to be HEARD, not fixed: reflect what they said in your own words, no advice unless they ask.",
+    "solve": "They want help with this: after one sentence acknowledging the feeling, give a small concrete next step.",
+    "reassure": "They need steadiness: be calm and grounded, say what is within their control, and keep it short.",
+    "celebrate": "They want someone to share it with: react with real warmth first, ask about it, and keep the tasks for later.",
+    "space": "Do not push or reason with them while it is this hot: stay calm, short and respectful, and offer to help when they are ready.",
+    "distract": "A light change of pace would help: offer something fun or interesting.",
+}
 
 
 def _day(ts: float, tz: str):
@@ -298,3 +414,73 @@ def checkin_hint(rows: List[dict], tz: str = "", now: Optional[float] = None) ->
             )
         return ""
     return ""
+
+
+# ---------------------------------------------------------------- v17: the feeling over a whole conversation
+_FINE = re.compile(
+    r"^(?:i'?m |im |i am |it'?s |its |no,? |nah,? |yeah,? |haan,? |nahi,? |nothing,? )*(?:fine|ok|okay|alright|all good|good|nothing|never ?mind|whatever|it'?s nothing|"
+    r"theek(?: hoon| hun| hai)?|thik(?: hoon| hai)?|koi baat nahi|kuch nahi|sab theek|chalo chhodo|chhodo|rehne do|ٹھیک ہوں|ٹھیک ہے|کچھ نہیں|कुछ नहीं|ठीक हूँ|ठीक है)"
+    r"(?: (?:i guess|though|really|yaar|bas))?[.!…\s]*$", re.I)
+
+
+class Tracker:
+    """Remembers the last few readings of one conversation so Aegis can notice what a single message cannot show:
+    someone masking ("no, it's fine" right after something hard), a low mood that will not lift, a sudden swing, or relief
+    after a bad patch. Also blends in how the voice SOUNDED (slow and quiet = tired or down even when the words are neutral)."""
+
+    WINDOW = 6
+
+    def __init__(self):
+        self.recent: List[tuple] = []  # (timestamp, mood, intensity)
+
+    def _push(self, r: Reading, now: float):
+        self.recent.append((now, r.mood, r.intensity))
+        del self.recent[:-self.WINDOW]
+
+    def update(self, reading: Reading, text: str = "", now: Optional[float] = None, vibe: Optional[dict] = None) -> Reading:
+        now = now or time.time()
+        vibe = vibe or {}
+        recent = [x for x in self.recent if now - x[0] <= 900 and x[1] != "neutral"]  # last 15 minutes
+        prev_neg = next((x for x in reversed(recent) if MOODS.get(x[1], ("",))[0] == "negative" and x[2] >= 2), None)
+        r = reading
+        if r.distress:
+            self._push(r, now)
+            return r
+
+        # 1. masking: "it's fine" right after a hard moment (or said in a flat, slow voice)
+        flat = vibe.get("energy") == "low" or vibe.get("pace") == "slow"
+        if _FINE.match(" ".join(str(text or "").split())) and (prev_neg or (flat and vibe.get("hesitant"))):
+            mood = prev_neg[1] if prev_neg else "sad"
+            r = Reading(mood, max(1, (prev_neg[2] if prev_neg else 2) - 1), False, "", True)
+            r.confidence = 0.5
+            r.need = "listen"
+            r.note = "Earlier they were struggling and now they brush it off: they may be hiding it."
+
+        # 2. the voice says what the words do not
+        elif r.mood == "neutral" and vibe:
+            if vibe.get("energy") == "low" and vibe.get("pace") == "slow":
+                r = Reading("tired", 1)
+                r.confidence = 0.3
+                r.note = "Their words are neutral but their voice sounded slow and low."
+                r.need = "listen"
+            elif vibe.get("hesitant") and not text.rstrip().endswith("?"):
+                r.note = "They hesitated while speaking: offer one easy choice instead of a long answer."
+
+        # 3. trajectory
+        negs = [x for x in recent if MOODS.get(x[1], ("",))[0] == "negative"]
+        if r.mood != "neutral" and MOODS[r.mood][0] == "negative":
+            same = [x for x in recent[-3:] if x[1] == r.mood]
+            if len(same) >= 2 and not r.note:
+                r.note = f"This is the {'third' if len(same) >= 2 else 'second'} message in a row that sounds {r.mood}. Do not repeat the same comfort: name what you have noticed, and ask what would help most."
+                r.intensity = min(5, r.intensity + 1)
+            elif recent and MOODS.get(recent[-1][1], ("",))[0] == "positive" and recent[-1][2] >= 2 and not r.note:
+                r.note = "Their mood just dropped from a good one: ask gently what changed."
+        elif r.mood != "neutral" and MOODS[r.mood][0] == "positive" and negs and not r.note:
+            if MOODS.get(recent[-1][1], ("",))[0] == "negative":
+                r.note = "They were struggling a moment ago and sound better now: let them feel that progress without making a fuss."
+        self._push(r, now)
+        return r
+
+    def state(self) -> dict:
+        """For the UI / tests: the most recent readings, newest last."""
+        return {"recent": [{"mood": m, "intensity": i} for _, m, i in self.recent]}

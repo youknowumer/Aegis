@@ -15,10 +15,10 @@ DB_PATH = os.environ.get("AEGIS_DB", str(BASE_DIR / "aegis.db"))
 # so server code, the database and .env stay private. Set AEGIS_WEB_DIR to serve a separate folder instead.
 WEB_DIR = Path(os.environ.get("AEGIS_WEB_DIR", BASE_DIR))
 WEB_FILES = (
-    "index.html", "app.html", "app.js", "orb.js", "config.js", "landing.js", "landing.css", "style.css", "hud.js", "commands.js",
+    "index.html", "app.html", "app.js", "orb.js", "config.js", "landing.js", "landing.css", "style.css", "hud.js", "commands.js", "webctl.js",
     "ui-plus.js", "features.js", "theme-boot.js", "voice.js", "tabs.js", "dock.js", "auth-fx.js", "app-fx.js", "app-fx.css", "app-holo.js", "app-holo.css", "landing-fx.js", "landing-pro.css", "landing-pro.js", "landing-hero.css", "landing-hero.js",
     "groq.js", "meetings.js", "meetings.css", "meetings-plus.js", "meetings-plus.css", "account.js",
-    "landing-vela.css", "landing-vela.js", "landing-vela-page.css", "landing-vela-page.js", "landing-motion.css", "landing-motion.js", "landing-ultra.css", "landing-ultra.js", "landing-download.js", "landing-halora.css", "landing-halora.js", "landing-ios.css", "landing-ios.js",
+    "landing-vela.css", "landing-vela.js", "landing-vela-page.css", "landing-vela-page.js", "landing-motion.css", "landing-motion.js", "landing-ultra.css", "landing-ultra.js", "landing-download.js",
     "favicon.svg", "favicon.ico", "site.webmanifest",
 )
 DOWNLOADS_DIR = Path(os.environ.get("AEGIS_DOWNLOADS_DIR", BASE_DIR / "downloads"))

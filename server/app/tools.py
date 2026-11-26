@@ -43,11 +43,14 @@ class Tool:
 TOOLS: List[Tool] = [
     # ---- server tools ----
     Tool("remember", "Save something about the user to long-term memory: a fact, preference, person in their life, important date or event, goal, or an emotional moment worth remembering. Set kind to the best fit and important=true for things that matter a lot (family, health, big plans, birthdays). Saving something similar again just updates it.", "server",
-         {"fact": S, "kind": {"type": "string", "enum": ["fact", "preference", "person", "event", "goal", "emotion"]}, "important": B}, ["fact"]),
+         {"fact": S, "kind": {"type": "string", "enum": ["fact", "preference", "person", "event", "goal", "emotion"]}, "important": B, "pin": {"type": "boolean", "description": "true when the user says 'never forget this' / 'always remember': the memory then never fades"}}, ["fact"]),
+    Tool("pin_memory", "Pin an existing memory so it never fades (or unpin with pinned=false). Use when the user says 'never forget that', 'this is important, keep it'.", "server", {"contains": S, "pinned": B}, ["contains"]),
+    Tool("my_patterns", "Rhythms in how the user tends to feel (which weekdays or times of day are hard) and how their mood has been moving. Use when they ask 'when do I feel low', 'what have you noticed about me'.", "server"),
+    Tool("people", "The people in the user's life that you remember: name, relation, how often they come up and how the user tends to feel about them.", "server"),
     Tool("recall", "Search long-term memory for what is known about the user. Give a topic or name; an empty query returns the most important memories. Optionally filter by kind.", "server",
          {"query": S, "kind": {"type": "string", "enum": ["fact", "preference", "person", "event", "goal", "emotion"]}}, []),
     Tool("note_mood", "Quietly record how the user seems to feel right now (use when you sense a feeling the app did not catch, in any language). Never mention that you recorded it.", "server",
-         {"mood": {"type": "string", "enum": ["happy", "excited", "proud", "grateful", "stressed", "anxious", "sad", "lonely", "angry", "tired", "grief", "disappointed", "overwhelmed", "embarrassed", "confused", "bored", "hopeful", "relieved", "loving", "guilty", "jealous", "hopeless", "calm", "surprised", "determined", "neutral"]}, "intensity": {"type": "number", "description": "1 mild, 2 somewhat, 3 clear, 4 strong, 5 overwhelming"}, "note": {"type": "string", "description": "optional: the cause in a few words, e.g. 'exam tomorrow'"}}, ["mood"]),
+         {"mood": {"type": "string", "enum": ["happy", "excited", "proud", "grateful", "stressed", "anxious", "sad", "lonely", "angry", "tired", "grief", "disappointed", "overwhelmed", "embarrassed", "confused", "bored", "hopeful", "relieved", "loving", "guilty", "jealous", "hopeless", "calm", "surprised", "determined", "playful", "nostalgic", "curious", "apologetic", "neutral"]}, "intensity": {"type": "number", "description": "1 mild, 2 somewhat, 3 clear, 4 strong, 5 overwhelming"}, "note": {"type": "string", "description": "optional: the cause in a few words, e.g. 'exam tomorrow'"}}, ["mood"]),
     Tool("mood_history", "How the user has been feeling lately (days: how many days back, default 7). Use when they ask how they have been, or to be a better friend.", "server", {"days": N}),
     Tool("forget", "Delete memories that contain the given text.", "server", {"contains": S}, ["contains"], risky=True),
     Tool("current_time", "Get the current date and time, optionally in a given IANA timezone such as Asia/Karachi or America/New_York.", "server", {"timezone": S}),
@@ -180,7 +183,7 @@ TOOLS: List[Tool] = [
 BY_NAME = {t.name: t for t in TOOLS}
 
 
-def schemas(device_connected: bool, web_search: bool = False, max_uses: int = 4):
+def schemas(device_connected: bool, web_search: bool = False, max_uses: int = 4, chrome_connected: bool = False):
     from . import mail
 
     def available(t):
@@ -193,7 +196,8 @@ def schemas(device_connected: bool, web_search: bool = False, max_uses: int = 4)
         return True
 
     # Claude has its own built-in web search; every other provider uses our `search_web`
-    out = [t.schema() for t in TOOLS if (device_connected or t.where == "server") and available(t) and not (web_search and t.name == "search_web")]
+    # chrome_* tools also work through the browser extension, so they are offered when either a desktop app or the extension is linked
+    out = [t.schema() for t in TOOLS if (device_connected or t.where == "server" or (chrome_connected and t.name.startswith("chrome_"))) and available(t) and not (web_search and t.name == "search_web")]
     if web_search:
         # Anthropic runs this one itself; the server never sees a tool_use for it.
         out.append({"type": "web_search_20250305", "name": "web_search", "max_uses": max_uses})

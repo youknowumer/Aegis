@@ -232,6 +232,13 @@ _SYN = [
     {"dog", "puppy", "pet"}, {"cat", "kitten", "pet"}, {"afraid", "scared", "fear", "phobia", "darr"},
     {"allergic", "allergy", "allergies"}, {"exam", "test", "imtihan", "viva", "paper"}, {"sick", "ill", "unwell", "hospital", "bimar"},
     {"goal", "plan", "dream", "want", "maqsad"}, {"like", "love", "enjoy", "favourite", "favorite", "pasand"},
+    # v17: more Roman Urdu / Hindi / everyday groups, so "paisa" finds "salary" and "dawai" finds "medicine"
+    {"money", "paisa", "paise", "salary", "income", "tankhwah", "pay", "savings", "budget"}, {"car", "gaari", "gadi", "bike", "vehicle", "motorcycle"},
+    {"food", "khana", "dinner", "lunch", "breakfast", "meal", "cook", "cooking"}, {"friend", "dost", "yaar", "buddy", "mate"},
+    {"wedding", "shaadi", "shadi", "marriage", "nikah", "engaged", "engagement"}, {"doctor", "hospital", "clinic", "medicine", "dawai", "dawa", "treatment", "dentist"},
+    {"trip", "safar", "travel", "flight", "journey", "holiday", "vacation", "visa"}, {"sleep", "neend", "insomnia", "bed", "nap"},
+    {"child", "kid", "baby", "bacha", "bachay", "bachcha", "son", "daughter", "beta", "beti"}, {"house", "ghar", "home", "apartment", "flat", "rent", "kiraya"},
+    {"gym", "exercise", "workout", "fitness", "walk", "running", "jogging"}, {"prayer", "namaz", "salah", "dua", "mosque", "masjid"},
 ]
 _SYN_INDEX: Dict[str, set] = {}
 for _grp in _SYN:
@@ -272,23 +279,39 @@ def _fuzzy_overlap(q: set, t: set) -> float:
     return score
 
 
-def memory_score(r, q: set, now: float, query_text: str = "") -> float:
+def _idf(rows) -> Dict[str, float]:
+    """How rare each word is across everything remembered: a shared rare word ('Ayesha') says more than a shared common one ('they')."""
+    import math
+
+    df: Dict[str, int] = {}
+    for r in rows:
+        for w in _tokens(r["text"]):
+            df[w] = df.get(w, 0) + 1
+    n = max(1, len(rows))
+    return {w: math.log(1 + n / (1 + c)) for w, c in df.items()}
+
+
+def memory_score(r, q: set, now: float, query_text: str = "", idf: Optional[Dict[str, float]] = None) -> float:
     t = _tokens(r["text"])
     rel = min(_fuzzy_overlap(q, t), 3.0) if q else 0.0
+    if q and idf and rel:
+        rel += min(1.0, 0.25 * sum(idf.get(w, 1.0) for w in q if w in t))  # rare shared words count more
     age = max(0.0, now - (r["created"] or now)) / 86400
     half_life = 10 * (1 + r["weight"] * 2)  # days; an important memory fades 5x slower than a casual one
     recency = 0.5 ** (age / half_life)
     used = min(int(r["uses"] or 0), 10) * 0.15
     felt = {0: 0.0, 1: 0.0, 2: 0.3, 3: 0.8, 4: 1.6, 5: 2.2}.get(int(r["mood_level"] or 0), 0.0)  # strongly felt moments stay vivid
     kind = 0.8 if r["kind"] in ("person", "emotion", "goal") else 0.3 if r["kind"] == "event" else 0.0
-    return rel * 3.0 + r["weight"] * 0.9 + recency * 1.4 + used + felt + kind
+    pinned = 3.0 if (r["pinned"] if "pinned" in r.keys() else 0) else 0.0
+    return rel * 3.0 + r["weight"] * 0.9 + recency * 1.4 + used + felt + kind + pinned
 
 
 def select_memories(rows, query: str = "", limit: int = 14, now: Optional[float] = None) -> list:
     """The memories that should be on Aegis's mind for this message, most relevant first."""
     now = now or time.time()
     q = _tokens_expanded(query)
-    ranked = sorted(rows, key=lambda r: -memory_score(r, q, now))
+    idf = _idf(rows) if q else None
+    ranked = sorted(rows, key=lambda r: -memory_score(r, q, now, idf=idf))
     hits = [r for r in ranked if q and _fuzzy_overlap(q, _tokens(r["text"])) >= 1][:7]
     chosen = list(hits)
     for r in ranked:
@@ -375,7 +398,7 @@ def consolidate(db, uid: int, cap: int = MEMORY_CAP, now: Optional[float] = None
     faded = 0
     if len(rows) > cap:
         # forgettable = low weight, never felt strongly, rarely used, older than a month; weakest first
-        weak = sorted((r for r in rows if r["weight"] <= 1 and r["mood_level"] < 3 and r["uses"] < 3 and now - r["created"] > 30 * 86400),
+        weak = sorted((r for r in rows if r["weight"] <= 1 and r["mood_level"] < 3 and r["uses"] < 3 and now - r["created"] > 30 * 86400 and not r.get("pinned")),
                       key=lambda r: memory_score(r, set(), now))
         for r in weak[: len(rows) - cap]:
             db.delete_fact(uid, r["id"])
@@ -513,3 +536,109 @@ def special_days(db, uid: int, tz: str = "", now: Optional[datetime] = None) -> 
             if md == f"{d.month:02d}-{d.day:02d}":
                 out.append({"key": f"special:{r['id']}:{when}:{d.isoformat()}", "when": when, "text": r["text"]})
     return out
+
+
+# ------------------------------------------------------------------ v17: understanding the person over time
+_PARTS = (("night", 0, 5), ("morning", 5, 12), ("afternoon", 12, 17), ("evening", 17, 22), ("night", 22, 24))
+_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _part_of_day(hour: int) -> str:
+    for name, a, b in _PARTS:
+        if a <= hour < b:
+            return name
+    return "night"
+
+
+def patterns(rows: List[dict], tz: str = "") -> List[str]:
+    """Rhythms in how they feel, from the mood history (newest first). Needs real evidence: 5+ low moments, and a weekday or time of
+    day that holds a clear share of them. -> ['They often feel stressed on Sundays', 'They tend to feel low at night']"""
+    zone = utilities.get_zone(tz)
+    low = [r for r in rows if r["mood"] != "neutral" and emotion.MOODS.get(r["mood"], ("",))[0] == "negative" and r["intensity"] >= 2]
+    out: List[str] = []
+    if len(low) < 5:
+        return out
+    by_day: Dict[int, List[str]] = {}
+    by_part: Dict[str, List[str]] = {}
+    for r in low:
+        d = datetime.fromtimestamp(r["created"], zone)
+        by_day.setdefault(d.weekday(), []).append(r["mood"])
+        by_part.setdefault(_part_of_day(d.hour), []).append(r["mood"])
+
+    def top(moods):
+        return max(set(moods), key=moods.count)
+
+    wd, moods = max(by_day.items(), key=lambda kv: len(kv[1]))
+    if len(moods) >= 3 and len(moods) / len(low) >= 0.4:
+        out.append(f"They often feel {top(moods)} on {_DAYS[wd]}s")
+    part, moods = max(by_part.items(), key=lambda kv: len(kv[1]))
+    if len(moods) >= 4 and len(moods) / len(low) >= 0.5:
+        out.append(f"They tend to feel {top(moods)} in the {part}" if part != "night" else f"They tend to feel {top(moods)} late at night")
+    return out
+
+
+def feelings_about(rows, text: str, limit: int = 2) -> str:
+    """If the message touches something they once felt strongly about, say so ('the exam made them anxious'), so Aegis can be ready for it."""
+    q = _tokens_expanded(text)
+    if not q:
+        return ""
+    hits = []
+    for r in rows:
+        if not r["mood"] or r["mood_level"] < 3 or r["kind"] == "episode":
+            continue
+        if _fuzzy_overlap(q, _tokens(r["text"])) >= 1:
+            hits.append(r)
+    hits.sort(key=lambda r: (-r["mood_level"], -r["created"]))
+    if not hits:
+        return ""
+    lines = [f"- {re.sub(r' *[(]said on [^)]*[)]', '', r['text'])}: they felt {r['mood']}{' very strongly' if r['mood_level'] >= 4 else ''} when they told you" for r in hits[:limit]]
+    return ("This message touches something that stirred strong feeling before (private, never mention that you noticed):\n" + "\n".join(lines) +
+            "\nBe ready for that feeling to come back; ask how it is going before diving into the task if it fits.")
+
+
+_REL_FACT = re.compile(r"^Their ([\w' -]{2,30}?) (?:is|was) ([A-Z][\w'’-]{1,24})(?:[ ,.;:(].*)?$")
+
+
+def people(rows, now: Optional[float] = None) -> List[dict]:
+    """The people in their life, built from memory: name, relation, how often they come up, how they feel about them."""
+    now = now or time.time()
+    out: Dict[str, dict] = {}
+    for r in rows:
+        if r["kind"] not in ("person", "fact"):
+            continue
+        m = _REL_FACT.match(r["text"].strip())
+        if not m:
+            continue
+        rel, name = m.group(1).strip().lower(), m.group(2)
+        if rel in ("name", "birthday", "anniversary"):
+            continue
+        out.setdefault(name.lower(), {"name": name, "relation": rel, "mentions": 0, "last": 0.0, "moods": [], "notes": []})
+    if not out:
+        return []
+    for r in rows:
+        low = r["text"].lower()
+        for key, p in out.items():
+            if re.search(r"\b" + re.escape(key) + r"\b", low):
+                p["mentions"] += 1
+                p["last"] = max(p["last"], r["created"])
+                if r["mood"] and r["mood_level"] >= 2:
+                    p["moods"].append(r["mood"])
+                if r["kind"] != "person" and len(p["notes"]) < 5:
+                    p["notes"].append(r["text"])
+    res = []
+    for p in out.values():
+        feel = max(set(p["moods"]), key=p["moods"].count) if p["moods"] else ""
+        res.append({"name": p["name"], "relation": p["relation"], "mentions": p["mentions"], "last_mentioned": ago(p["last"], now) if p["last"] else "",
+                    "feeling": feel, "notes": p["notes"]})
+    res.sort(key=lambda p: -p["mentions"])
+    return res
+
+
+def reflect(db, uid: int, tz: str = "", now: Optional[float] = None) -> int:
+    """Once a day: turn the mood history into a few lasting 'insight' memories (rhythms the user never stated). Replaces the old ones."""
+    now = now or time.time()
+    found = patterns(db.moods(uid, since=now - 60 * 86400, limit=600), tz)
+    db.delete_facts_by_prefix(uid, "Pattern:")
+    for p in found:
+        db.add_fact(uid, "Pattern: " + p, "insight", False, source="auto")
+    return len(found)

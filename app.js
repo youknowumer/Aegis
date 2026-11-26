@@ -856,6 +856,7 @@
         $("user-email").textContent = m.email;
         setUsage(m.used, m.limit, m.plan);
         setDevice(m.device);
+        window.dispatchEvent(new CustomEvent("aegis:status", { detail: m }));
         $("messages").querySelectorAll(".msg,.tool").forEach((n) => n.remove());
         (m.history || []).forEach((h) => addMsg(h.role === "user" ? "user" : "ai", h.text));
         streamEl = null;
@@ -865,7 +866,7 @@
         greetOnce(m.brief, m.bond);
         break;
       case "mood": window.AegisFeel = { intensity: Math.max(1, Math.min(5, m.intensity || 3)), at: Date.now() }; showMood(m.mood, m.feeling); break;
-      case "status": setDevice(m.device); break;
+      case "status": setDevice(m.device); window.dispatchEvent(new CustomEvent("aegis:status", { detail: m })); break;
       case "delta": clearCues(); onDelta(m.text || ""); break;
       case "delta_end": endStream(); break;
       case "stopped": clearCues(); endStream(); setBusy(false); toast("Stopped."); break;
@@ -1012,6 +1013,10 @@
     setTheme: applyTheme,
     toggleFocus: setFocus,
     get meetings() { return window.AegisMeetings || null; },
+    get apiBase() { return API; },
+    get wsUrl() { return WS_URL; },
+    get token() { return token; },
+    submitText: (t) => submitText(t),
   };
   const SILENT_CMDS = { stop: 1, mute: 1, unmute: 0 };
 
