@@ -2,14 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#eef2f5" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#07111a" media="(prefers-color-scheme: dark)">
-  <meta name="color-scheme" content="light dark">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f110d">
+  <meta name="color-scheme" content="dark">
   <title>Aegis | An AI assistant that works on your PC and asks first</title>
-  <meta name="description" content="Aegis is an AI assistant for the web and Windows. Ask in plain English. It opens apps, sorts files and remembers what matters, and it always asks before anything risky.">
+  <meta name="description" content="Aegis is an AI voice assistant for the web and Windows, drawn here from 66,000 dots. Say its name, ask in plain words, and it asks before anything risky. Move the light.">
   <meta property="og:title" content="Aegis: an AI assistant that works on your PC and asks first">
-  <meta property="og:description" content="Ask in plain English. Aegis does the work and asks before anything risky.">
+  <meta property="og:description" content="A point-cloud portrait made of 66,000 dots. Voice, memory, meeting notes and PC control, with your approval on every risky step.">
   <meta property="og:type" content="website">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="icon" href="icons/icon-32.png" sizes="32x32" type="image/png">
@@ -17,634 +16,113 @@
   <link rel="shortcut icon" href="favicon.ico">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="site.webmanifest">
-  <link rel="preload" href="fonts/inter-tight-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <script src="theme-boot.js"></script>
-  <link rel="stylesheet" href="landing.css">
-  <link rel="stylesheet" href="landing-pro.css?v=15">
-  <link rel="stylesheet" href="landing-hero.css">
-  <link rel="stylesheet" href="landing-vela.css">
-  <link rel="stylesheet" href="landing-vela-page.css">
-  <link rel="stylesheet" href="landing-motion.css">
-  <link rel="stylesheet" href="landing-ultra.css">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://d8j0ntlcm91z4.cloudfront.net" crossorigin>
+  <link rel="stylesheet" href="landing-dots.css?v=17">
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
 </head>
 <body>
-<a class="skip" href="#main">Skip to content</a>
-<div class="progress" id="progress" aria-hidden="true"></div>
-<div class="edge edge-top" aria-hidden="true"></div>
-<div class="edge edge-bottom" aria-hidden="true"></div>
-<div class="cursor-glow" id="cursor-glow" aria-hidden="true"></div>
+<main class="page" data-phase="loading">
+  <div class="stage" aria-hidden="true"></div>
 
-<header class="nav" id="nav">
-  <div class="wrap nav-in">
-    <a class="brand" href="./" aria-label="Aegis home">
-      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z"/><path d="M11 16l4 4 7-8"/></svg>
-      <span>Aegis</span>
-    </a>
-    <nav class="links" aria-label="Main" id="links">
-      <a href="#voice">Voice</a>
-      <a href="#meetings">Meetings</a>
-      <a href="#what">What it does</a>
-      <a href="#control">Your control</a>
-      <a href="#plans">Plans</a>
-      <a href="#faq">Questions</a>
-    </nav>
-    <div class="nav-cta">
-      <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch colour theme" title="Switch colour theme">
-        <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>
-        <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-      </button>
-      <a id="signin-link" class="btn quiet" href="app.html">Sign in</a>
-      <a id="start-link" class="btn solid" href="app.html?mode=register">Start free</a>
+  <div class="loader" role="progressbar" aria-label="Loading the dots" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <svg class="ring" viewBox="-110 -110 220 220" aria-hidden="true"></svg>
+    <span class="count">000</span>
+    <span class="lbl">66,000 dots</span>
+  </div>
+
+  <a class="logo" href="./">Aegis.</a>
+  <h1 class="name">Aegis</h1>
+  <p class="tagline">Asks before anything risky</p>
+  <p class="hint">Move the light</p>
+
+  <nav class="toplinks" aria-label="Aegis">
+    <button type="button" data-open-sheet>What it does</button>
+    <a class="hide-s" href="app.html">Sign in</a>
+    <a class="go" href="app.html?mode=register">Start free</a>
+  </nav>
+
+  <div class="cta">
+    <a class="pill" href="#download" data-download>Download for Windows &darr;</a>
+    <a class="pill ghost" href="app.html">Open web app &rarr;</a>
+  </div>
+  <p class="toast" id="toast" role="status" aria-live="polite"></p>
+
+  <!-- ===== details sheet: the real Aegis facts ===== -->
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" aria-hidden="true" inert>
+    <button type="button" class="sheet-x" id="sheet-x" data-close-sheet>Close &times;</button>
+    <div class="sheet-in">
+      <h2 id="sheet-title">Say its name. It gets to work.</h2>
+      <p class="lead">Aegis is an AI assistant for the web and Windows. Talk or type, and it answers, remembers, takes meeting notes and runs your PC. Anything risky stops and waits for your yes.</p>
+
+      <dl class="stats">
+        <div><dt>Agent tools</dt><dd>118</dd></div>
+        <div><dt>Wait for your Allow</dt><dd>26</dd></div>
+        <div><dt>Free messages a day</dt><dd>15</dd></div>
+        <div><dt>Local voice languages</dt><dd>31</dd></div>
+      </dl>
+
+      <h3>What it does</h3>
+      <div class="cards">
+        <div class="card"><b>Voice that answers like a person</b><p>Say &ldquo;Hey Aegis&rdquo; or a wake word you choose. It listens in 20 languages, replies in your language and tone, and goes quiet on &ldquo;thanks, that is all&rdquo;.</p><q>Hey Aegis, what is on my plate today?</q></div>
+        <div class="card"><b>Meeting notes</b><p>Record a call or upload audio. You get ranked important points, action items with owners and enhancement ideas, kept in your history.</p><q>Start meeting notes</q></div>
+        <div class="card"><b>Your PC, by sentence</b><p>Open apps and sites, work with files in Documents, Desktop and Downloads, take screenshots, check PC health, drive Chrome and Outlook.</p><q>Organize my Downloads folder</q></div>
+        <div class="card"><b>Memory you can edit</b><p>It remembers people, dates and plans. Every saved fact is listed in a panel and removable in one click. Nothing is kept silently.</p><q>Remember that my meeting is at 5</q></div>
+        <div class="card"><b>Instant commands</b><p>Timers, notes, quick maths, time zones and app launches run in your browser in milliseconds. They are free and use no daily messages.</p><q>Set a timer for 10 minutes</q></div>
+        <div class="card"><b>Any AI you like</b><p>Bring your own key. The AI key stays on the server and is never sent to the desktop app.</p></div>
+      </div>
+      <ul class="prov" style="margin-top:14px" aria-label="Works with these AI providers">
+        <li>Claude</li><li>ChatGPT</li><li>Gemini</li><li>Groq</li><li>Mistral</li><li>DeepSeek</li><li>Grok</li><li>OpenRouter</li><li>Local models</li>
+      </ul>
+
+      <h3>You stay in control</h3>
+      <div class="two">
+        <div class="card"><h4>Runs without asking</h4><ul><li>Open an app or a website</li><li>Search the web</li><li>List and read files</li><li>Take a screenshot</li><li>Check PC health</li><li>Remember a fact</li></ul></div>
+        <div class="card"><h4>Always waits for your Allow</h4><ul><li>Write, move or delete a file</li><li>Sort a whole folder</li><li>Type text into a window</li><li>Press keyboard shortcuts</li><li>Send an email or run a shell command</li><li>Forget a memory</li></ul></div>
+      </div>
+      <p class="fine">26 of the 118 tools always ask first, and 4 more ask when a specific call looks risky. No answer within 60 seconds cancels the action. If you say no, Aegis does not retry it. File tools cannot leave Documents, Desktop and Downloads. Passwords are hashed with scrypt.</p>
+
+      <h3>Plans</h3>
+      <div class="plans">
+        <div class="card"><span>Free</span><strong>15</strong><p>messages a day. No card needed.</p></div>
+        <div class="card"><span>Basic</span><strong>150</strong><p>messages a day, for daily work or study.</p></div>
+        <div class="card"><span>Power</span><strong>1,000</strong><p>messages a day, for long automation days.</p></div>
+      </div>
+      <p class="fine">Plans differ only by daily messages. Every plan includes the web app, the Windows app and memory. Paid plans are switched on for your account after payment.</p>
+
+      <h3 id="download">Get Aegis</h3>
+      <dl class="rel" aria-label="Windows installer">
+        <div><dt>File</dt><dd id="rel-file">Aegis-Setup.exe</dd></div>
+        <div><dt>Size</dt><dd id="rel-size">about 138 MB</dd></div>
+        <div hidden><dt>Version</dt><dd id="rel-ver"></dd></div>
+        <div hidden><dt>Released</dt><dd id="rel-date"></dd></div>
+      </dl>
+      <div class="two">
+        <div class="card"><h4>Before you install</h4><ul><li>Windows 10 or 11, 64-bit.</li><li>Internet for the AI, voice and live data.</li><li>An AI key. Groq has a free tier.</li><li>Python is not needed. It is bundled.</li></ul></div>
+        <div class="card"><h4>Install in five steps</h4><ol><li>Run <code>Aegis-Setup.exe</code> and choose a folder.</li><li>Open Aegis. It starts its own server on this PC only.</li><li>Create an account. It is stored locally.</li><li>Settings &gt; AI provider: paste the key, Test, Save.</li><li>Say &ldquo;Hey Aegis&rdquo; and talk.</li></ol></div>
+      </div>
+      <div class="sheet-cta">
+        <a class="pill" href="#download" data-download>Download for Windows &darr;</a>
+        <a class="pill ghost" href="app.html?mode=register">Start free in the browser &rarr;</a>
+        <a class="pill ghost" id="rel-all" href="https://github.com/youknowumer/Aegis/releases" target="_blank" rel="noopener">All releases</a>
+      </div>
+      <p class="fine">The installer is not code-signed yet, so Windows SmartScreen may say &ldquo;Unknown publisher&rdquo; once. Download only from this page or the official Releases page, then choose More info and Run anyway. The app updates itself every 4 hours. Your data stays in <code>%APPDATA%\aegis-desktop</code>. PC control is Windows-only for now; the web app runs in any browser.</p>
+
+      <h3>Questions people ask first</h3>
+      <details><summary>Can Aegis delete my files without me knowing?</summary><p>No. Writing, moving, deleting, typing and shell commands all show an Allow or Deny prompt first. If you decline, or do not answer, Aegis does not retry that action.</p></details>
+      <details><summary>What do I need for voice and meeting notes?</summary><p>A free Groq key for fast Whisper transcription, added in Settings. Without it, voice falls back to your browser&rsquo;s own speech recognition. Meeting notes need the key, and your audio is sent only to the service you choose.</p></details>
+      <details><summary>What does it remember about me?</summary><p>Only facts you share or ask it to save. They appear in the memory panel and you can delete any of them at any time.</p></details>
+      <details><summary>Does it work on Mac or Linux?</summary><p>The web app works in any browser. Opening apps, typing and key presses on your computer are Windows-only for now.</p></details>
+      <details><summary>Can it speak my language?</summary><p>It replies in the language and script you write in, including Roman Urdu, Urdu, Hindi, Arabic, Spanish and French. Optional local voices cover 31 languages plus Roman Urdu with no per-character cost.</p></details>
+
+      <p class="fine">&copy; 2026 Muhammad Umer Faheem (@youknowumer). Aegis is proprietary software. All rights reserved.</p>
     </div>
   </div>
-</header>
-
-<main id="main">
-
-  <!-- ============ HERO (vela-style: cycling verb, tinted 3D icon, pastel grain panel, cream stats strip) ============ -->
-  <section class="hero-sec vela" id="top">
-    <div class="v-panel">
-      <div class="v-bg" aria-hidden="true">
-        <i class="vl vl1"></i><i class="vl vl2"></i><i class="vl vl3"></i><i class="vl vl4"></i>
-      </div>
-      <div class="v-grain" aria-hidden="true"></div>
-      <div class="vf">
-        <h1 class="vh" aria-label="Aegis. Ask, search, automate or connect, in your terms.">
-          <span class="vslot" id="vslot" aria-hidden="true">
-          <span class="vitem" data-word="Ask">
-            <span class="vic"><img src="assets/vela/message.webp" data-cdn="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/83de7c35-dd91-4e56-bfb8-0ffafc83d0e0.webp" alt="" width="320" height="320" decoding="async"><i class="tint" style="--tint:#E9C22E;--icon:url(assets/vela/message.webp)"></i></span>
-            <span class="vword">Ask</span>
-          </span>
-          <span class="vitem" data-word="Search">
-            <span class="vic"><img src="assets/vela/browse.webp" data-cdn="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/4d952211-0474-48cc-af48-58f68b3b7525.webp" alt="" width="320" height="320" decoding="async"><i class="tint" style="--tint:#F2772F;--icon:url(assets/vela/browse.webp)"></i></span>
-            <span class="vword">Search</span>
-          </span>
-          <span class="vitem" data-word="Automate">
-            <span class="vic"><img src="assets/vela/transact.webp" data-cdn="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/e2e91fca-5b3f-4e0e-a437-8a581592e407.webp" alt="" width="320" height="320" decoding="async"><i class="tint" style="--tint:#3FB874;--icon:url(assets/vela/transact.webp)"></i></span>
-            <span class="vword">Automate</span>
-          </span>
-          <span class="vitem" data-word="Connect">
-            <span class="vic"><img src="assets/vela/web.webp" data-cdn="https://d2ol7oe51mr4n9.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/6b32bb47-4ad6-4938-a637-c997b373c68b.webp" alt="" width="320" height="320" decoding="async"><i class="tint" style="--tint:#C564C4;--icon:url(assets/vela/web.webp)"></i></span>
-            <span class="vword">Connect</span>
-          </span>
-          </span>
-          <span class="vline2" aria-hidden="true">in your terms</span>
-        </h1>
-        <div class="vrow">
-          <a class="vbtn vbtn-a" id="vbtn-a" href="app.html?mode=register">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-            <span><small>Free plan</small>Start free</span>
-          </a>
-          <a class="vbtn" href="#download">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
-            <span><small>For Windows</small>Desktop app</span>
-          </a>
-          <p class="vcap">Aegis is an AI assistant for the web and Windows. It does <br>the work, and asks before anything risky.</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="v-strip">
-      <svg class="v-notch" viewBox="0 0 1440 62" preserveAspectRatio="none" aria-hidden="true"><path d="M0 62 H1062 C1092 62 1098 54 1116 34 C1138 9 1146 1 1178 1 H1440 V62 Z"/></svg>
-      <a class="v-hint" href="#interface">&darr; Scroll to learn more</a>
-      <div class="vf v-strip-in">
-        <p class="v-tag">Nothing risky<br>happens unasked</p>
-        <dl class="v-stats">
-          <div><dt>Tools it can use</dt><dd><span data-count="65">65</span></dd></div>
-          <div><dt>Tools that wait for your yes</dt><dd><span data-count="18">18</span></dd></div>
-          <div><dt>Free messages a day</dt><dd><span data-count="15">15</span></dd></div>
-        </dl>
-        <svg class="v-sprout" viewBox="0 0 120 150" aria-hidden="true"><path d="M60 138V62"/><path d="M60 92C60 66 44 50 20 48c0 26 16 42 40 44z"/><path d="M60 74C60 50 74 34 98 30c0 26-14 42-38 44z"/><path d="M14 140h92"/></svg>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ SEE IT WORK (the interactive demo, moved out of the hero) ============ -->
-  <section class="see wrap" id="see">
-    <div class="see-in scene" data-hue="1"><span class="stk s-see" data-ic="0" aria-hidden="true"></span>
-      <div class="see-copy" data-reveal>
-        <p class="eyebrow">See it work</p>
-        <h2>Ask in plain English. Watch every step.</h2>
-        <p class="lead">An AI assistant for the web and Windows. It opens apps, sorts your folders and remembers what you tell it. Deleting, typing and shell commands always wait for your yes.</p>
-        <div class="hero-cta">
-          <a class="btn solid big" href="app.html?mode=register">Start free</a>
-          <a class="btn glass big" href="#download">Get the Windows app</a>
-        </div>
-        <p class="fine">Free plan: 15 messages a day. No card needed.</p>
-        <div class="say-row" aria-label="Things you can say to Aegis">
-          <span class="say-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V22h2v-3.08A7 7 0 0 0 19 12z"/></svg>Say</span>
-          <span class="say-chip">&ldquo;Hey Aegis&rdquo;</span>
-          <span class="say-chip">&ldquo;what is on my plate today?&rdquo;</span>
-          <span class="say-chip">&ldquo;start meeting notes&rdquo;</span>
-        </div>
-        <ul class="hero-trust" aria-label="Safety highlights">
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Asks before risky actions</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Three-folder file sandbox</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>Bring your own AI key</li>
-        </ul>
-      </div>
-      <div data-reveal style="--d:120ms">
-      <figure class="demo" id="demo" aria-label="Interactive example of Aegis working on a request">
-        <div class="demo-bar">
-          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
-          <span class="demo-title">Aegis</span>
-          <span class="status"><span class="led" aria-hidden="true"></span>Desktop connected</span>
-        </div>
-
-        <div class="seg" id="seg" role="tablist" aria-label="Choose an example" style="--i:0">
-          <span class="thumb" aria-hidden="true"></span>
-          <button type="button" role="tab" aria-selected="true">Files</button>
-          <button type="button" role="tab" aria-selected="false" tabindex="-1">Search</button>
-          <button type="button" role="tab" aria-selected="false" tabindex="-1">Memory</button>
-          <button type="button" role="tab" aria-selected="false" tabindex="-1">PC health</button>
-        </div>
-
-        <div class="demo-body" id="demo-body" aria-live="polite">
-          <!-- filled by landing.js; this is the no-JS fallback -->
-          <div class="bubble me">Organize my Downloads folder</div>
-          <div class="step done"><span class="tick"></span><code>list_files</code><span class="arg">Downloads</span></div>
-          <div class="ask">
-            <p class="ask-title">Aegis wants to sort 23 files in Downloads</p>
-            <p class="ask-sub">Into Images, Documents, Videos, Audio, Archives</p>
-            <div class="ask-actions"><span class="btn allow">Allow</span><span class="btn deny">Deny</span></div>
-          </div>
-        </div>
-
-        <figcaption class="demo-foot">
-          <span>Example conversation. Nothing here touches your files.</span>
-          <button type="button" class="replay" id="replay" hidden>Play again</button>
-        </figcaption>
-      </figure>
-      </div>
-    </div>
-    <div class="prov-wrap">
-      <div class="prov" data-reveal aria-label="Works with these AI providers">
-        <span class="prov-l">Works with</span>
-        <ul>
-          <li>Claude</li><li>ChatGPT</li><li>Gemini</li><li>Groq</li><li>Mistral</li><li>DeepSeek</li><li>Grok</li><li>OpenRouter</li><li>Local models</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ INTERFACE ============ -->
-  <section id="interface" class="ui-sec wrap" data-hue="2">
-    <div class="block-head" data-reveal>
-      <p class="eyebrow">The interface</p>
-      <h2>One calm screen for your day, your chat and every step Aegis takes</h2>
-      <p>Tasks and reminders on the left, the conversation in the middle, a live activity log and device status on the right. Nothing happens out of sight.</p>
-    </div>
-    <div class="ui-frame scene" data-reveal data-hue="2"><span class="stk s-ui" data-ic="1" aria-hidden="true"></span>
-      <div class="mock" role="img" aria-label="Illustration of the Aegis interface with a task list, a conversation and an activity panel">
-        <div class="mk-col">
-          <div class="mk-card"><div class="mk-time">15:41<small>03</small></div><div class="mk-sub">Tuesday &middot; 17 November</div></div>
-          <div class="mk-card"><h4>Tasks</h4>
-            <div class="mk-row done"><i></i>Call the bank</div>
-            <div class="mk-row"><i></i>Send invoice<em>5 pm</em></div>
-            <div class="mk-row"><i></i>Book dentist</div>
-          </div>
-          <div class="mk-card"><h4>Memory</h4><div class="mk-sub">Meeting is at 5<br>Sister's birthday Friday</div></div>
-        </div>
-        <div class="mk-main">
-          <div class="mk-orb" aria-hidden="true"></div>
-          <div class="mk-chat">
-            <div class="mk-msg u">Organize my Downloads folder</div>
-            <div class="mk-tool">list_files &middot; Downloads</div>
-            <div class="mk-msg a">I found 23 files. I can sort them into Images, Documents and Archives.</div>
-          </div>
-          <div class="mk-input"><span>Ask Aegis anything...</span><b>Send &rarr;</b></div>
-        </div>
-        <div class="mk-col">
-          <div class="mk-ask"><b>Allow sorting 23 files?</b><span>Allow</span><span>Deny</span></div>
-          <div class="mk-card"><h4>Activity</h4>
-            <div class="mk-row done"><i></i>Reading Downloads</div>
-            <div class="mk-row"><i></i>Waiting for approval</div>
-          </div>
-          <div class="mk-card"><h4>This device</h4>
-            <div class="mk-gauge">Battery<s style="--w:86%"></s></div>
-            <div class="mk-gauge">Memory<s style="--w:42%"></s></div>
-            <div class="mk-gauge">Network<s style="--w:68%"></s></div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <ul class="ui-points" data-stagger>
-      <li><b>Command palette</b><span>Press Ctrl K to run any command or ask anything.</span></li>
-      <li><b>Voice mode</b><span>Hands-free, with a wake word you choose.</span></li>
-      <li><b>Focus mode</b><span>Hide the panels and keep just the conversation.</span></li>
-      <li><b>Your accent colour</b><span>Seven themes, plus compact layout and text size.</span></li>
-    </ul>
-  </section>
-
-  <!-- ============ VOICE ============ -->
-  <section id="voice" class="split wrap scene" data-hue="3"><span class="stk s-voice" data-ic="2" aria-hidden="true"></span>
-    <div class="split-copy" data-reveal>
-      <p class="eyebrow">Voice assistant</p>
-      <h2>Call it by name. It answers like a person.</h2>
-      <p class="lede">Say your wake word and Aegis wakes up, listens, thinks and replies out loud in short, natural sentences. Keep talking for follow-ups. Say &ldquo;thanks, that is all&rdquo; and it goes quiet.</p>
-      <ul class="ticks" data-stagger>
-        <li><b>Wake word you choose</b><span>&ldquo;Hey Aegis&rdquo; or any name, with a spoken greeting when it wakes.</span></li>
-        <li><b>Groq Whisper transcription</b><span>Fast, accurate speech to text in English, Urdu, Hindi and mixed speech.</span></li>
-        <li><b>Conversation, not commands</b><span>Spoken replies are kept short, with no lists read aloud.</span></li>
-        <li><b>Voice that stays in your control</b><span>Risky actions still wait for a tap on Allow.</span></li>
-      </ul>
-    </div>
-    <figure class="vmock" id="vmock" data-reveal aria-label="Illustration of a spoken conversation with Aegis">
-      <div class="vm-top"><span class="vm-state" id="vm-state">Sleeping</span><span class="vm-eng">Whisper large-v3</span></div>
-      <div class="vm-orb" aria-hidden="true"><i></i><i></i><i></i><span class="vm-bars"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></span></div>
-      <div class="vm-log" id="vm-log" aria-live="off">
-        <p class="m u" data-step="1">&ldquo;Hey Aegis&rdquo;</p>
-        <p class="m a" data-step="2">Yes, I am listening.</p>
-        <p class="m u" data-step="3">&ldquo;What is on my plate today?&rdquo;</p>
-        <p class="m a" data-step="4">Two tasks: send the invoice at 5 and book the dentist. Want me to set a reminder?</p>
-      </div>
-    </figure>
-  </section>
-
-  <!-- ============ MEETINGS ============ -->
-  <section id="meetings" class="split rev wrap scene" data-hue="4"><span class="stk s-meet" data-ic="3" aria-hidden="true"></span>
-    <figure class="mtmock" id="mtmock" data-reveal aria-label="Illustration of live meeting notes">
-      <div class="mt-top"><span class="mt-rec"><i></i>Recording</span><span class="mt-time" id="mt-time">00:00</span><span class="mt-eng">Groq Whisper</span></div>
-      <div class="mt-live">
-        <p style="--n:0">&ldquo;Let us ship the beta on the 28th.&rdquo;</p>
-        <p style="--n:1">&ldquo;Priya, you own the pricing page.&rdquo;</p>
-        <p style="--n:2">&ldquo;We need a safer way to share notes.&rdquo;</p>
-      </div>
-      <div class="mt-notes">
-        <div class="mt-col" style="--n:0"><h4>Important points</h4><ul><li>Beta ships on the 28th</li><li>Pricing page is the blocker</li></ul></div>
-        <div class="mt-col" style="--n:1"><h4>Action items</h4><ul><li>Priya: pricing page <em>Fri</em></li><li>Sam: QA pass <em>Mon</em></li></ul></div>
-        <div class="mt-col" style="--n:2"><h4>Enhancements</h4><ul><li>Add share links for notes</li><li>Auto-send recap email</li></ul></div>
-      </div>
-    </figure>
-    <div class="split-copy" data-reveal>
-      <p class="eyebrow">Meeting assistant</p>
-      <h2>Leave the note-taking to Aegis</h2>
-      <p class="lede">Record a call or upload the audio. Aegis transcribes it as you go, then hands you a clean summary you can act on, kept in your history.</p>
-      <ul class="ticks" data-stagger>
-        <li><b>Important points, ranked</b><span>The decisions and facts that matter, marked high, medium or low.</span></li>
-        <li><b>Action items with owners</b><span>Turn them into tasks with one click, or by voice.</span></li>
-        <li><b>Enhancement ideas</b><span>Improvements and risks that came up, with the reason and impact.</span></li>
-        <li><b>Long meetings are fine</b><span>Recorded in segments, so an hour-long call still works.</span></li>
-      </ul>
-    </div>
-  </section>
-
-  <!-- ============ WHAT IT DOES ============ -->
-  <section id="what" class="block wrap" data-hue="1">
-    <div class="block-head" data-reveal>
-      <h2>Everything you would do by hand, said in one sentence</h2>
-      <p>Aegis plans the steps and carries them out until the job is done. These are the real tools it has today.</p>
-    </div>
-    <dl class="caps" data-stagger>
-      <div class="cap">
-        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></span><span>Apps and websites</span></dt>
-        <dd>Open Chrome, Notepad, Calculator or Spotify. Open any link. Search the web in your own browser.</dd>
-        <dd class="ex">“Open Chrome and search for SpaceX launches”</dd>
-      </div>
-      <div class="cap">
-        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span>Files and folders</span></dt>
-        <dd>List, read, write, move and delete files in Documents, Desktop and Downloads. Sort a messy folder into Images, Documents, Videos, Audio and Archives.</dd>
-        <dd class="ex">“Organize my Downloads folder”</dd>
-      </div>
-      <div class="cap">
-        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span><span>Your screen and system</span></dt>
-        <dd>Take a screenshot, check CPU, memory and disk, type into the window you are in, press shortcuts like Ctrl+C or Alt+Tab.</dd>
-        <dd class="ex">“How is my PC doing?”</dd>
-      </div>
-      <div class="cap">
-        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-3 11.2V17h6v-2.8A6 6 0 0 0 12 3zM10 20h4"/></svg></span><span>Memory you can edit</span></dt>
-        <dd>Tell it once and it remembers. Every saved fact is listed in a panel where you can delete it with one click.</dd>
-        <dd class="ex">“Remember that my meeting is at 5”</dd>
-      </div>
-      <div class="cap">
-        <dt><span class="ci" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><span>Voice and text</span></dt>
-        <dd>Type or speak, and hear the answer read back. Say &ldquo;Hey Aegis&rdquo; to start hands-free.</dd>
-        <dd class="ex langs">
-          <span>&ldquo;Remind me about my sister&rsquo;s birthday on Friday&rdquo;</span>
-          <span>&ldquo;Read that back to me&rdquo;</span>
-        </dd>
-      </div>
-    </dl>
-  </section>
-
-  <!-- ============ INSTANT COMMANDS ============ -->
-  <section id="commands" class="cmds-sec wrap" data-hue="2">
-    <div class="cmd-wrap">
-      <div class="block-head" data-reveal>
-        <p class="eyebrow">Instant commands</p>
-        <h2>The simple things are answered in milliseconds</h2>
-        <p>Common requests run right in your browser, in plain English. They are free, do not use your daily messages and keep working without the server.</p>
-        <p class="cmd-note"><span><b>Everything else</b> goes to the AI, which answers in your language and can use tools, memory and web search.</span></p>
-      </div>
-      <div class="cmd-grid" data-stagger>
-        <div class="cmd"><h3>Open and search</h3><q>open YouTube</q><q>open Gmail</q><q>directions to Islamabad</q></div>
-        <div class="cmd"><h3>Time and math</h3><q>time in Tokyo</q><q>calculate 15% of 2400</q><q>convert 10 km to miles</q></div>
-        <div class="cmd"><h3>Timers and notes</h3><q>set a timer for 10 minutes</q><q>take a note buy milk</q><q>show my notes</q></div>
-        <div class="cmd"><h3>Control Aegis</h3><q>voice mode on</q><q>focus mode</q><q>change theme to red</q></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ CONTROL ============ -->
-  <section id="control" class="band">
-    <div class="wrap">
-      <div class="block-head light" data-reveal>
-        <h2>It only acts alone where it cannot hurt you</h2>
-        <p>Every tool is sorted by risk. Reading and opening happen straight away. Anything that changes or removes something stops and waits for you.</p>
-      </div>
-
-      <div class="split" data-stagger>
-        <div class="col ok">
-          <h3>Runs without asking</h3>
-          <ul>
-            <li>Open an app or a website</li>
-            <li>Search the web</li>
-            <li>List and read files</li>
-            <li>Take a screenshot</li>
-            <li>Check PC health</li>
-            <li>Remember a fact</li>
-          </ul>
-        </div>
-        <div class="col ask-col">
-          <h3>Always waits for your Allow</h3>
-          <ul>
-            <li>Write, move or delete a file</li>
-            <li>Sort a whole folder</li>
-            <li>Type text into a window</li>
-            <li>Press keyboard shortcuts</li>
-            <li>Run a shell command</li>
-            <li>Forget a memory</li>
-          </ul>
-          <p class="timeout">
-            <svg viewBox="0 0 36 36" aria-hidden="true"><circle class="ring-bg" cx="18" cy="18" r="15"/><circle class="ring" cx="18" cy="18" r="15" pathLength="100"/></svg>
-            <span>No answer within 60 seconds cancels the action.</span>
-          </p>
-        </div>
-      </div>
-
-      <ul class="proofs" data-stagger>
-        <li><strong>Three folders only.</strong> File tools cannot leave Documents, Desktop and Downloads, even through shortcuts or symlinks.</li>
-        <li><strong>No key on your PC.</strong> The AI key stays on the server. The desktop app never sees it.</li>
-        <li><strong>Declined means done.</strong> If you say no, Aegis does not retry that action.</li>
-        <li><strong>Hashed passwords.</strong> Passwords are stored with scrypt, and repeated sign-in attempts are throttled.</li>
-      </ul>
-    </div>
-  </section>
-
-  <!-- ============ HOW ============ -->
-  <section id="how" class="block wrap" data-hue="3">
-    <div class="block-head" data-reveal>
-      <h2>From your sentence to a finished job</h2>
-      <p>Start in the browser. Add the Windows app when you want Aegis to use your computer.</p>
-    </div>
-    <ol class="steps" id="steps" data-stagger>
-      <li>
-        <h3>Create an account</h3>
-        <p>Use your email. The web app works immediately in any browser, on any device.</p>
-      </li>
-      <li>
-        <h3>Install the Windows app</h3>
-        <p>Optional. Sign in once and the app connects, so Aegis can use your PC. Your sidebar shows “Desktop app: Connected”.</p>
-      </li>
-      <li>
-        <h3>Ask for what you need</h3>
-        <p>Say it the way you would tell a person. Approve the risky steps. Aegis keeps going until it is done.</p>
-      </li>
-    </ol>
-
-    <h3 class="lede" data-reveal>What happens behind the scenes</h3>
-    <div class="arch" data-reveal>
-      <div class="arch-col">
-        <div class="node">
-          <b>Web app</b>
-          <span>Chat, voice and your memory panel. Runs in any browser.</span>
-        </div>
-        <div class="node pc">
-          <b>Desktop app</b>
-          <span>Runs the PC tools on your computer, only after you sign in.</span>
-          <em>On your PC</em>
-        </div>
-      </div>
-      <div class="link"><span>Your messages and tool results</span></div>
-      <div class="node server">
-        <b>Aegis server</b>
-        <ul>
-          <li>Accounts and sign-in</li>
-          <li>Memory and daily limits</li>
-          <li>Approval prompts</li>
-          <li>Holds the AI key</li>
-        </ul>
-      </div>
-      <div class="link"><span>Plan and tool calls</span></div>
-      <div class="node ai">
-        <b>Claude</b>
-        <span>Reads your request and decides which tool to use next.</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============ PLATFORM ============ -->
-  <section id="platform" class="wrap" data-hue="1">
-    <div class="block-head" data-reveal>
-      <p class="eyebrow">Under the hood</p>
-      <h2>Built for depth, not just demos</h2>
-      <p>Aegis keeps simple things instant and brings in an AI model only when a request needs one.</p>
-    </div>
-    <div class="pgrid" data-stagger>
-      <article class="pc"><span class="pn">01</span><h3>Instant commands</h3><p>Timers, notes, tasks, quick maths and app launches run locally in milliseconds, with no model call.</p></article>
-      <article class="pc"><span class="pn">02</span><h3>Any AI provider</h3><p>Claude, ChatGPT, Gemini, Groq, Mistral, DeepSeek, Grok, OpenRouter or a local model. Use your own key.</p></article>
-      <article class="pc"><span class="pn">03</span><h3>Live web and news</h3><p>Search the web and read headlines, then get a short answer with sources.</p></article>
-      <article class="pc"><span class="pn">04</span><h3>Memory you can edit</h3><p>Saved facts are listed in a panel and removable with one click. Nothing is kept silently.</p></article>
-      <article class="pc"><span class="pn">05</span><h3>Plan, act, report</h3><p>It picks tools, runs them in order and shows each step as it happens, with a live activity log.</p></article>
-      <article class="pc"><span class="pn">06</span><h3>Approval by design</h3><p>18 of its 65 tools stop for your Allow or Deny before they run. Declined means not retried.</p></article>
-    </div>
-  </section>
-
-  <!-- ============ PLANS ============ -->
-  <section id="plans" class="block wrap plans-sec" data-hue="4">
-    <div class="aurora small" aria-hidden="true"><i class="b1" data-speed="-0.08"></i><i class="b2" data-speed="0.1"></i></div>
-    <div class="block-head" data-reveal>
-      <h2>Start free, move up when you need more messages</h2>
-      <p>Plans differ only by how many messages you can send each day. Every plan includes the web app, the Windows app and memory.</p>
-    </div>
-    <div class="plans" data-stagger>
-      <article class="plan">
-        <h3>Free</h3>
-        <p class="num"><span data-count="15">15</span> <small>messages a day</small></p>
-        <p>For trying Aegis and everyday small jobs.</p>
-        <a class="btn glass" href="app.html?mode=register">Start free</a>
-      </article>
-      <article class="plan feat scene" data-hue="2">
-        <h3>Basic</h3>
-        <p class="num"><span data-count="150">150</span> <small>messages a day</small></p>
-        <p>For daily use at work or study.</p>
-        <a class="btn solid" href="app.html?mode=register">Create account first</a>
-      </article>
-      <article class="plan">
-        <h3>Power</h3>
-        <p class="num"><span data-count="1000" data-sep="1">1,000</span> <small>messages a day</small></p>
-        <p>For long, multi-step automation days.</p>
-        <a class="btn glass" href="app.html?mode=register">Create account first</a>
-      </article>
-    </div>
-    <p class="fine" data-reveal>Paid plans are switched on for your account after payment. Create your free account first, then ask for an upgrade.</p>
-  </section>
-
-  <!-- ============ DOWNLOAD ============ -->
-  <section id="download" class="wrap">
-    <div class="get scene" data-reveal data-hue="4"><span class="stk s-get" data-ic="0" aria-hidden="true"></span>
-      <div>
-        <h2>Use it in the browser, or give it your PC</h2>
-        <p>The web app runs anywhere but cannot touch your computer. The Windows app adds PC control, with the same account and the same memory. It ships its own private server, so there is nothing else to install.</p>
-        <p class="fine">Windows 10 and 11, 64-bit. Not signed with a publisher certificate yet, so Windows SmartScreen may show a warning on first run.</p>
-      </div>
-      <div class="get-actions">
-        <a class="btn solid big" href="app.html">Open the web app</a>
-        <a id="dl-btn" class="btn solid big" href="https://github.com/youknowumer/Aegis/releases/latest/download/Aegis-Setup.exe" download="Aegis-Setup.exe">Download now</a>
-        <div class="dl-prog" id="dl-prog" role="status" aria-live="polite" hidden>
-          <svg class="dl-ico" viewBox="0 0 48 48" aria-hidden="true"><path class="dl-tray" d="M10 30v8h28v-8"/><g class="dl-arrow"><path d="M24 8v22M15 22l9 9 9-9"/></g><path class="dl-chk" d="M13 25l8 8 15-17"/></svg>
-          <div class="dl-ptxt"><b id="dl-ptitle"></b><span id="dl-psub"></span><div class="dl-bar"><i></i></div></div>
-        </div>
-        <p class="fine dl-status" id="dl-status" role="status">Windows 10 and 11, 64-bit. About 138 MB.</p>
-      </div>
-    </div>
-
-    <div class="dlx" data-reveal>
-      <dl class="dl-rel" id="dl-rel" aria-label="Windows installer">
-        <div><dt>File</dt><dd id="dl-file">Aegis-Setup.exe</dd></div>
-        <div><dt>Size</dt><dd id="dl-size">about 138 MB</dd></div>
-        <div hidden id="dl-ver-box"><dt>Version</dt><dd id="dl-ver"></dd></div>
-        <div hidden id="dl-date-box"><dt>Released</dt><dd id="dl-date"></dd></div>
-        <div hidden id="dl-count-box"><dt>Downloads</dt><dd id="dl-count"></dd></div>
-      </dl>
-      <div class="dl-cols">
-        <div>
-          <h3>Before you install</h3>
-          <ul>
-            <li>Windows 10 or 11, 64-bit.</li>
-            <li>Internet for the AI, voice and live data.</li>
-            <li>An AI key: Groq has a free tier, or use Claude, OpenAI or Gemini.</li>
-            <li>Python is not needed. It is bundled.</li>
-          </ul>
-        </div>
-        <div>
-          <h3>Install in five steps</h3>
-          <ol>
-            <li>Run <b>Aegis-Setup.exe</b> and choose a folder.</li>
-            <li>Open Aegis. It starts its own server on this PC only.</li>
-            <li>Create an account. It is stored locally.</li>
-            <li>Open <b>Settings &gt; AI provider</b>, paste the key, press Test, then Save.</li>
-            <li>Say &ldquo;Hey Aegis&rdquo; and talk.</li>
-          </ol>
-        </div>
-        <div>
-          <h3>If Windows warns you</h3>
-          <p>The installer is not code-signed yet, so SmartScreen may say &ldquo;Unknown publisher&rdquo; once. Download only from this page or the official Releases page, then choose <b>More info</b> and <b>Run anyway</b>.</p>
-          <p>Updates arrive by themselves every 4 hours. Your data stays in <code>%APPDATA%\aegis-desktop</code>, even after you uninstall.</p>
-        </div>
-      </div>
-      <p class="dl-toast" id="dl-toast" role="status" hidden></p>
-      <p class="fine dl-alt">Prefer your own server? Run <code>start-local.bat</code> on Windows or <code>./start-local.sh</code> on Mac and Linux, then open <code>localhost:8000/app.html</code>. <a id="dl-releases" href="https://github.com/youknowumer/Aegis/releases" target="_blank" rel="noopener">All releases</a></p>
-    </div>
-  </section>
-
-  <!-- ============ FAQ ============ -->
-  <section id="faq" class="block wrap" data-hue="3">
-    <div class="block-head" data-reveal>
-      <h2>Questions people ask first</h2>
-    </div>
-    <div class="faq" data-reveal>
-      <details>
-        <summary>Can Aegis delete my files without me knowing?</summary>
-        <div class="ans"><p>No. Writing, moving, deleting, typing and shell commands all show an Allow or Deny prompt first. If you decline, or do not answer, Aegis does not retry that action.</p></div>
-      </details>
-      <details>
-        <summary>Which parts of my computer can it reach?</summary>
-        <div class="ans"><p>File tools only work inside Documents, Desktop and Downloads. Outside those folders the request is refused, including attempts through shortcuts.</p></div>
-      </details>
-      <details>
-        <summary>Does it work on Mac or Linux?</summary>
-        <div class="ans"><p>The web app works in any browser. PC control, meaning opening apps, typing and key presses, is Windows-only for now.</p></div>
-      </details>
-      <details>
-        <summary>Windows says &ldquo;Unknown publisher&rdquo;. Is the installer safe?</summary>
-        <div class="ans"><p>The installer is not signed with a publisher certificate yet, which is why SmartScreen warns on the first run. Download it only from this page or the official GitHub Releases page, then choose More info and Run anyway.</p></div>
-      </details>
-      <details>
-        <summary>How does the Windows app update?</summary>
-        <div class="ans"><p>It checks for a new version every 4 hours, downloads it in the background and offers Restart now or Later. Your account, memory and settings are kept.</p></div>
-      </details>
-      <details>
-        <summary>What does it remember about me?</summary>
-        <div class="ans"><p>Only facts you share or ask it to save. They appear in the memory panel, and you can delete any of them at any time.</p></div>
-      </details>
-      <details>
-        <summary>Can I talk to it instead of typing?</summary>
-        <div class="ans"><p>Yes. Turn on voice mode, say &ldquo;Hey Aegis&rdquo; and speak your request. Aegis reads the answer back to you, and you can switch it off at any time.</p></div>
-      </details>
-      <details>
-        <summary>What do I need for voice and meeting notes?</summary>
-        <div class="ans"><p>A free Groq key for fast Whisper transcription, added in Settings. Without it, voice falls back to your browser&rsquo;s own speech recognition. Meeting notes need the key, and your audio is sent only to the service you choose.</p></div>
-      </details>
-    </div>
-  </section>
 </main>
 
-<footer class="foot">
-  <div class="wrap foot-in">
-    <div class="foot-about">
-      <a class="brand" href="./" aria-label="Aegis home">
-        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2l11 4v9c0 7-4.6 12.2-11 15C9.600 27.200 5 22 5 15V6z"/><path d="M11 16l4 4 7-8"/></svg>
-        <span>Aegis</span>
-      </a>
-      <p class="fine">An AI assistant for the web and Windows that does the work and asks before anything risky.</p>
-    </div>
-    <nav class="foot-col" aria-label="Product">
-      <h3>Product</h3>
-      <a href="#interface">Interface</a>
-      <a href="#voice">Voice assistant</a>
-      <a href="#meetings">Meeting notes</a>
-      <a href="#what">What it does</a>
-      <a href="#commands">Instant commands</a>
-      <a href="#plans">Plans</a>
-    </nav>
-    <nav class="foot-col" aria-label="Trust">
-      <h3>Trust</h3>
-      <a href="#control">Your control</a>
-      <a href="#how">How it works</a>
-      <a href="#faq">Questions</a>
-    </nav>
-    <nav class="foot-col" aria-label="Get started">
-      <h3>Get started</h3>
-      <a href="app.html?mode=register">Create account</a>
-      <a href="app.html">Sign in</a>
-      <a href="#download">Windows app</a>
-    </nav>
-    <div class="foot-base fine">
-      <p>&copy; <span id="year">2026</span> Muhammad Umer Faheem (@youknowumer). Aegis is proprietary software. All rights reserved.</p>
-      <p>Built for people who like to stay in control.</p>
-    </div>
-  </div>
-  <div class="foot-mark" id="foot-mark" aria-hidden="true">aegis</div>
-</footer>
-
-<button type="button" class="to-top" id="to-top" aria-label="Back to top">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
-</button>
-
-<!-- frosted bar for phones, appears after the hero -->
-<div class="dock" id="dock" aria-hidden="true">
-  <a class="btn solid" href="app.html?mode=register" tabindex="-1">Start free</a>
-  <a class="btn glass" href="#download" tabindex="-1">Windows app</a>
-</div>
-
-<script src="landing.js?v=15"></script>
-<script src="landing-fx.js"></script>
-<script src="landing-pro.js"></script>
-<script src="landing-vela.js"></script>
-<script src="landing-vela-page.js"></script>
-<script src="landing-motion.js"></script>
-<script src="landing-download.js?v=15"></script>
-<script src="landing-ultra.js"></script>
+<script src="config.js"></script>
+<script src="landing-dots-ui.js"></script>
+<script type="module" src="landing-dots.js?v=17"></script>
 </body>
 </html>

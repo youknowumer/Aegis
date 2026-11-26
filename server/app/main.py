@@ -165,6 +165,27 @@ class LoginLimiter:
         q.append(now)
 
 
+_IMPORTMAP_RE = re.compile(r'<script type="importmap">(.*?)</script>', re.S)
+_importmap_cache: dict = {}
+
+
+def landing_importmap_hash() -> str:
+    """CSP hash source for the inline import map in index.html, computed from the real file so the two can never drift apart.
+    (An inline import map is a script, so the page's CSP needs this hash to allow it.)"""
+    import base64
+    import hashlib
+    path = settings.WEB_DIR / "index.html"
+    try:
+        stamp = path.stat().st_mtime_ns
+        if _importmap_cache.get("stamp") != stamp:
+            m = _IMPORTMAP_RE.search(path.read_text(encoding="utf-8"))
+            digest = hashlib.sha256(m.group(1).encode("utf-8")).digest() if m else b""
+            _importmap_cache.update(stamp=stamp, value=("sha256-" + base64.b64encode(digest).decode()) if m else "")
+        return _importmap_cache["value"]
+    except OSError:
+        return ""
+
+
 _DUMMY_HASH = hash_password("not-a-real-password")
 
 
@@ -359,11 +380,23 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["X-Frame-Options"] = "DENY"
         resp.headers["Referrer-Policy"] = "no-referrer"
-        resp.headers["Content-Security-Policy"] = (
-            "default-src 'self'; connect-src 'self' ws: wss: https://api.open-meteo.com https://geocoding-api.open-meteo.com https://api.github.com; "
-            "img-src 'self' data: https://d2ol7oe51mr4n9.cloudfront.net; "
-            "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
-        )
+        if request.url.path in ("/", "/index.html"):
+            # The 66,000-dot landing page loads three.js from jsDelivr, fonts from Google Fonts' CDN and its 3D model from CloudFront.
+            # The hash allows only the exact inline import map in index.html (change that script and the hash must change too).
+            resp.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' https://cdn.jsdelivr.net%s; "
+                "connect-src 'self' https://d8j0ntlcm91z4.cloudfront.net https://api.github.com; "
+                "img-src 'self' data: https://d2ol7oe51mr4n9.cloudfront.net; "
+                "font-src 'self' https://fonts.gstatic.com data:; "
+                "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
+            ) % ((" '" + landing_importmap_hash() + "'") if landing_importmap_hash() else "")
+        else:
+            resp.headers["Content-Security-Policy"] = (
+                "default-src 'self'; connect-src 'self' ws: wss: https://api.open-meteo.com https://geocoding-api.open-meteo.com https://api.github.com; "
+                "img-src 'self' data: https://d2ol7oe51mr4n9.cloudfront.net; "
+                "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
+            )
         return resp
 
     # ---------- auth helpers ----------

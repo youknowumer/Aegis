@@ -19,6 +19,7 @@ WEB_FILES = (
     "ui-plus.js", "features.js", "theme-boot.js", "voice.js", "tabs.js", "dock.js", "auth-fx.js", "app-fx.js", "app-fx.css", "app-holo.js", "app-holo.css", "landing-fx.js", "landing-pro.css", "landing-pro.js", "landing-hero.css", "landing-hero.js",
     "groq.js", "meetings.js", "meetings.css", "meetings-plus.js", "meetings-plus.css", "account.js",
     "landing-vela.css", "landing-vela.js", "landing-vela-page.css", "landing-vela-page.js", "landing-motion.css", "landing-motion.js", "landing-ultra.css", "landing-ultra.js", "landing-download.js",
+    "landing-dots.css", "landing-dots.js", "landing-dots-ui.js",
     "favicon.svg", "favicon.ico", "site.webmanifest",
 )
 DOWNLOADS_DIR = Path(os.environ.get("AEGIS_DOWNLOADS_DIR", BASE_DIR / "downloads"))

@@ -338,12 +338,16 @@ def test_failed_turn_does_not_corrupt_history(env):
 def test_landing_and_app_pages(env):
     c = env.client
     home = c.get("/")
-    assert home.status_code == 200 and "Start free" in home.text and "landing.js" in home.text
+    assert home.status_code == 200 and "Start free" in home.text and "landing-dots.js" in home.text
+    assert "66,000" in home.text and "data-download" in home.text
+    csp = home.headers["content-security-policy"]
+    assert "https://cdn.jsdelivr.net" in csp and "https://d8j0ntlcm91z4.cloudfront.net" in csp and "'sha256-" in csp
+    assert "cdn.jsdelivr.net" not in c.get("/app.html").headers["content-security-policy"]
     app_page = c.get("/app.html")
     assert app_page.status_code == 200 and 'id="auth"' in app_page.text and 'id="composer"' in app_page.text
     r = c.get("/app", follow_redirects=False)
     assert r.status_code in (302, 307) and r.headers["location"] == "/app.html"
-    for f in ("/app.js", "/style.css", "/landing.css", "/landing.js"):
+    for f in ("/app.js", "/style.css", "/landing.css", "/landing.js", "/landing-dots.css", "/landing-dots.js", "/landing-dots-ui.js"):
         assert c.get(f).status_code == 200, f
     # api routes must not be swallowed by the static mount
     assert c.get("/api/config").json()["app_name"] == "Aegis"
