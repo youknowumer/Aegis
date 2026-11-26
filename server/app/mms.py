@@ -21,12 +21,21 @@ Environment (all optional):
   AEGIS_MMS_QUEUE_SECONDS=20  how long a sentence waits for a free slot before tts.py uses the fallback voice
   AEGIS_MMS_THREADS           PyTorch CPU threads
   AEGIS_MMS_ROMAN=0           keep Roman Urdu ("kya haal hai") on the fallback voice instead of the Urdu-Latin model
+  AEGIS_MMS_AUTO=1            download a language's model by itself the first time that language is spoken (0 = never; or a list: ur,en,roman)
+  AEGIS_MMS_MIN_RAM_MB=1500   below this much memory the local voices switch themselves off and the fallback voice speaks (protects small servers)
+  AEGIS_MMS_FORCE=1           ignore the memory check
+  AEGIS_MMS_MIN_FREE_MB=1000  do not auto-download when the disk has less free space than this
+
+Self-installing: with PyTorch present and AEGIS_MMS_AUTO on, the first sentence in a new language is spoken by the fallback voice while that
+language's model downloads in the background (about 150 MB). From the next sentence on the local voice speaks. On a server with too little
+memory the local voices stay off by themselves and everything keeps working with the fallback voice.
 """
 import importlib.util
 import io
 import logging
 import os
 import re
+import shutil
 import threading
 import time
 import wave
@@ -52,6 +61,8 @@ ALIASES: Dict[str, str] = {
     "french": "fra", "spanish": "spa", "german": "deu", "korean": "kor",
 }
 REPO_PREFIX = "facebook/mms-tts-"
+APPROX_MB = 150                      # one voice: 36 million parameters in float32
+WANTED_FILES = ["config.json", "model.safetensors", "tokenizer_config.json", "vocab.json", "special_tokens_map.json", "added_tokens.json"]
 
 
 class MMSError(Exception):
@@ -107,9 +118,79 @@ def roman_on() -> bool:
     return os.environ.get("AEGIS_MMS_ROMAN", "1").strip() != "0"
 
 
+_ram = {"mb": None}
+_OFF = ("0", "off", "no", "false")
+_ALL = ("1", "all", "on", "yes", "true")
+
+
+def _ram_mb() -> int:
+    """Memory this server may use, in MB: the container limit when there is one, else the machine's. 0 means it could not tell."""
+    if _ram["mb"] is None:
+        found = []
+        for path in ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"):
+            try:
+                raw = Path(path).read_text().strip()
+            except OSError:
+                continue
+            if raw.isdigit():
+                found.append(int(raw) // (1024 * 1024))
+        try:
+            for line in Path("/proc/meminfo").read_text().splitlines():
+                if line.startswith("MemTotal:"):
+                    found.append(int(line.split()[1]) // 1024)
+                    break
+        except (OSError, ValueError, IndexError):
+            pass
+        _ram["mb"] = min(found) if found else 0
+    return _ram["mb"]
+
+
+def min_ram_mb() -> int:
+    return _env_int("AEGIS_MMS_MIN_RAM_MB", 1500, 0, 1 << 20)
+
+
+def memory_ok() -> bool:
+    """False on a server too small for PyTorch plus a voice (for example a 512 MB instance): the local voices then stay off."""
+    ram = _ram_mb()
+    return os.environ.get("AEGIS_MMS_FORCE", "").strip() == "1" or ram == 0 or ram >= min_ram_mb()
+
+
+def _auto_setting() -> str:
+    return (os.environ.get("AEGIS_MMS_AUTO") or "1").strip().lower()
+
+
+def auto_on() -> bool:
+    return _auto_setting() not in _OFF
+
+
+def auto_allows(code: str) -> bool:
+    raw = _auto_setting()
+    if raw in _OFF:
+        return False
+    if raw in _ALL:
+        return True
+    tokens = {t.strip() for t in raw.split(",") if t.strip()}
+    wanted = set(tokens) | {CODES[t] for t in tokens if t in CODES}
+    if tokens & {"roman", "roman-urdu"}:
+        wanted.add(ROMAN["ur"])
+    return code in wanted
+
+
 def ready() -> bool:
-    """True when local voices can speak: not switched off, PyTorch + transformers present, at least one model downloaded."""
-    return enabled() and deps_ok() and bool(installed())
+    """True when local voices can speak, or can fetch their models by themselves: not switched off, PyTorch + transformers present,
+    enough memory, and either a model on disk or automatic download on."""
+    return enabled() and deps_ok() and memory_ok() and (bool(installed()) or auto_on())
+
+
+def reason() -> str:
+    """Why local voices are not active although PyTorch is installed (shown in Settings). Empty when there is nothing to explain."""
+    if not enabled() or not deps_ok():
+        return ""
+    if not memory_ok():
+        return f"this server has about {_ram_mb()} MB of memory and local voices need {min_ram_mb()} MB"
+    if not installed() and not auto_on():
+        return "no voices are downloaded yet"
+    return ""
 
 
 def languages() -> List[str]:
@@ -129,7 +210,106 @@ def code_for(lang: str, roman: bool = False) -> Optional[str]:
     cannot read them."""
     base = str(lang or "").split("-")[0].lower() or "en"
     code = (ROMAN.get(base) if roman_on() else None) if roman else CODES.get(base)
-    return code if code in installed() else None
+    if code is None:
+        return None
+    if code in installed():
+        return code
+    if enabled() and deps_ok() and memory_ok() and auto_allows(code):
+        _queue(code)          # the fallback voice speaks this sentence; the next one can use the local voice
+    return None
+
+
+# ---------------------------------------------------------------- downloading voices (used by scripts/mms_download.py and by AEGIS_MMS_AUTO)
+def _have(folder: Path) -> bool:
+    return (folder / "config.json").is_file() and ((folder / "model.safetensors").is_file() or (folder / "pytorch_model.bin").is_file())
+
+
+def _fetch(repo_id: str, dest: Path, patterns) -> None:
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(repo_id=repo_id, local_dir=str(dest), allow_patterns=list(patterns))
+
+
+def download(code: str, root: Path) -> str:
+    """Fetch one voice (config, tokenizer, safetensors) into root/code. Returns 'skipped', 'done' or an error text."""
+    dest = Path(root) / code
+    if _have(dest):
+        return "skipped"
+    repo = REPO_PREFIX + code
+    try:
+        _fetch(repo, dest, WANTED_FILES)
+        if not _have(dest):                       # an older repo that only has the .bin weights
+            _fetch(repo, dest, ["pytorch_model.bin"])
+    except Exception as e:  # noqa: BLE001 (report it; the caller moves on)
+        text = str(e)
+        if "404" in text or "not found" in text.lower() or type(e).__name__ in ("RepositoryNotFoundError", "EntryNotFoundError"):
+            return f"not on the Hub as {repo}"
+        return text.splitlines()[0][:200] if text else type(e).__name__
+    return "done" if _have(dest) else "download finished but the model files are incomplete"
+
+
+def _free_mb(folder: Path) -> int:
+    p = Path(folder)
+    while not p.exists() and p != p.parent:
+        p = p.parent
+    try:
+        return shutil.disk_usage(p).free // (1024 * 1024)
+    except OSError:
+        return 0
+
+
+_dl = {"lock": threading.Lock(), "queue": [], "active": None, "failed": {}, "thread": None}
+RETRY_AFTER = 600   # seconds before a failed download is tried again
+
+
+def _queue(code: str) -> None:
+    """Ask for a voice to be downloaded in the background. Safe to call on every sentence: one download at a time, no duplicates."""
+    now = time.time()
+    with _dl["lock"]:
+        if code in _dl["queue"] or code == _dl["active"] or now - _dl["failed"].get(code, 0.0) < RETRY_AFTER:
+            return
+        if _free_mb(models_dir()) < _env_int("AEGIS_MMS_MIN_FREE_MB", 1000, 0, 1 << 22):
+            _dl["failed"][code] = now
+            log.warning("MMS voice %s not downloaded: not enough free disk space.", code)
+            return
+        _dl["queue"].append(code)
+        if _dl["thread"] is None:
+            _dl["thread"] = threading.Thread(target=_worker, name="mms-download", daemon=True)
+            _dl["thread"].start()
+
+
+def _worker() -> None:
+    while True:
+        with _dl["lock"]:
+            if not _dl["queue"]:
+                _dl["active"], _dl["thread"] = None, None
+                return
+            code = _dl["active"] = _dl["queue"].pop(0)
+        try:
+            root = models_dir()
+            root.mkdir(parents=True, exist_ok=True)
+            result = download(code, root)
+        except Exception as e:  # noqa: BLE001
+            result = str(e) or type(e).__name__
+        if result not in ("done", "skipped"):
+            log.warning("MMS voice %s could not be downloaded: %s", code, result)
+            with _dl["lock"]:
+                _dl["failed"][code] = time.time()
+        else:
+            log.info("MMS voice %s is ready.", code)
+        installed(force=True)
+
+
+def downloading() -> List[str]:
+    with _dl["lock"]:
+        return ([_dl["active"]] if _dl["active"] else []) + list(_dl["queue"])
+
+
+def wait_downloads(timeout: float = 30.0) -> None:
+    """Block until the background downloads finish (tests, scripts)."""
+    thread = _dl["thread"]
+    if thread is not None:
+        thread.join(timeout)
 
 
 # ---------------------------------------------------------------- loaded models (small LRU) and the synthesis gate
@@ -293,4 +473,4 @@ def synthesize(text: str, code: str, lang: str = "en", rate_pct: int = 0, volume
 
 def status() -> dict:
     """For /api/tts/status. No file paths: this is shown to signed-in users."""
-    return {"languages": languages(), "roman_urdu": roman_ready()}
+    return {"languages": languages(), "roman_urdu": roman_ready(), "downloading": downloading(), "reason": reason()}

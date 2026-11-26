@@ -181,6 +181,17 @@ T("settings panel with local language voices: says so, counts the languages, and
   assert.ok(w.AegisVoice.cloud.ready());
 }));
 
+T("settings panel says when voices are still downloading, and why local voices are off on a small server", async () => {
+  await withApp({ studio: true, ttsInfo: { available: true, provider: "mms", chars_left: 200000, languages: [], roman_urdu: false, downloading: ["urd-script_arabic", "eng"] } }, async ({ w }) => {
+    await wait(200);
+    assert.match(w.document.querySelector(".vp").textContent, /Downloading 2 more voices in the background/);
+  });
+  await withApp({ studio: true, ttsInfo: { available: true, provider: "edge", chars_left: 190000, languages: [], local_reason: "this server has about 512 MB of memory and local voices need 1500 MB" } }, async ({ w }) => {
+    await wait(200);
+    assert.match(w.document.querySelector(".vp").textContent, /Studio voice is on \(edge\)\..*Local language voices are off: this server has about 512 MB/);
+  });
+});
+
 T("settings panel: studio voice toggle and language sampler are there, and the toggle really switches the studio voice off", async () => withApp({ studio: true }, async ({ w }) => {
   await wait(200);
   const vp = w.document.querySelector(".vp");

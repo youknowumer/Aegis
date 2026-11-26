@@ -50,9 +50,11 @@ def models(tmp_path_factory):
 
 @pytest.fixture(autouse=True)
 def engine(models, monkeypatch):
-    for k in ("AEGIS_MMS", "AEGIS_MMS_CACHE", "AEGIS_MMS_CONCURRENCY", "AEGIS_MMS_QUEUE_SECONDS", "AEGIS_TTS_PROVIDER", "OPENAI_API_KEY", "ELEVENLABS_API_KEY", "AEGIS_EDGE_TTS"):
+    for k in ("AEGIS_MMS", "AEGIS_MMS_CACHE", "AEGIS_MMS_CONCURRENCY", "AEGIS_MMS_QUEUE_SECONDS", "AEGIS_TTS_PROVIDER", "OPENAI_API_KEY", "ELEVENLABS_API_KEY", "AEGIS_EDGE_TTS", "AEGIS_MMS_FORCE", "AEGIS_MMS_MIN_RAM_MB"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("AEGIS_MMS_DIR", str(models))
+    monkeypatch.setenv("AEGIS_MMS_AUTO", "0")
+    monkeypatch.setattr(mms, "_ram_mb", lambda: 8192)
     mms.installed(force=True)
     mms.unload_all()
     yield

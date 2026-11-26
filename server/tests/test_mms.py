@@ -4,6 +4,7 @@ The synthesis itself is replaced by a stub here, so these tests need neither PyT
 test_mms_engine.py runs the real PyTorch/transformers path on a tiny model when those packages are installed."""
 import importlib.util
 import io
+import threading
 import wave
 from pathlib import Path
 from types import SimpleNamespace
@@ -44,10 +45,14 @@ def add_model(root: Path, code: str, weights: str = "model.safetensors") -> Path
 @pytest.fixture
 def local(monkeypatch, tmp_path):
     """Local voices on: PyTorch 'present', an empty models folder, a recording stub for MMS and for the Edge fallback."""
-    for k in ("OPENAI_API_KEY", "ELEVENLABS_API_KEY", "AEGIS_TTS_PROVIDER", "AEGIS_TTS_CHARS_PER_DAY", "AEGIS_EDGE_TTS", "AEGIS_MMS", "AEGIS_MMS_ROMAN"):
+    for k in ("OPENAI_API_KEY", "ELEVENLABS_API_KEY", "AEGIS_TTS_PROVIDER", "AEGIS_TTS_CHARS_PER_DAY", "AEGIS_EDGE_TTS", "AEGIS_MMS", "AEGIS_MMS_ROMAN",
+              "AEGIS_MMS_FORCE", "AEGIS_MMS_MIN_RAM_MB", "AEGIS_MMS_MIN_FREE_MB"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("AEGIS_MMS_DIR", str(tmp_path))
+    monkeypatch.setenv("AEGIS_MMS_AUTO", "0")                     # most tests are about voices that are already on disk; "auto" has its own tests
+    monkeypatch.setattr(mms, "_ram_mb", lambda: 8192)
     monkeypatch.setattr(mms, "deps_ok", lambda: True)
+    mms._dl["failed"].clear()
     monkeypatch.setattr(tts, "_edge_installed", lambda: True)
     monkeypatch.setattr(tts, "_list_edge_voices", lambda: [])
     calls = {"mms": [], "edge": []}
@@ -243,7 +248,7 @@ def test_downloader_plans_languages_skips_finished_ones_and_reports_missing_repo
         (dest / "config.json").write_text("{}")
         (dest / "model.safetensors").write_bytes(b"x")
 
-    monkeypatch.setattr(dl, "_fetch", fake_fetch)
+    monkeypatch.setattr(mms, "_fetch", fake_fetch)
     add_model(tmp_path, "eng")                                    # already there
     rc = dl.main(["--dir", str(tmp_path), "--langs", "en,ur,pa,roman"])
     out = capsys.readouterr().out
@@ -261,3 +266,137 @@ def test_downloader_default_plan_is_every_supported_language_plus_roman_urdu():
     assert len(plan) == len(set(plan)) == len(mms.CODES) + 1 and plan[-1] == "urd-script_latin"
     with pytest.raises(SystemExit):
         dl.plan(type("A", (), {"codes": None, "langs": "it", "all": False})())
+
+
+# ---------------------------------------------------------------- small servers protect themselves
+def test_a_server_with_too_little_memory_keeps_local_voices_off_and_says_why(local, monkeypatch):
+    add_model(local.root, "eng")
+    assert tts.provider() == "mms" and mms.reason() == ""
+    monkeypatch.setattr(mms, "_ram_mb", lambda: 512)               # for example a 512 MB instance
+    assert not mms.ready() and tts.provider() == "edge" and "512 MB" in mms.reason()
+    tts.synthesize("Hello", lang="en")
+    assert local.calls["mms"] == [] and len(local.calls["edge"]) == 1
+    monkeypatch.setenv("AEGIS_MMS_FORCE", "1")                     # the owner knows better
+    assert mms.ready() and tts.provider() == "mms"
+    monkeypatch.delenv("AEGIS_MMS_FORCE")
+    monkeypatch.setattr(mms, "_ram_mb", lambda: 0)                 # memory unknown (some desktops): trust the owner
+    assert mms.ready()
+    monkeypatch.setattr(mms, "_ram_mb", lambda: 1499)
+    assert not mms.ready()
+    monkeypatch.setenv("AEGIS_MMS_MIN_RAM_MB", "1000")
+    assert mms.ready()
+
+
+def test_memory_is_read_from_the_container_limit_not_the_host(monkeypatch, tmp_path):
+    files = {"/sys/fs/cgroup/memory.max": "536870912", "/proc/meminfo": "MemTotal:       16000000 kB\n"}
+    real = Path.read_text
+    monkeypatch.setattr(Path, "read_text", lambda self, *a, **k: files[str(self)] if str(self) in files else (_ for _ in ()).throw(OSError()))
+    mms._ram["mb"] = None
+    assert mms._ram_mb() == 512                                    # a 512 MB container on a 16 GB host
+    mms._ram["mb"] = None
+    files["/sys/fs/cgroup/memory.max"] = "max"                     # cgroup v2 without a limit: the machine decides
+    assert mms._ram_mb() == 15625
+    mms._ram["mb"] = None
+    monkeypatch.setattr(Path, "read_text", real)
+
+
+def test_status_explains_why_local_voices_are_off_but_only_when_pytorch_is_installed(env, local, monkeypatch):
+    c = env.client
+    token = register(c)
+    monkeypatch.setattr(mms, "_ram_mb", lambda: 512)
+    st = c.get("/api/tts/status", headers=auth(token)).json()
+    assert st["provider"] == "edge" and "512 MB" in st["local_reason"] and st["downloading"] == []
+    monkeypatch.setattr(mms, "deps_ok", lambda: False)             # nobody tried to enable them: nothing to explain
+    assert c.get("/api/tts/status", headers=auth(token)).json()["local_reason"] == ""
+
+
+# ---------------------------------------------------------------- the voice installs itself
+@pytest.fixture
+def auto(local, monkeypatch):
+    monkeypatch.setenv("AEGIS_MMS_AUTO", "1")
+    fetched = []
+
+    def fake_fetch(repo, dest, patterns):
+        fetched.append(repo)
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "config.json").write_text("{}")
+        (dest / "model.safetensors").write_bytes(b"x")
+
+    monkeypatch.setattr(mms, "_fetch", fake_fetch)
+    monkeypatch.setattr(mms, "_free_mb", lambda folder: 50000)
+    yield SimpleNamespace(fetched=fetched, local=local)
+    mms.wait_downloads(10)
+
+
+def test_first_use_of_a_language_downloads_its_voice_in_the_background_then_speaks_with_it(auto):
+    calls = auto.local.calls
+    assert tts.provider() == "mms"                                 # nothing on disk yet, but the voices can fetch themselves
+    tts.synthesize("Good morning", lang="en")
+    assert calls["mms"] == [] and len(calls["edge"]) == 1          # this sentence: the fallback voice
+    mms.wait_downloads(10)
+    assert auto.fetched == ["facebook/mms-tts-eng"] and mms.languages() == ["en"]
+    tts.synthesize("Good morning", lang="en")
+    assert [c[1] for c in calls["mms"]] == ["eng"] and len(calls["edge"]) == 1
+
+
+def test_a_language_is_requested_once_and_the_auto_list_limits_what_is_fetched(auto, monkeypatch):
+    monkeypatch.setenv("AEGIS_MMS_AUTO", "ur,roman")
+    for _ in range(4):
+        tts.synthesize("Good morning", lang="en")                  # English is not on the list
+    for _ in range(3):
+        tts.synthesize("آپ کیسی ہیں؟", lang="ur")
+    tts.synthesize("kya haal hai, sab theek?", lang="ur")
+    mms.wait_downloads(10)
+    assert sorted(auto.fetched) == ["facebook/mms-tts-urd-script_arabic", "facebook/mms-tts-urd-script_latin"]
+
+
+def test_a_failed_download_is_not_retried_on_every_sentence(auto, monkeypatch):
+    attempts = []
+
+    def boom(repo, dest, patterns):
+        attempts.append(repo)
+        raise RuntimeError("404 Client Error: Repository Not Found")
+
+    monkeypatch.setattr(mms, "_fetch", boom)
+    for _ in range(3):
+        tts.synthesize("Hello", lang="en")
+        mms.wait_downloads(10)
+    assert attempts == ["facebook/mms-tts-eng"] and len(auto.local.calls["edge"]) == 3 and mms.languages() == []
+
+
+def test_no_automatic_download_on_a_full_disk_a_small_server_or_when_switched_off(auto, monkeypatch):
+    monkeypatch.setattr(mms, "_free_mb", lambda folder: 200)
+    tts.synthesize("Hello", lang="en")
+    mms.wait_downloads(5)
+    assert auto.fetched == [] and mms.downloading() == []
+    monkeypatch.setattr(mms, "_free_mb", lambda folder: 50000)
+    mms._dl["failed"].clear()
+    monkeypatch.setattr(mms, "_ram_mb", lambda: 512)
+    tts.synthesize("Hello", lang="en")
+    mms.wait_downloads(5)
+    assert auto.fetched == []
+    monkeypatch.setattr(mms, "_ram_mb", lambda: 8192)
+    monkeypatch.setenv("AEGIS_MMS_AUTO", "0")
+    assert tts.provider() == "edge"                                # no models and no auto: unchanged old behaviour
+    tts.synthesize("Hello", lang="en")
+    mms.wait_downloads(5)
+    assert auto.fetched == []
+
+
+def test_status_lists_the_voices_that_are_still_downloading(env, auto, monkeypatch):
+    gate = threading.Event()
+    real = mms._fetch
+
+    def slow(repo, dest, patterns):
+        gate.wait(10)
+        real(repo, dest, patterns)
+
+    monkeypatch.setattr(mms, "_fetch", slow)
+    c = env.client
+    token = register(c)
+    tts.synthesize("Good morning", lang="en")
+    st = c.get("/api/tts/status", headers=auth(token)).json()
+    assert st["provider"] == "mms" and st["downloading"] == ["eng"] and st["languages"] == []
+    gate.set()
+    mms.wait_downloads(10)
+    assert c.get("/api/tts/status", headers=auth(token)).json()["languages"] == ["en"]

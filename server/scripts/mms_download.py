@@ -20,37 +20,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import mms  # noqa: E402
 
-APPROX_MB = 150                       # 36.3 M parameters in float32
-WANTED = ["config.json", "model.safetensors", "tokenizer_config.json", "vocab.json", "special_tokens_map.json", "added_tokens.json"]
-FALLBACK_WEIGHTS = ["pytorch_model.bin"]
-
-
-def _have(folder: Path) -> bool:
-    return (folder / "config.json").is_file() and ((folder / "model.safetensors").is_file() or (folder / "pytorch_model.bin").is_file())
-
-
-def _fetch(repo_id: str, dest: Path, patterns) -> None:
-    from huggingface_hub import snapshot_download
-
-    snapshot_download(repo_id=repo_id, local_dir=str(dest), allow_patterns=list(patterns))
-
-
-def download(code: str, root: Path) -> str:
-    """Returns 'skipped', 'done' or an error text."""
-    dest = root / code
-    if _have(dest):
-        return "skipped"
-    repo = mms.REPO_PREFIX + code
-    try:
-        _fetch(repo, dest, WANTED)
-        if not _have(dest):                       # an older repo that only has the .bin weights
-            _fetch(repo, dest, FALLBACK_WEIGHTS)
-    except Exception as e:  # noqa: BLE001 (report and carry on with the next language)
-        text = str(e)
-        if "404" in text or "not found" in text.lower() or type(e).__name__ in ("RepositoryNotFoundError", "EntryNotFoundError"):
-            return f"not on the Hub as {repo}"
-        return text.splitlines()[0][:200] if text else type(e).__name__
-    return "done" if _have(dest) else "download finished but the model files are incomplete"
+APPROX_MB = mms.APPROX_MB
+_have = mms._have
+download = mms.download            # one voice into root/code: 'done', 'skipped' or an error text
 
 
 def plan(args) -> list:
