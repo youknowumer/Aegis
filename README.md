@@ -78,7 +78,7 @@ Aegis is a **self-hostable personal assistant** with a futuristic HUD interface.
 | **Wake word** | "Aegis" or "Hey Aegis", recognised in Latin, Urdu, Hindi, Arabic, Cyrillic, Japanese, Korean and Chinese script. You can set **your own wake word** in Settings > Voice. One-breath commands work: *"Aegis, what's the weather?"*. |
 | **Accurate transcription** | After the wake word, speech is transcribed by **Groq Whisper** (`whisper-large-v3-turbo` for speed, `whisper-large-v3` for Urdu/Hindi and other non-English), which is far more accurate than the browser recogniser. The wake word itself stays on the free browser recogniser because it must listen continuously. |
 | **One expressive female voice** | Each *sentence* is spoken with its own feeling (joy, empathy, concern, urgency, curiosity, calm, warm, excited). Say "more emotion" or "less emotion" to adjust. The stronger the feeling (scale 1 to 5), the more speed, pitch, volume and expressiveness shift. |
-| **Voice engines** | Default: free neural voices via `edge-tts` (no key needed). Optional upgrade: **OpenAI** `gpt-4o-mini-tts` (follows spoken-style instructions) or **ElevenLabs** `eleven_multilingual_v2`. If the studio voice fails or the daily allowance ends, the browser's built-in voice takes over silently. |
+| **Voice engines** | Default: free neural voices via `edge-tts` (no key needed). Optional offline **local language voices** (Meta MMS, one model per language, non-commercial licence). Optional upgrade: **OpenAI** `gpt-4o-mini-tts` (follows spoken-style instructions) or **ElevenLabs** `eleven_multilingual_v2`. If the studio voice fails or the daily allowance ends, the browser's built-in voice takes over silently. |
 | **Multilingual speech** | Each sentence is spoken with a voice of **its own language**, so mixed answers (English + Urdu) are read correctly. The page listens in 20 languages and "switch to Spanish" works. |
 | **Addressing you** | "Call me" sir, boss, or your name. |
 
@@ -594,11 +594,15 @@ Users who paste their own Groq key in the app are not limited by these caps.
 
 | Variable | Meaning |
 |---|---|
-| `AEGIS_TTS_PROVIDER` | `edge` (default, free), `openai`, `elevenlabs`, or `off` |
+| `AEGIS_TTS_PROVIDER` | `edge` (default, free), `openai`, `elevenlabs`, `mms` (local language voices, see SETUP.md), or `off`. Unset: a paid key wins, then downloaded MMS voices, then `edge` |
 | `AEGIS_EDGE_TTS` | `0` disables the free Edge voice |
 | `OPENAI_API_KEY` | Enables OpenAI `gpt-4o-mini-tts`. Voice: `AEGIS_TTS_VOICE` (default `coral`), model: `AEGIS_TTS_MODEL` |
 | `ELEVENLABS_API_KEY` | Enables ElevenLabs. Voice id: `AEGIS_ELEVENLABS_VOICE` |
 | `AEGIS_TTS_CHARS_PER_DAY` | Per-user daily allowance. Default **6000** for paid voices, **200000** for the free Edge voice |
+| `AEGIS_MMS` | `0` switches the local MMS language voices off even when models are installed |
+| `AEGIS_MMS_DIR` | Where the MMS models are (default `server/mms_models`, Docker `/data/mms_models`). Download with `python scripts/mms_download.py` |
+| `AEGIS_MMS_CACHE` / `AEGIS_MMS_CONCURRENCY` / `AEGIS_MMS_QUEUE_SECONDS` | Models kept in memory (3), sentences synthesised at once (1), seconds a sentence waits before the fallback voice speaks it (20) |
+| `AEGIS_MMS_ROMAN` | `0` keeps Roman Urdu on the fallback voice instead of the Latin-script Urdu model |
 
 One request speaks at most 700 characters (a few sentences).
 

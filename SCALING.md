@@ -51,11 +51,23 @@ The path, in order of effort:
 
 Steps 3 and 4 are a project of days, not hours. Do not start them before step 1 stops being enough.
 
+## Local language voices (MMS) and scale
+
+Setup is in SETUP.md. For capacity planning:
+
+- It is **CPU and RAM on your server**, not an API bill. Each loaded language is about 150 MB (`AEGIS_MMS_CACHE` models stay loaded, default 3, least recently used is dropped), plus PyTorch itself. Plan for 2 GB or more.
+- Speech is generated **one sentence at a time per slot**: `AEGIS_MMS_CONCURRENCY` (default 1). A sentence that waits longer than `AEGIS_MMS_QUEUE_SECONDS` (default 20) is
+  spoken by the fallback voice instead, so a busy server slows down gracefully and never piles up. Raise concurrency together with CPU cores, and measure on your own machine before promising anything.
+- Per-user daily allowance still applies (`AEGIS_TTS_CHARS_PER_DAY`, default 200,000 for free voices).
+- Models live on disk (`AEGIS_MMS_DIR`, `/data/mms_models` in Docker, so they survive redeploys). All 31 languages plus Roman Urdu are about 5 GB.
+- Two copies of the server each load their own models. That is another reason to stay at one process until you have moved shared state out (see below).
+- **Licence: CC-BY-NC 4.0 = non-commercial.** This is the one scale limit that no hardware fixes. Before you charge money, switch to a voice you may use commercially (`AEGIS_MMS=0` plus `OPENAI_API_KEY` or `ELEVENLABS_API_KEY`).
+
 ## Money
 
 - `AEGIS_PLAN_LIMITS='{"free":15,"basic":150,"power":1000}'` is your pricing lever. Your cost per message is roughly one to a few model calls; check your AI provider's dashboard after the first week and set limits from real numbers.
 - Users can bring their own key (Settings > AI provider): they pay the provider directly, you pay nothing for their chats.
-- Studio voice and Groq on *your* keys have per-user daily caps (`AEGIS_TTS_CHARS_PER_DAY`, `AEGIS_SERVER_STT_PER_DAY`). The free Edge voice is not an official paid API: for a commercial product use an OpenAI or ElevenLabs key.
+- Studio voice and Groq on *your* keys have per-user daily caps (`AEGIS_TTS_CHARS_PER_DAY`, `AEGIS_SERVER_STT_PER_DAY`). The free Edge voice is not an official paid API, and the local MMS voices are non-commercial: for a commercial product use an OpenAI or ElevenLabs key.
 
 ## Before charging money (not code, but needed)
 

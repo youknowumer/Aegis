@@ -500,7 +500,13 @@
     const h = document.createElement("div"); h.className = "vp-h"; h.textContent = "Aegis voice";
     const note = document.createElement("p"); note.className = "muted small vp-note";
     const refresh = () => {
-      if (cloud.ready()) { note.textContent = "One female studio voice, the same woman in every language. It reads the feeling of each sentence and speaks it with matching tone, speed and pauses."; return; }
+      if (cloud.ready()) {
+        const ci = cloud.info();
+        note.textContent = ci && ci.provider === "mms"
+          ? "Each language is spoken by its own local voice, so the voice changes with the language you speak. It reads the feeling of each sentence and adjusts speed and loudness."
+          : "One female studio voice, the same woman in every language. It reads the feeling of each sentence and speaks it with matching tone, speed and pauses.";
+        return;
+      }
       note.textContent = hasTTS ? "One female voice: " + describe() + ". It reads the feeling of each sentence and speaks it with matching tone, speed and pauses." : "This browser can't speak.";
     };
     refresh(); listeners.add(refresh);
@@ -525,6 +531,8 @@
       const i = cloud.info();
       studioNote.textContent = !i ? "Studio voice needs the Aegis server with a voice key (see SETUP.md). Until then the voices on your device are used."
         : !i.available ? "Studio voice is not set up on this server, so your device voices are used."
+        : i.provider === "mms" ? "Local language voices are on" + (i.languages && i.languages.length ? " (" + i.languages.length + " languages" + (i.roman_urdu ? " + Roman Urdu" : "") + ")" : "")
+          + ". Aegis speaks each sentence in its own language; any other language uses the fallback voice."
         : "Studio voice is on (" + i.provider + "). " + (i.chars_left != null ? Number(i.chars_left).toLocaleString() + " characters left today." : "");
     };
     refreshStudio(); listeners.add(refreshStudio); cloud.refresh();

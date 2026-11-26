@@ -95,6 +95,33 @@ Restart the server, open the app, then Settings > Voice shows "Studio voice is o
 (`AEGIS_TTS_CHARS_PER_DAY`, default 6000 characters) so cost stays under control; when it is used up, or the service fails, the
 browser voice takes over without interruption. Untick "Studio voice" in the same place to switch it off.
 
+### Local language voices (MMS): the voice follows the language you speak (optional, free, offline)
+
+Aegis already answers in the language and script you write or speak. This adds a **voice per language** that runs on your own
+machine: Urdu, Hindi, Arabic, English, Spanish and 27 more are each spoken by their own Meta MMS model, with no key and no per-character cost.
+Roman Urdu ("kya haal hai") has its own model too.
+
+1. **Install** (once, about 5 GB for all languages; Python 3.10+): Windows `install-voices.bat`, Mac/Linux `./install-voices.sh`.
+   Only some languages: `install-voices.bat --langs ur,en,hi,roman`.
+   Docker: `docker compose build --build-arg WITH_MMS=1`, then `docker compose exec aegis python scripts/mms_download.py --langs ur,en`.
+2. **Start Aegis as usual.** Settings > Voice says "Local language voices are on (N languages)". Nothing else to configure.
+3. Check what is installed any time: `python scripts/mms_download.py --status` (run it inside `server`).
+
+How it chooses: each sentence is spoken by the voice of its own language. A paid key (`OPENAI_API_KEY` / `ELEVENLABS_API_KEY`) still wins if you set
+one. A language with no local voice falls back to the free Edge voice, so Aegis never goes silent: **Italian, Chinese, Japanese and Czech have no
+MMS model**, and any language you did not download uses the fallback.
+
+Good to know:
+- **Licence: the MMS models are CC-BY-NC 4.0, non-commercial use only.** If Aegis becomes a paid product, set `AEGIS_MMS=0` and use a paid voice key.
+- Each language is one fixed speaker (some are men, some women) with a speed and loudness range, not full emotion: the feeling of a sentence changes how fast and how loud it is said.
+- Digits are spoken as words when the language is supported by `num2words`; otherwise MMS skips them.
+- Roman Urdu uses the model trained on Latin-script Urdu. It was trained on standard spellings, so casual chat spellings may sound less natural.
+  If you prefer the old voice for it, set `AEGIS_MMS_ROMAN=0`.
+- Memory and speed: each loaded language is about 150 MB of RAM (the 3 most recent stay loaded: `AEGIS_MMS_CACHE`). The first sentence in a language takes a
+  moment while its model loads. Use a machine with 2 GB+ of RAM; the free Render tier (512 MB) is too small.
+- Already downloaded the older MMS voice pack (folders `english`, `urdu`, ...)? Set `AEGIS_MMS_DIR` to its `models` folder and those voices are used as they are.
+- The Windows installer (`Aegis-Setup.exe`) does not bundle PyTorch; use `start-local.bat` after `install-voices.bat` for local voices.
+
 ## Calendar, markets and smart home
 
 - **Calendar** works out of the box: "add dentist tomorrow at 3pm, remind me 30 minutes before", "what is on today?", "am I free on Friday?". Events are stored on the server per user.
