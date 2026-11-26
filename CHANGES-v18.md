@@ -20,3 +20,12 @@
 - `landing-pro.css` padded every `<section>`; the hero resets it.
 - Edge blur bands no longer smear the picture while the hero is on screen.
 - New test `test_landing_hero_assets_are_served`; suite: 408 passed.
+
+## v18.1: colour + iOS-smooth motion (`landing-ios.css`, `landing-ios.js`)
+- One palette for the whole page (sage / forest / olive gold / clay) instead of neon cyan-violet-pink; dark theme is now forest night.
+- Hero: sheen on the headline's second line, breathing dot, faint sun grade over the picture, saturated glass cards that catch light.
+- Spring motion: UIKit-style easing everywhere, depth parallax on pointer, hero recedes on scroll (one frame-rate-independent spring loop),
+  magnetic buttons, numerals count up after the entrance.
+- Inertial wheel scrolling for mouse wheels (touch, trackpads, keyboard, anchors, nested scrollers, reduced motion are left alone).
+- Reveals on the rest of the page use the same curve with longer, softer blur-to-sharp.
+- Scroll soft focus: items blur up to 14px, fade, shrink and drift as they enter/leave (eased, wider zones than before).

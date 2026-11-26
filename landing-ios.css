@@ -1,0 +1,108 @@
+/* Aegis landing: "ios" layer. Loaded after landing-halora.css.
+   1. One colour system for the whole page: sage, forest, olive gold, sun-baked clay (replaces the neon cyan/violet/pink of the ultra layer).
+   2. iOS-style motion: spring easing, blur-to-sharp, depth parallax, glass that catches light.
+   Hero rule still holds: no drop shadows on the hero. Remove the <link>/<script> pair in index.html to go back to the previous look. */
+
+:root {
+  --ios: cubic-bezier(.32, .72, 0, 1);          /* the UIKit "sheet" curve: fast out, long soft settle */
+  --ios-pop: cubic-bezier(.34, 1.4, .5, 1);      /* tiny overshoot, like a spring */
+}
+
+/* ======================================================================== COLOUR */
+:root, :root[data-theme="light"] {
+  --ux-cy: #5E9174; --ux-vi: #2F5D46; --ux-pk: #C07A50; --ux-am: #B8962F; --ux-gr: #6FA683;
+  --ux-grad: linear-gradient(100deg, #2F5D46, #4C7A58 42%, #8A8F3C 74%, #C9A642);
+}
+:root[data-theme="dark"] {
+  --ux-cy: #8CC7A0; --ux-vi: #5FA383; --ux-pk: #E0976A; --ux-am: #E2C063; --ux-gr: #9ED8B0;
+  --ux-grad: linear-gradient(100deg, #5FA383, #8CC7A0 42%, #C9CF7A 74%, #E2C063);
+  /* forest night instead of blue-black */
+  --paper: #0B1510; --ink: #E7EFE0; --ink-2: #A5B8A8; --line: rgba(231, 239, 224, .12); --line-strong: #E7EFE0;
+  --glass: rgba(24, 42, 32, .55); --glass-edge: rgba(231, 239, 224, .1); --nav-bg: rgba(11, 21, 16, .62);
+  --teal: #7FC79A; --teal-hover: #9FD9B3; --teal-text: #93D6AB; --on-teal: #06140C;
+  --night: #10211A; --night-2: #183026; --night-line: #2B4A3B; --band: #0D1C15;
+  --shadow: 0 30px 70px -28px rgba(0, 0, 0, .8);
+}
+:root[data-theme="dark"] .scene, :root[data-theme="dark"] .pc {
+  --b1: color-mix(in srgb, var(--c1) 9%, #0A140F); --b2: color-mix(in srgb, var(--c2) 15%, #0C1812);
+}
+:root[data-theme="light"] .ux-field i { opacity: .3; }
+
+/* the gradient buttons need light text now that the gradient is forest, not neon */
+.btn.solid, .vbtn-a { color: #F3F4E6 !important; text-shadow: none; }
+:root[data-theme="dark"] .btn.solid, :root[data-theme="dark"] .vbtn-a { color: #07170E !important; }
+.progress { box-shadow: 0 0 14px color-mix(in srgb, var(--ux-gr) 70%, transparent) !important; }
+::selection { background: #D8C98A; color: #1E3227; }
+
+/* ======================================================================== HERO: colour + glass */
+/* headline: second line carries a slow forest -> olive -> gold sheen */
+.h-line:nth-child(2) > span {
+  background: linear-gradient(100deg, #1E3227 0%, #2F5D46 28%, #6F7B38 56%, #9B8A3E 78%, #2F5D46 100%);
+  background-size: 240% 100%; background-position: 0% 0;
+  -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .h-line:nth-child(2) > span { animation: h-sheen 9s var(--ios) 2.4s infinite alternate; }
+  @keyframes h-sheen { to { background-position: 100% 0; } }
+  /* the tracking dot breathes */
+  .h-dot::after { animation: h-breathe 3.2s ease-in-out infinite; }
+  @keyframes h-breathe { 0%, 100% { transform: scale(.8); opacity: .5; } 50% { transform: scale(1.5); opacity: 0; } }
+}
+
+/* warm light: a faint sun-colour grade over the picture, blended so the photo stays the star */
+.h-grade { position: absolute; inset: 0; z-index: 1; pointer-events: none; mix-blend-mode: soft-light; opacity: .55;
+  background:
+    radial-gradient(60% 70% at 88% 6%, rgba(255, 226, 150, .85), transparent 62%),
+    radial-gradient(50% 60% at 8% 100%, rgba(120, 160, 120, .6), transparent 66%); }
+@media (prefers-reduced-motion: no-preference) {
+  .h-grade { animation: h-grade 14s ease-in-out infinite alternate; }
+  @keyframes h-grade { from { opacity: .4; transform: translate3d(-1.5%, 0, 0) scale(1.04); } to { opacity: .7; transform: translate3d(1.5%, -1%, 0) scale(1.08); } }
+}
+
+/* cards: lighter, saturated glass that catches light under the pointer */
+.h-card { position: relative; overflow: hidden; isolation: isolate;
+  -webkit-backdrop-filter: blur(22px) saturate(160%) brightness(1.04); backdrop-filter: blur(22px) saturate(160%) brightness(1.04);
+  background: linear-gradient(160deg, rgba(236, 240, 220, .55), rgba(214, 221, 196, .34));
+  border-color: rgba(255, 255, 255, .42);
+  transition: scale .7s var(--ios), border-color .4s, background-color .4s; will-change: translate, scale; }
+.h-card::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; opacity: 0; transition: opacity .5s var(--ios);
+  background: radial-gradient(240px circle at var(--px, 50%) var(--py, 0%), rgba(255, 255, 255, .6), transparent 62%); }
+.h-card::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .8), transparent); }
+.h-card:hover { scale: 1.035; border-color: rgba(155, 138, 62, .55); }
+.h-card:hover::before { opacity: 1; }
+.h-card:nth-child(1) .hc-top svg { color: #5E8F6E; }
+.h-card:nth-child(2) .hc-top svg { color: #9B8A3E; }
+.h-card:nth-child(3) .hc-top svg { color: #B2714A; }
+.hc-num { font-variant-numeric: tabular-nums lining-nums; }
+
+/* pills and CTA: spring press + magnetic return */
+.h-cta, .hn-pill { transition: background-color .3s, translate .55s var(--ios), scale .45s var(--ios-pop), transform .3s var(--ios); }
+.h-cta:active, .hn-pill:active { scale: .96; transition-duration: .12s; }
+.h-cta { background: linear-gradient(100deg, #1E3227, #2c4a38 60%, #3d5a30); }
+.hn-pill:not(.moss) { background: linear-gradient(100deg, #1E3227, #2c4a38); }
+.h-cta:hover, .hn-pill:not(.moss):hover { transform: none; }
+
+/* parallax targets move through the individual `translate`/`scale` properties, so they never fight the entrance animation */
+.h-copy, .h-cards, .h-media { will-change: translate, scale, opacity; }
+
+/* ======================================================================== PAGE: iOS-smooth reveals */
+@media (prefers-reduced-motion: no-preference) {
+  .js [data-reveal] { transition-duration: 1.15s; transition-timing-function: var(--ios); filter: blur(12px); }
+  .js [data-reveal][data-m="zoom"] { transform: scale(.94) translateY(26px); }
+  .js [data-reveal][data-m="left"] { transform: translateX(-44px); }
+  .js [data-reveal][data-m="right"] { transform: translateX(44px); }
+  .js [data-reveal].in, .js [data-reveal][data-m].in { transform: none; filter: blur(0); }
+  .nav.hn { transition: transform .6s var(--ios), background-color .4s, border-color .4s; }
+  .nav.hn .links a, .nav.hn .theme-toggle { transition: background-color .35s var(--ios), color .3s, scale .45s var(--ios-pop); }
+  .nav.hn .links a:active, .nav.hn .theme-toggle:active { scale: .94; }
+  .hn-panel { transition-duration: .45s, .6s, 0s; transition-timing-function: ease, var(--ios), linear; }
+  .btn, .plan, .cap, .cmd, .node, .faq summary { transition-timing-function: var(--ios); }
+  .btn:active { scale: .97; }
+}
+/* scroll-linked soft focus also drifts the item a little (the value is set by landing-ios.js) */
+@media (prefers-reduced-motion: no-preference) {
+  .js [data-reveal].live.soft { translate: 0 var(--sy, 0px); will-change: filter, opacity, translate; }
+}
+html { overscroll-behavior-y: none; }
+@media (prefers-reduced-motion: reduce) { .h-grade { animation: none; } .h-card, .h-cta, .hn-pill { transition: none; } }
