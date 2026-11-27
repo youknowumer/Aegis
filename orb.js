@@ -7,15 +7,15 @@
   "use strict";
 
   const TAU = Math.PI * 2;
-  const BASE = [47, 227, 255];
+  const BASE = [222, 216, 250];
   const STATES = {
-    offline:   { rgb: [100, 116, 139], k: 0, spin: 0.06, pulse: 0.0, amp: 0.02, glow: 0.35, dim: 0.45, arcs: 0, inflow: 0 },
+    offline:   { rgb: [120, 118, 135], k: 0, spin: 0.06, pulse: 0.0, amp: 0.02, glow: 0.35, dim: 0.45, arcs: 0, inflow: 0 },
     idle:      { k: 0, spin: 0.22, pulse: 0.5, amp: 0.10, glow: 0.80, dim: 1, arcs: 0, inflow: 0 },
     listening: { rgb: [52, 230, 150], spin: 0.5, pulse: 1.4, amp: 0.55, glow: 1.0, dim: 1, arcs: 0, inflow: 1 },
     thinking:  { rgb: [140, 130, 255], spin: 2.2, pulse: 1.0, amp: 0.20, glow: 1.05, dim: 1, arcs: 1, inflow: 0 },
     speaking:  { k: 1, spin: 0.8, pulse: 2.2, amp: 0.95, glow: 1.2, dim: 1, arcs: 0, inflow: 0 },
   };
-  const theme = { rgb: BASE.slice(), lite: [180, 245, 255] };
+  const theme = { rgb: BASE.slice(), lite: [245, 243, 255] };
   const instances = new Set();
   const pointer = { x: 0, y: 0 }; // -1..1, shared
 

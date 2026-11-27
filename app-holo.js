@@ -13,10 +13,10 @@
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html) n.innerHTML = html; n.setAttribute("aria-hidden", "true"); return n; };
 
-  // HUD look pins the orb to HUD cyan whatever accent was picked in Settings
+  // HUD look pins the orb to Aegis lavender whatever accent was picked in Settings
   if (window.AegisOrb && AegisOrb.setTheme && !AegisOrb.__holo) {
     const orig = AegisOrb.setTheme; AegisOrb.__holo = true;
-    AegisOrb.setTheme = () => orig([25, 211, 255], [190, 245, 255]);
+    AegisOrb.setTheme = () => orig([222, 216, 250], [245, 243, 255]);
     AegisOrb.setTheme();
   }
 

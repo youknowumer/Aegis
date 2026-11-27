@@ -105,7 +105,7 @@
   const sprite = document.createElement("canvas"); sprite.width = sprite.height = 32;
   let spriteRgb = "";
   function makeSprite() {
-    const rgb = getComputedStyle(document.documentElement).getPropertyValue("--ac").trim() || "47,227,255";
+    const rgb = getComputedStyle(document.documentElement).getPropertyValue("--ac").trim() || "222,216,250";
     if (rgb === spriteRgb) return; spriteRgb = rgb;
     const s = sprite.getContext("2d"); s.clearRect(0, 0, 32, 32);
     const g = s.createRadialGradient(16, 16, 0, 16, 16, 16);

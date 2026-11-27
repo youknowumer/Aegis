@@ -54,7 +54,7 @@
 .mt-chip.imp-medium { color: #fde68a; border-color: rgba(245, 185, 66, .45); background: rgba(245, 185, 66, .08); }
 .mt-chip.imp-low { color: #bbf7d0; border-color: rgba(74, 222, 128, .35); background: rgba(74, 222, 128, .07); }
 .mt-chip.who, .mt-chip.due { text-transform: none; font-weight: 600; }
-.mt-chip.sug { color: var(--accent-2); border-color: rgba(106, 168, 255, .4); text-transform: none; }
+.mt-chip.sug { color: var(--accent-2); border-color: rgba(143, 134, 255, .4); text-transform: none; }
 .mt-sec { margin: 18px 0 0; }
 .mt-sec h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
 .mt-sec h4 svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -95,7 +95,7 @@ body.awake #mic-btn { box-shadow: 0 0 0 3px rgba(var(--ac), .4), 0 0 18px rgba(v
 
 /* ---- Present mode: the small floating pill that shows Aegis is quietly attending a meeting ---- */
 .present-pill { position: fixed; right: 18px; bottom: 18px; z-index: 60; width: min(340px, calc(100vw - 36px)); padding: 12px 14px 12px; border-radius: 16px;
-  background: color-mix(in srgb, var(--surface, #0f1624) 92%, transparent); border: 1px solid rgba(var(--ac, 56, 189, 248), .45);
+  background: color-mix(in srgb, var(--surface, #16151d) 92%, transparent); border: 1px solid rgba(var(--ac, 222, 216, 250), .45);
   box-shadow: 0 10px 40px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .03) inset; backdrop-filter: blur(14px); animation: pp-in .35s cubic-bezier(.2, .9, .3, 1.2); }
 @keyframes pp-in { from { opacity: 0; transform: translateY(14px) scale(.96); } }
 .pp-top { display: flex; align-items: center; gap: 9px; font-size: 13.5px; }
@@ -103,7 +103,7 @@ body.awake #mic-btn { box-shadow: 0 0 0 3px rgba(var(--ac), .4), 0 0 18px rgba(v
 .pp-dot { width: 9px; height: 9px; border-radius: 50%; background: #34d399; box-shadow: 0 0 0 0 rgba(52, 211, 153, .6); animation: pp-pulse 1.8s infinite; }
 @keyframes pp-pulse { 70% { box-shadow: 0 0 0 9px rgba(52, 211, 153, 0); } 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); } }
 .pp-clock { font: 600 13px var(--mono, ui-monospace, monospace); color: var(--muted); }
-.pp-meter { height: 4px; margin: 9px 0 8px; border-radius: 4px; background: var(--surface-2, #182235); overflow: hidden; }
+.pp-meter { height: 4px; margin: 9px 0 8px; border-radius: 4px; background: var(--surface-2, #1d1c27); overflow: hidden; }
 .pp-meter i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, var(--accent), var(--accent-2, var(--accent))); transition: transform .08s linear; }
 .pp-cap { margin: 0 0 10px; max-height: 3.2em; overflow: hidden; line-height: 1.6; }
 .pp-row { display: flex; gap: 6px; flex-wrap: wrap; }

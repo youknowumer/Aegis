@@ -10,7 +10,7 @@
   const mmss = (s) => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600); return (h ? h + ":" : "") + String(Math.floor((s % 3600) / 60)).padStart(h ? 2 : 1, "0") + ":" + String(s % 60).padStart(2, "0"); };
   const sget = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
   const sset = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
-  const COLORS = ["#12d8ff", "#ff3d9a", "#ffb21c", "#2ee59d", "#8f5bff", "#ff7a45", "#5aa9ff", "#e0e65a"];
+  const COLORS = ["#dedafa", "#ff3d9a", "#ffb21c", "#2ee59d", "#8f86ff", "#ff7a45", "#b3a8ff", "#e0e65a"];
 
   const serverId = () => { const c = M() && M().current(); return c && !c.local && Number.isFinite(+c.id) ? +c.id : 0; };
   async function api(path, opts = {}) {

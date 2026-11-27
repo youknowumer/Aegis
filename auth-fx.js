@@ -143,7 +143,7 @@
     if (reduce || !card) return;
     const b = document.createElement("span"); b.className = "burst"; b.setAttribute("aria-hidden", "true");
     for (let i = 0; i < 18; i++) { const d = document.createElement("i"); const a = (i / 18) * 6.283, r = 90 + Math.random() * 70;
-      d.style.setProperty("--x", Math.cos(a) * r + "px"); d.style.setProperty("--y", Math.sin(a) * r + "px"); d.style.setProperty("--h", (170 + Math.random() * 40) | 0); b.appendChild(d); }
+      d.style.setProperty("--x", Math.cos(a) * r + "px"); d.style.setProperty("--y", Math.sin(a) * r + "px"); d.style.setProperty("--h", (250 + Math.random() * 40) | 0); b.appendChild(d); }
     card.appendChild(b); setTimeout(() => b.remove(), 1200);
   });
 })();

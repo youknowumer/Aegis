@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b2a3a"/><stop offset="1" stop-color="#04101a"/></linearGradient>
-    <linearGradient id="sh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cf0ff"/><stop offset=".55" stop-color="#2fe3ff"/><stop offset="1" stop-color="#0aa5c2"/></linearGradient>
-    <radialGradient id="gl" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="#2fe3ff" stop-opacity=".55"/><stop offset="1" stop-color="#2fe3ff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1d1b2b"/><stop offset="1" stop-color="#0f0e14"/></linearGradient>
+    <linearGradient id="sh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3f1ff"/><stop offset=".55" stop-color="#dedafa"/><stop offset="1" stop-color="#a79cf0"/></linearGradient>
+    <radialGradient id="gl" cx=".5" cy=".42" r=".6"><stop offset="0" stop-color="#dedafa" stop-opacity=".55"/><stop offset="1" stop-color="#dedafa" stop-opacity="0"/></radialGradient>
   </defs>
   <rect width="64" height="64" rx="15" fill="url(#bg)"/>
   <rect width="64" height="64" rx="15" fill="url(#gl)"/>
   <path d="M32 6.5l21 7.6v17.6c0 13.2-8.8 23.4-21 27.6C19.800 55.100 11 44.900 11 31.700V14.100z" fill="url(#sh)"/>
   <path d="M32 6.5l21 7.6v17.6c0 13.2-8.8 23.4-21 27.6z" fill="#fff" opacity=".16"/>
-  <path d="M21.500 32.500l7.800 7.800 14.200-16.300" fill="none" stroke="#04101a" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x=".75" y=".75" width="62.500" height="62.500" rx="14.300" fill="none" stroke="#7cf0ff" stroke-opacity=".35" stroke-width="1.500"/>
+  <path d="M21.500 32.500l7.800 7.800 14.200-16.300" fill="none" stroke="#0f0e14" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x=".75" y=".75" width="62.500" height="62.500" rx="14.300" fill="none" stroke="#f3f1ff" stroke-opacity=".35" stroke-width="1.500"/>
 </svg>

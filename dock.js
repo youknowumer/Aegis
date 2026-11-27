@@ -11,11 +11,11 @@
   const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
   const num = (id) => { const e = $(id); return e ? Math.max(0, parseInt(e.textContent, 10) || 0) : 0; };
-  const STATE_RGB = { offline: [100, 116, 139], listening: [52, 230, 150], thinking: [140, 130, 255] };
+  const STATE_RGB = { offline: [120, 118, 135], listening: [52, 230, 150], thinking: [140, 130, 255] };
   const STATE_LABEL = { offline: "Offline", idle: "Standing by", listening: "Listening", thinking: "Working", speaking: "Speaking" };
   const accent = () => {
     const v = getComputedStyle(document.documentElement).getPropertyValue("--ac").split(",").map((x) => parseFloat(x));
-    return v.length === 3 && v.every((x) => x >= 0) ? v : [47, 227, 255];
+    return v.length === 3 && v.every((x) => x >= 0) ? v : [222, 216, 250];
   };
   const stateOf = () => { const s = $("stage"); return (s && s.dataset.state) || "idle"; };
   const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${Math.max(0, Math.min(1, a))})`;
@@ -50,7 +50,7 @@
     if (!d) return;
     const rings = { tasks: [0.30, 0.55], reminders: [0.58, 0.78], memory: [0.8, 0.96] };
     const seeded = (i, k) => { const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return x - Math.floor(x); };
-    const kinds = [["tasks", "Tasks", [47, 227, 255]], ["reminders", "Reminders", [255, 176, 46]], ["memory", "Memory", [168, 160, 255]]];
+    const kinds = [["tasks", "Tasks", [222, 216, 250]], ["reminders", "Reminders", [255, 176, 46]], ["memory", "Memory", [168, 160, 255]]];
     const chips = {};
     kinds.forEach(([k, label, c]) => {
       const s = el("span", "dl-chip"); s.innerHTML = '<i></i><em></em><b>0</b>';
@@ -128,7 +128,7 @@
     const niceCeil = (v) => { const p = Math.pow(10, Math.floor(Math.log10(Math.max(v, 1e-6)))); const f = v / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; };
     const GOOD = [52, 230, 150], WARN = [255, 176, 46], BAD = [248, 113, 113];
     const grade = (v, warn, bad, invert) => {
-      if (v == null || isNaN(v)) return [133, 147, 171];
+      if (v == null || isNaN(v)) return [141, 138, 154];
       if (invert) return v < bad ? BAD : v < warn ? WARN : GOOD;
       return v > bad ? BAD : v > warn ? WARN : GOOD;
     };
@@ -212,7 +212,7 @@
         ctx.fillText(none ? "no link" : fmt(cur, l.dec) + " " + l.unit, w, top + 4);
         if (!none && fin.length > 5) {
           const avg = fin.reduce((a, b) => a + b, 0) / fin.length;
-          ctx.font = '500 9.5px "Segoe UI", system-ui, sans-serif'; ctx.fillStyle = "rgba(129,144,169,.9)";
+          ctx.font = '500 9.5px "Segoe UI", system-ui, sans-serif'; ctx.fillStyle = "rgba(141,138,154,.9)";
           const vw = (function () { ctx.font = mono; return ctx.measureText(fmt(cur, l.dec) + " " + l.unit).width; })();
           ctx.font = '500 9.5px "Segoe UI", system-ui, sans-serif'; ctx.fillText("avg " + fmt(avg, l.dec), w - vw - 8, top + 5);
         }
@@ -229,7 +229,7 @@
           const ry = yv(l.ref); ctx.setLineDash([3, 4]); ctx.strokeStyle = "rgba(255,176,46,.28)"; ctx.beginPath(); ctx.moveTo(0, ry); ctx.lineTo(w, ry); ctx.stroke(); ctx.setLineDash([]);
         }
         // axis max label
-        ctx.font = '500 8.5px "Segoe UI", system-ui, sans-serif'; ctx.textAlign = "left"; ctx.fillStyle = "rgba(129,144,169,.55)";
+        ctx.font = '500 8.5px "Segoe UI", system-ui, sans-serif'; ctx.textAlign = "left"; ctx.fillStyle = "rgba(141,138,154,.55)";
         ctx.textBaseline = "bottom"; ctx.fillText(fmt(l.hi, l.hi < 10 ? 1 : 0), 2, y0 + 9); ctx.textBaseline = "top";
 
         // smooth area + line, broken where there is no data

@@ -974,18 +974,19 @@
   // ------------------------------------------------------------------ composer
   // ---- instant commands (commands.js): answered locally, no server, no quota
   const THEME_RGB = {
-    cyan: [47, 227, 255], blue: [90, 150, 255], green: [52, 230, 140], red: [255, 84, 96],
+    aegis: [222, 216, 250], blue: [90, 150, 255], green: [52, 230, 140], red: [255, 84, 96],
     amber: [255, 176, 46], purple: [170, 130, 255], pink: [255, 105, 200],
   };
   function applyTheme(name) {
-    const rgb = THEME_RGB[name] || THEME_RGB.cyan;
+    if (name === "cyan") name = "aegis";            // the old default accent now follows the new Aegis palette
+    const rgb = THEME_RGB[name] || THEME_RGB.aegis;
     const r = document.documentElement.style;
     r.setProperty("--ac", rgb.join(", "));
     r.setProperty("--accent", "rgb(" + rgb.join(",") + ")");
     r.setProperty("--amber", name === "amber" ? "#ff5a36" : "#ffb02e");
     if (window.AegisOrb) AegisOrb.setTheme(rgb);
     const m = document.querySelector('meta[name="theme-color"]');
-    if (m) m.content = "#03070d";
+    if (m) m.content = "#0f0e14";
     safeSet("aegis_theme", name);
   }
   function setFocus(on) {
@@ -1210,7 +1211,7 @@
   function buildSwatches() {
     const box = $("swatches");
     box.textContent = "";
-    const cur = safeGet("aegis_theme") || "cyan";
+    const cur = safeGet("aegis_theme") || "aegis";
     Object.keys(THEME_RGB).forEach((n) => {
       const b = document.createElement("button");
       b.type = "button"; b.className = "swatch"; b.title = n; b.setAttribute("role", "radio"); b.setAttribute("aria-label", n);
@@ -2228,7 +2229,7 @@
   const qServer = new URLSearchParams(location.search).get("server");
   if (qServer && validUrl(qServer)) setTimeout(() => openConnect(qServer.replace(/\/+$/, "")), 700);
 
-  applyTheme(safeGet("aegis_theme") || "cyan");
+  applyTheme(safeGet("aegis_theme") || "aegis");
   tick();
   setInterval(tick, 20000);
   mountOrbs();

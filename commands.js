@@ -183,7 +183,7 @@
   };
 
   // ------------------------------------------------------------------ command table
-  const THEMES = ["cyan", "blue", "green", "red", "amber", "purple", "pink"];
+  const THEMES = ["aegis", "cyan", "blue", "green", "red", "amber", "purple", "pink"];
   // Names people use for each language (English, Roman Urdu and the language's own script) -> the code the app listens in.
   const LANGS = {
     english: "en-US", angrezi: "en-US", "انگلش": "en-US", "انگریزی": "en-US", urdu: "ur-PK", "اردو": "ur-PK", hindi: "hi-IN", "हिन्दी": "hi-IN", "हिंदी": "hi-IN",
@@ -437,7 +437,7 @@
       c.setLang(code);
       return c.say("Okay, I will listen in " + LANG_NAME[code] + ".");
     });
-  add("theme", (t) => /\b(?:theme|colou?r|accent)\b/.test(t) && THEMES.some((x) => t.includes(x)) || /^(?:go |turn )?(?:cyan|blue|green|red|amber|purple|pink) (?:mode|theme)$/.test(t),
+  add("theme", (t) => /\b(?:theme|colou?r|accent)\b/.test(t) && THEMES.some((x) => t.includes(x)) || /^(?:go |turn )?(?:aegis|cyan|blue|green|red|amber|purple|pink) (?:mode|theme)$/.test(t),
     (m, c) => { const k = THEMES.find((x) => m.t.includes(x)); c.setTheme(k); return c.say(cap(k) + " theme applied."); });
   add("focus", (t) => /^(?:focus mode (?:on|off|chalu karo|band karo)|focus (?:on|off)|focus mode|(?:enter|exit|leave|toggle) focus(?: mode)?|hide panels|show panels|hide (?:the )?sidebars?|show (?:the )?sidebars?|minimal mode|clean mode)$/.test(t),
     (m, c) => { const on = /\b(?:off|band)\b/.test(m.t) || /^(?:exit|leave|show)/.test(m.t) ? false : /^(?:focus|enter|hide|minimal|clean)/.test(m.t) ? true : undefined; const v = c.toggleFocus(on); return c.say(v ? "Focus mode on." : "Panels are back."); });

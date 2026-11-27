@@ -3,7 +3,7 @@
 
 /* ---------- state colour shared by ripples, floor and shadow ---------- */
 .stage { --sc: var(--ac); }
-.stage[data-state="offline"] { --sc: 100, 116, 139; }
+.stage[data-state="offline"] { --sc: 120, 118, 135; }
 .stage[data-state="listening"] { --sc: 52, 230, 150; }
 .stage[data-state="thinking"] { --sc: 140, 130, 255; }
 
@@ -78,7 +78,7 @@ body:not(.calm) .qcard:hover::after { background: radial-gradient(200px circle a
   @keyframes fxFade { from { opacity: 0; } }
 
   /* headline shimmer */
-  body:not(.calm) .welcome h2 { background-image: linear-gradient(100deg, #b9c6dd 0%, #fff 38%, #8aeeff 50%, #fff 62%, #b9c6dd 100%); background-size: 260% 100%; animation: fxUp .8s var(--ease) .68s backwards, shimmer 7s ease-in-out 2s infinite; }
+  body:not(.calm) .welcome h2 { background-image: linear-gradient(100deg, #bdbac8 0%, #fff 38%, #f3f1ff 50%, #fff 62%, #bdbac8 100%); background-size: 260% 100%; animation: fxUp .8s var(--ease) .68s backwards, shimmer 7s ease-in-out 2s infinite; }
   @keyframes shimmer { 0%, 55% { background-position: 100% 0; } 100% { background-position: -60% 0; } }
 
   /* messages arrive with weight */
@@ -119,7 +119,7 @@ body:not(.calm) .qcard:hover::after { background: radial-gradient(200px circle a
 .reg-steps li i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--line-2); position: relative; flex: none; transition: background-color .3s, border-color .3s, transform .4s cubic-bezier(.3, 1.6, .5, 1); }
 .reg-steps li.ok { color: var(--text-2); }
 .reg-steps li.ok i { background: var(--good); border-color: var(--good); transform: scale(1.15); }
-.reg-steps li.ok i::after { content: ""; position: absolute; left: 3px; top: 0; width: 3px; height: 6px; border: solid #04121a; border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); }
+.reg-steps li.ok i::after { content: ""; position: absolute; left: 3px; top: 0; width: 3px; height: 6px; border: solid #0f0e14; border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); }
 .reg-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
 .reg-bar b { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, var(--accent), var(--good)); transition: transform .5s cubic-bezier(.2, .8, .2, 1); }
 
@@ -143,7 +143,7 @@ body:not(.calm) .qcard:hover::after { background: radial-gradient(200px circle a
 .terms { display: flex; gap: 10px; align-items: flex-start; margin: 2px 0 14px; font-size: 12.5px; line-height: 1.45; color: var(--text-2); cursor: pointer; }
 .terms input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .terms .box { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 6px; border: 1.5px solid var(--line-2); display: grid; place-items: center; transition: background-color .2s, border-color .2s, box-shadow .2s; }
-.terms .box svg { width: 12px; height: 12px; fill: none; stroke: #04121a; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset .3s ease; }
+.terms .box svg { width: 12px; height: 12px; fill: none; stroke: #0f0e14; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset .3s ease; }
 .terms input:checked + .box { background: var(--accent); border-color: var(--accent); }
 .terms input:checked + .box svg { stroke-dashoffset: 0; }
 .terms input:focus-visible + .box { box-shadow: 0 0 0 4px rgba(var(--ac), .25); }
