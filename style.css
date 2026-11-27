@@ -981,3 +981,14 @@ html, body { overflow: hidden; overscroll-behavior: none; }
   .settings .field.chk { flex-direction: row; }
   .settings .vp .field span { flex: 0 0 auto; }
 }
+
+/* Voice + system settings additions */
+.settings .field > span.range-wrap { flex: 0 0 min(260px, 60%); display: flex; align-items: center; gap: 10px; min-width: 0; }
+.settings .field > span.range-wrap input[type=range] { flex: 1 1 auto; width: auto; min-width: 0; }
+.range-out { flex: none; min-width: 44px; text-align: right; font: 500 12.5px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.settings .mic-meter { height: 6px; border-radius: 6px; background: var(--surface-3); overflow: hidden; margin: 8px 0 2px; }
+.settings .mic-meter i { display: block; height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, var(--accent), var(--good)); transition: width .08s linear; }
+#voice-note:empty, #mic-test-msg:empty { display: none; }
+@media (max-width: 520px) {
+  .settings .field > span.range-wrap { flex: 0 0 auto; width: 100%; }
+}

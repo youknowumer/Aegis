@@ -1224,14 +1224,19 @@
   function refreshNotifBtn() {
     const nb = $("notif-btn");
     if (!("Notification" in window)) { nb.disabled = true; nb.textContent = "Not supported in this browser"; }
-    else if (Notification.permission === "granted") { nb.disabled = true; nb.textContent = "Notifications are on"; }
+    else if (Notification.permission === "granted") { nb.disabled = false; nb.textContent = "Notifications are on: send a test"; }
     else if (Notification.permission === "denied") { nb.disabled = true; nb.textContent = "Blocked: allow them in the address bar"; }
     else { nb.disabled = false; nb.textContent = "Allow notifications"; }
   }
+  // The permission can change while Settings is open (address-bar lock icon, browser settings): keep the button honest.
+  window.addEventListener("focus", () => { if ($("settings").open) refreshNotifBtn(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && $("settings").open) refreshNotifBtn(); });
+  try { if (navigator.permissions) navigator.permissions.query({ name: "notifications" }).then((ps) => { ps.onchange = refreshNotifBtn; }).catch(() => {}); } catch {}
   function openSettings() {
     renderAiStatus();
     buildSwatches();
     refreshNotifBtn();
+    renderVoiceNote();
     document.dispatchEvent(new Event("aegis:open-settings"));
     if (!$("settings").open) { $("settings").showModal(); $("settings").scrollTop = 0; }
   }
@@ -1240,7 +1245,11 @@
   $("meet-open-settings").addEventListener("click", () => { $("settings").close(); if (window.AegisMeetings) AegisMeetings.open(); });
   $("settings").addEventListener("click", (e) => { if (e.target === $("settings")) $("settings").close(); });
   $("notif-btn").addEventListener("click", async () => {
-    try { const r = await Notification.requestPermission(); toast(r === "granted" ? "Notifications are on." : "Notifications stay off."); } catch {}
+    if (!("Notification" in window)) return;
+    try {
+      if (Notification.permission === "granted") { new Notification("Aegis", { body: "Notifications are working. Reminders and timers will reach you even when this tab is in the background." }); toast("Test notification sent."); }
+      else { const r = await Notification.requestPermission(); toast(r === "granted" ? "Notifications are on." : "Notifications stay off."); }
+    } catch { toast("This browser would not show a notification."); }
     refreshNotifBtn();
   });
   $("focus-btn").addEventListener("click", () => setFocus());
@@ -1866,9 +1875,18 @@
   document.addEventListener("aegis:stt", () => { syncVoiceSupport(); stopRec(); syncVoice(); });
   if (!hasTTS) { $("speak").disabled = true; }
   $("lang").value = safeGet("aegis_lang") || "en-US";
-  $("lang").addEventListener("change", () => { safeSet("aegis_lang", $("lang").value); fillVoices(); stopRec(); syncVoice(); });
-  $("rate").value = safeGet("aegis_rate") || "1.02";
-  $("rate").addEventListener("input", () => safeSet("aegis_rate", $("rate").value));
+  if (!$("lang").value) { $("lang").value = "en-US"; safeSet("aegis_lang", "en-US"); }      // a saved language this build no longer lists
+  $("lang").addEventListener("change", () => {
+    safeSet("aegis_lang", $("lang").value); fillVoices(); stopRec(); syncVoice(); renderVoiceNote();
+    const o = $("lang").selectedOptions[0]; if (o) toast("Voice language: " + o.textContent.replace(/\s*\(.*\)$/, "") + ".");
+  });
+  const rateVal = () => Math.max(0.8, Math.min(1.4, parseFloat($("rate").value) || 1.02));
+  const paintRate = () => { $("rate-out").textContent = rateVal().toFixed(2) + "\u00d7"; };
+  $("rate").value = String(Math.max(0.8, Math.min(1.4, parseFloat(safeGet("aegis_rate")) || 1.02)));
+  paintRate();
+  $("rate").addEventListener("input", () => { safeSet("aegis_rate", $("rate").value); paintRate(); });
+  $("rate").addEventListener("change", () => { if (window.AegisVoice && AegisVoice.preview) AegisVoice.preview(); });   // hear the new speed straight away
+  window.__aegisPaintRate = paintRate;   // voice.js calls this when the Voice studio panel changes the speed
   $("voice-pick").addEventListener("change", () => {
     safeSet("aegis_voice", $("voice-pick").value);
     if (hasTTS) { stopSpeaking(); lastSpoken = ""; speak("Hello, this is how I sound.", true); }
@@ -1890,9 +1908,82 @@
   $("vm-style").value = vmStyle();
   $("wake-word").value = safeGet("aegis_wakeword") || "";
   $("call-me").value = safeGet("aegis_callme") || "";
-  $("vm-style").addEventListener("change", () => { safeSet("aegis_vm_style", $("vm-style").value); sleepNow(true); stopRec(); syncToggles(); syncVoice(); });
-  $("wake-word").addEventListener("change", () => { safeSet("aegis_wakeword", $("wake-word").value); wakeRx = null; syncToggles(); stopRec(); syncVoice(); toast('I will answer to \u201c' + wakeName() + '\u201d (and Aegis / Aegis).'); });
-  $("call-me").addEventListener("change", () => { safeSet("aegis_callme", $("call-me").value.trim().slice(0, 30)); });
+  $("vm-style").addEventListener("change", () => {
+    safeSet("aegis_vm_style", $("vm-style").value); sleepNow(true); stopRec(); syncToggles(); syncVoice(); renderVoiceNote();
+    toast($("vm-style").value === "always" ? "Voice mode will listen all the time." : "Voice mode will wait for \u201c" + wakeName() + "\u201d.");
+  });
+  $("wake-word").addEventListener("change", () => {
+    // letters and numbers only, 2 to 24 characters: a 1-letter word would fire on almost any speech
+    const clean = $("wake-word").value.replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim().slice(0, 24);
+    const bad = clean.length > 0 && clean.length < 2;
+    $("wake-word").value = bad ? "" : clean;
+    safeSet("aegis_wakeword", bad ? "" : clean); wakeRx = null; syncToggles(); stopRec(); syncVoice(); renderVoiceNote();
+    toast(bad ? "A wake word needs at least 2 letters, so I kept \u201cAegis\u201d." : clean ? "I will answer to \u201c" + wakeName() + "\u201d (and Aegis)." : "Wake word reset to \u201cAegis\u201d.");
+  });
+  $("call-me").addEventListener("change", () => {
+    const v = $("call-me").value.replace(/\s+/g, " ").trim().slice(0, 30);
+    $("call-me").value = v; safeSet("aegis_callme", v);
+    toast(v ? "I will call you \u201c" + v + "\u201d." : "I will use your name or no title.");
+  });
+
+  // One plain-language line about what voice can and cannot do on THIS device right now.
+  function renderVoiceNote() {
+    const n = $("voice-note"); if (!n) return;
+    const bits = [];
+    if (groqOn()) bits.push("Listening with Groq Whisper.");
+    else if (SR) bits.push("Listening with your browser's speech recognition (needs internet).");
+    else bits.push("This browser cannot listen. Use Chrome, Edge or Safari, or add a Groq key below.");
+    if (!SR && vmStyle() === "wake") bits.push("The wake word needs Chrome, Edge or Safari, so Voice mode listens all the time here.");
+    if (!hasTTS) bits.push("This browser cannot speak replies out loud.");
+    else if (window.AegisVoice && AegisVoice.hasVoice && !(AegisVoice.cloud && AegisVoice.cloud.ready && AegisVoice.cloud.ready()) && !AegisVoice.hasVoice(pageLang())) bits.push("No voice for this language is installed on this device: turn on Studio voice or install one in your system settings.");
+    n.textContent = bits.join(" ");
+  }
+  document.addEventListener("aegis:stt", renderVoiceNote);
+
+  // Microphone check: asks for permission, shows a live level for 4 seconds and says plainly what it found.
+  let micTesting = false;
+  async function testMic() {
+    const btn = $("mic-test"), msg = $("mic-test-msg"), meter = $("mic-meter");
+    if (micTesting) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { msg.textContent = "This browser cannot reach the microphone. It needs https or localhost."; return; }
+    micTesting = true; btn.disabled = true;
+    const wasListening = !!rec; stopRec();
+    msg.textContent = "Allow the microphone if asked, then say something...";
+    let stream = null, ctx = null, raf = 0;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC(); const src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser(); an.fftSize = 1024; src.connect(an);
+      const buf = new Float32Array(an.fftSize); let peak = 0; const t0 = Date.now();
+      meter.classList.remove("hidden"); msg.textContent = "Listening for 4 seconds: say something.";
+      await new Promise((done) => {
+        const tick = () => {
+          an.getFloatTimeDomainData(buf); let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+          const lvl = Math.sqrt(sum / buf.length); peak = Math.max(peak, lvl);
+          meter.firstElementChild.style.width = Math.min(100, Math.round(lvl * 400)) + "%";
+          if (Date.now() - t0 >= 4000 || !$("settings").open) return done();
+          raf = requestAnimationFrame(tick);
+        };
+        tick();
+      });
+      msg.textContent = peak > 0.02 ? "Your microphone works." : "The microphone is connected but I heard almost nothing. Speak closer, or check it is not muted or set to the wrong input.";
+    } catch (e) {
+      const n = e && e.name;
+      msg.textContent = n === "NotAllowedError" || n === "SecurityError" ? "The microphone is blocked. Allow it with the lock icon in the address bar, then try again."
+        : n === "NotFoundError" || n === "OverconstrainedError" ? "No microphone found. Plug one in, or pick it in your system sound settings."
+        : n === "NotReadableError" ? "Another app is using the microphone. Close it and try again."
+        : "Could not test the microphone" + (e && e.message ? ": " + e.message : ".");
+    } finally {
+      cancelAnimationFrame(raf);
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+      if (ctx) { try { ctx.close(); } catch {} }
+      meter.classList.add("hidden"); meter.firstElementChild.style.width = "0";
+      btn.disabled = false; micTesting = false;
+      if (wasListening) syncVoice();
+    }
+  }
+  $("mic-test").addEventListener("click", testMic);
+  $("settings").addEventListener("close", () => { $("mic-test-msg").textContent = ""; });
   syncToggles();
   $("wake").addEventListener("change", () => {
     gestured = true;

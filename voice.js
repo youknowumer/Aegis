@@ -70,7 +70,7 @@
     expression: num("aegis_expression", 1, 0, 1.6),   // 0 = flat, 1 = natural, 1.6 = very dramatic
   };
   const listeners = new Set();
-  const emit = () => { listeners.forEach((f) => { try { f(); } catch {} }); };
+  const emit = () => { listeners.forEach((f) => { try { f(); } catch {} }); try { if (window.__aegisPaintRate) window.__aegisPaintRate(); } catch {} };
   function rateInput() { const r = $("rate"); return r ? parseFloat(r.value) || 1.02 : 1.02; }
 
   // ---------------------------------------------------------------- emotion engine
@@ -513,10 +513,15 @@
     const mk = (label, min, max, step, get, set, hint) => {
       const l = document.createElement("label"); l.className = "field"; if (hint) l.title = hint;
       const sp = document.createElement("span"); sp.textContent = label;
+      const wrap = document.createElement("span"); wrap.className = "range-wrap";
       const inp = document.createElement("input"); inp.type = "range"; inp.min = min; inp.max = max; inp.step = step; inp.value = String(get()); inp.setAttribute("aria-label", label);
-      inp.addEventListener("input", () => set(parseFloat(inp.value)));
+      const out = document.createElement("output"); out.className = "range-out";
+      const dec = parseFloat(step) < 0.1 ? 2 : 1;
+      const paint = () => { inp.value = String(get()); out.textContent = Number(get()).toFixed(dec); };
+      paint(); listeners.add(paint);                                   // moves when the Voice studio panel or a voice command changes it
+      inp.addEventListener("input", () => { set(parseFloat(inp.value)); out.textContent = Number(inp.value).toFixed(dec); });
       inp.addEventListener("change", () => preview());
-      l.append(sp, inp);
+      wrap.append(inp, out); l.append(sp, wrap);
       return l;
     };
     const test = document.createElement("button"); test.type = "button"; test.className = "btn ghost small-btn"; test.textContent = "Hear my emotions";
@@ -540,11 +545,14 @@
     refreshStudio(); listeners.add(refreshStudio); cloud.refresh();
     const world = document.createElement("button"); world.type = "button"; world.className = "btn ghost small-btn"; world.textContent = "Hear another language";
     world.addEventListener("click", () => previewWorld());
+    const rst = document.createElement("button"); rst.type = "button"; rst.className = "btn ghost small-btn"; rst.textContent = "Reset voice";
+    rst.title = "Back to the default emotion, pitch, volume and speed";
+    rst.addEventListener("click", () => { reset(); preview(); });
     host.append(h, note,
       mk("Emotion", "0", "1.6", "0.1", () => state.expression, (v) => { state.expression = v; store.set("aegis_expression", String(v)); }, "0 = flat, 1 = natural, 1.6 = dramatic"),
       mk("Pitch", "0.6", "1.6", "0.05", () => state.pitch, (v) => { state.pitch = v; store.set("aegis_pitch", String(v)); }),
       mk("Volume", "0.1", "1", "0.05", () => state.volume, (v) => { state.volume = v; store.set("aegis_volume", String(v)); }),
-      studio, studioNote, test, world);
+      studio, studioNote, test, world, rst);
     group.querySelector("h4").after(host);
   }
 
