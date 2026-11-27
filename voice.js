@@ -510,8 +510,8 @@
       note.textContent = hasTTS ? "One female voice: " + describe() + ". It reads the feeling of each sentence and speaks it with matching tone, speed and pauses." : "This browser can't speak.";
     };
     refresh(); listeners.add(refresh);
-    const mk = (label, min, max, step, get, set) => {
-      const l = document.createElement("label"); l.className = "field";
+    const mk = (label, min, max, step, get, set, hint) => {
+      const l = document.createElement("label"); l.className = "field"; if (hint) l.title = hint;
       const sp = document.createElement("span"); sp.textContent = label;
       const inp = document.createElement("input"); inp.type = "range"; inp.min = min; inp.max = max; inp.step = step; inp.value = String(get()); inp.setAttribute("aria-label", label);
       inp.addEventListener("input", () => set(parseFloat(inp.value)));
@@ -541,7 +541,7 @@
     const world = document.createElement("button"); world.type = "button"; world.className = "btn ghost small-btn"; world.textContent = "Hear another language";
     world.addEventListener("click", () => previewWorld());
     host.append(h, note,
-      mk("Emotion (0 flat, 1 natural, 1.6 dramatic)", "0", "1.6", "0.1", () => state.expression, (v) => { state.expression = v; store.set("aegis_expression", String(v)); }),
+      mk("Emotion", "0", "1.6", "0.1", () => state.expression, (v) => { state.expression = v; store.set("aegis_expression", String(v)); }, "0 = flat, 1 = natural, 1.6 = dramatic"),
       mk("Pitch", "0.6", "1.6", "0.05", () => state.pitch, (v) => { state.pitch = v; store.set("aegis_pitch", String(v)); }),
       mk("Volume", "0.1", "1", "0.05", () => state.volume, (v) => { state.volume = v; store.set("aegis_volume", String(v)); }),
       studio, studioNote, test, world);

@@ -1233,7 +1233,7 @@
     buildSwatches();
     refreshNotifBtn();
     document.dispatchEvent(new Event("aegis:open-settings"));
-    if (!$("settings").open) $("settings").showModal();
+    if (!$("settings").open) { $("settings").showModal(); $("settings").scrollTop = 0; }
   }
   $("settings-btn").addEventListener("click", openSettings);
   $("settings-close").addEventListener("click", () => $("settings").close());

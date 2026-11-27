@@ -939,3 +939,45 @@ html, body { overflow: hidden; overscroll-behavior: none; }
 .acct-danger summary { cursor: pointer; color: var(--bad); font-weight: 600; }
 .btn.danger { color: #fff; background: rgba(248, 113, 113, .85); border-color: transparent; }
 .btn.danger:hover { background: rgb(248, 113, 113); }
+
+/* ===================== Settings polish =====================
+   Header stays visible while the long list scrolls, every control lines up in one column,
+   nothing spills out of the dialog on phones. Scoped to .settings so no other dialog changes. */
+.settings > .row:first-child { position: sticky; top: -22px; z-index: 5; margin: -22px -22px 0; padding: 18px 22px 12px; background: var(--surface); border-bottom: 1px solid var(--line); border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.settings > .row:first-child + .set-group { margin-top: 0; border-top: 0; }
+.settings .set-group p { overflow-wrap: anywhere; }
+.settings .keyrow .btn, .settings .set-group .btn { white-space: nowrap; }
+.settings .lc-btns .btn, .settings .acct-actions .btn { white-space: normal; }
+.settings .keyrow .btn { flex: none; }
+.settings .set-group:last-child { padding-bottom: 4px; }
+.settings .field > input:not([type=checkbox]), .settings .field > select { flex: 0 0 min(260px, 60%); width: min(260px, 60%); min-width: 0; }
+.settings .field > span:first-child, .settings .field > .label { flex: 1 1 auto; min-width: 0; }
+.settings .vp .field span { flex: 1 1 auto; min-width: 0; }
+.settings .vp .field input[type=range] { flex: 0 0 min(260px, 60%); width: min(260px, 60%); }
+.settings .field.row-field { flex-direction: row; align-items: center; justify-content: space-between; }
+.settings .field.chk { flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; }
+.settings .row.gap { flex-wrap: wrap; }
+.settings .vp .btn { margin: 0 6px 8px 0; }
+.settings .vp .toggle { margin: 4px 0 2px; }
+.settings #groq-msg:empty { min-height: 0; margin: 0; }
+.settings #groq-group .keyrow input { min-width: 0; }
+.settings #groq-group .row.gap { margin-top: 4px; }
+.settings .acct-form .field input { flex: 0 0 min(260px, 60%); }
+/* Learning card */
+.settings .lc-add-row { gap: 8px; margin: 10px 0; }
+.settings .lc-add-row input { flex: 1 1 auto; min-width: 0; width: auto; }
+.settings .lc-tools { display: grid; gap: 8px; margin: 4px 0 10px; }
+.settings .lc-tools select { width: 100%; padding: 9px 28px 9px 12px; }
+.settings .lc-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.settings .lc-list li span { min-width: 0; overflow-wrap: anywhere; }
+.settings .lc-del { flex: none; width: 28px; height: 28px; border-radius: 8px; }
+.settings .lc-del:hover { color: var(--text); background: rgba(255, 255, 255, .06); }
+@media (max-width: 520px) {
+  .settings { padding: 18px; }
+  .settings > .row:first-child { top: -18px; margin: -18px -18px 0; padding: 14px 18px 10px; }
+  .settings .field > input:not([type=checkbox]), .settings .field > select,
+  .settings .vp .field input[type=range], .settings .acct-form .field input { flex: 0 0 auto; width: 100%; }
+  .settings .field.row-field { flex-direction: row; align-items: center; }
+  .settings .field.chk { flex-direction: row; }
+  .settings .vp .field span { flex: 0 0 auto; }
+}

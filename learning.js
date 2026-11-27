@@ -81,25 +81,30 @@
     const body = box.querySelector(".lc-body");
     if (!state) { body.innerHTML = '<p class="muted small">Log in to your Aegis server to see what it has learned.</p>'; return; }
     const st = state.stats;
+    const prev = $("lc-new"), draft = prev ? prev.value : "";   // a half-typed rule survives a refresh
     body.innerHTML =
-      '<label class="row"><span class="label">Learn from our chats</span><input id="lc-on" type="checkbox"' + (state.enabled ? " checked" : "") + (state.server_enabled ? "" : " disabled") + "></label>" +
+      '<label class="field row-field"><span class="label">Learn from our chats</span><input id="lc-on" type="checkbox"' + (state.enabled ? " checked" : "") + (state.server_enabled ? "" : " disabled") + "></label>" +
       (state.server_enabled ? "" : '<p class="muted small">The server owner turned learning off (AEGIS_LEARNING=0).</p>') +
       '<p class="muted small">' + st.logged + " chats logged (" + st.trainable + " usable as training data), " + st.up + " 👍, " + st.down + " 👎, " + st.instant + " instant commands.</p>" +
       '<ul id="lc-list" class="lc-list">' + (state.lessons.length ? state.lessons.map((l) => '<li><span>' + esc(l.text) + '</span> <button class="lc-del" data-id="' + l.id + '" type="button" aria-label="Forget this">✕</button></li>').join("") : '<li class="muted small">Nothing yet. Say things like "from now on keep answers short", or rate replies with 👍 👎.</li>') + "</ul>" +
-      '<div class="row"><input id="lc-new" type="text" maxlength="200" placeholder="Teach a rule: always reply in Roman Urdu" style="flex:1"><button id="lc-add" class="btn ghost small-btn" type="button">Add</button></div>' +
-      '<div class="row" style="gap:6px;flex-wrap:wrap"><select id="lc-fmt" aria-label="Training data format"><option value="openai">Chat JSONL (OpenAI, Together, Unsloth)</option><option value="alpaca">Alpaca JSONL</option><option value="kto">Thumbs JSONL (KTO)</option></select>' +
-      '<button id="lc-export" class="btn ghost small-btn" type="button">Download training data</button>' +
+      '<div class="row lc-add-row"><input id="lc-new" type="text" maxlength="200" placeholder="Teach a rule: always reply in Roman Urdu" aria-label="Teach a rule"><button id="lc-add" class="btn ghost small-btn" type="button">Add</button></div>' +
+      '<div class="lc-tools"><select id="lc-fmt" aria-label="Training data format"><option value="openai">Chat JSONL (OpenAI, Together, Unsloth)</option><option value="alpaca">Alpaca JSONL</option><option value="kto">Thumbs JSONL (KTO)</option></select>' +
+      '<div class="lc-btns"><button id="lc-export" class="btn ghost small-btn" type="button">Download training data</button>' +
       '<button id="lc-model" class="btn ghost small-btn" type="button">Ollama Modelfile</button>' +
-      '<button id="lc-clear" class="btn ghost small-btn" type="button">Clear the log</button></div>' +
+      '<button id="lc-clear" class="btn ghost small-btn" type="button">Clear the log</button></div></div>' +
       '<p class="muted small">Passwords, emails, phone and card numbers are removed before anything is exported. See LEARNING.md.</p>';
     $("lc-on").addEventListener("change", async (e) => { try { await call("/api/learning/settings", { method: "POST", body: JSON.stringify({ enabled: e.target.checked }) }); } catch { toast("Could not change that."); } refresh(); });
     body.querySelectorAll(".lc-del").forEach((b) => b.addEventListener("click", async () => { try { await call("/api/learning/lessons/" + b.dataset.id, { method: "DELETE" }); } catch {} refresh(); }));
-    $("lc-add").addEventListener("click", async () => {
+    if (draft) $("lc-new").value = draft;
+    const addRule = async () => {
       const v = $("lc-new").value.trim();
       if (v.length < 4) return toast("Write the rule in a few words.");
-      try { await call("/api/learning/lessons", { method: "POST", body: JSON.stringify({ text: v }) }); toast("Learned."); } catch (e) { toast(e.message); }
+      $("lc-add").disabled = true;
+      try { await call("/api/learning/lessons", { method: "POST", body: JSON.stringify({ text: v }) }); $("lc-new").value = ""; toast("Learned."); } catch (e) { toast(e.message); }
       refresh();
-    });
+    };
+    $("lc-add").addEventListener("click", addRule);
+    $("lc-new").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); addRule(); } });
     $("lc-export").addEventListener("click", () => saveFile("/api/learning/export?fmt=" + $("lc-fmt").value, "aegis-training-" + $("lc-fmt").value + ".jsonl"));
     $("lc-model").addEventListener("click", () => saveFile("/api/learning/modelfile", "Modelfile"));
     $("lc-clear").addEventListener("click", async () => { if (!confirm("Delete the logged chats used for training data? Lessons and memories stay.")) return; try { await call("/api/learning/data", { method: "DELETE" }); } catch {} refresh(); });
