@@ -141,6 +141,37 @@ CREATE TABLE IF NOT EXISTS bond (
   last REAL NOT NULL DEFAULT 0,
   prev_last REAL NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS lessons (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'rule',
+  slot TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'auto',
+  weight INTEGER NOT NULL DEFAULT 1,
+  active INTEGER NOT NULL DEFAULT 1,
+  created REAL NOT NULL,
+  last_used REAL NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_lessons_user ON lessons(user_id, active);
+CREATE TABLE IF NOT EXISTS interactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  ts REAL NOT NULL,
+  user_text TEXT NOT NULL,
+  reply TEXT NOT NULL DEFAULT '',
+  tools TEXT NOT NULL DEFAULT '[]',
+  voice INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL DEFAULT 'ai',
+  rating INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_interactions_user ON interactions(user_id, id);
+CREATE TABLE IF NOT EXISTS prefs (
+  user_id INTEGER NOT NULL,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (user_id, key)
+);
 CREATE TABLE IF NOT EXISTS usage (
   user_id INTEGER NOT NULL,
   day TEXT NOT NULL,
@@ -257,7 +288,7 @@ class DB:
         return [dict(r) for r in self.all(sql, (*params, limit, offset))]
 
     # tables that hold one user's data, and how each is keyed to the user
-    USER_TABLES = ("facts", "messages", "tasks", "reminders", "notes", "contacts", "events", "routines", "email_log", "meetings", "moods", "usage", "expenses", "habits", "habit_log", "bond")
+    USER_TABLES = ("facts", "messages", "tasks", "reminders", "notes", "contacts", "events", "routines", "email_log", "meetings", "moods", "usage", "expenses", "habits", "habit_log", "bond", "lessons", "interactions", "prefs")
 
     def delete_user(self, uid):
         """Erase the account and every row that belongs to it (right to be forgotten)."""
@@ -274,7 +305,7 @@ class DB:
         if not u:
             return None
         data = {"account": {"email": u["email"], "plan": u["plan"], "created": u["created"]}}
-        for t in ("facts", "messages", "tasks", "reminders", "notes", "contacts", "events", "routines", "meetings", "moods", "expenses", "habits"):
+        for t in ("facts", "messages", "tasks", "reminders", "notes", "contacts", "events", "routines", "meetings", "moods", "expenses", "habits", "lessons", "interactions"):
             data[t] = [{k: r[k] for k in r.keys() if k != "user_id"} for r in self.all(f"SELECT * FROM {t} WHERE user_id = ? ORDER BY id", (uid,))]
         data["bond"] = [{k: r[k] for k in r.keys() if k != "user_id"} for r in self.all("SELECT * FROM bond WHERE user_id = ?", (uid,))]
         data["habit_log"] = [dict(day=r["day"], habit_id=r["habit_id"]) for r in self.all("SELECT habit_id, day FROM habit_log WHERE user_id = ?", (uid,))]
@@ -315,6 +346,13 @@ class DB:
                 (keep_messages,),
             )
             out["messages"] = cur.rowcount
+            from . import settings as _s
+
+            cur = self.conn.execute(
+                "DELETE FROM interactions WHERE id IN (SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY id DESC) AS rn FROM interactions) WHERE rn > ?)",
+                (_s.KEEP_INTERACTIONS,),
+            )
+            out["interactions"] = cur.rowcount
             self.conn.commit()
         return out
 
@@ -601,6 +639,78 @@ class DB:
         return self.execute(
             "DELETE FROM reminders WHERE user_id = ? AND fired = 0 AND text LIKE ?", (uid, f"%{text}%")
         ).rowcount
+
+    def last_fired_reminder(self, uid, within=6 * 3600, now=None):
+        """The reminder that went off most recently (for 'snooze')."""
+        now = now if now is not None else time.time()
+        r = self.one("SELECT text FROM reminders WHERE user_id = ? AND fired = 1 AND due >= ? AND due <= ? ORDER BY due DESC LIMIT 1", (uid, now - within, now + 60))
+        return r["text"] if r else None
+
+    # ---- v19: learning (lessons, interaction log, switches) ----
+    def get_pref(self, uid, key, default=""):
+        r = self.one("SELECT value FROM prefs WHERE user_id = ? AND key = ?", (uid, key))
+        return r["value"] if r else default
+
+    def set_pref(self, uid, key, value):
+        self.execute("INSERT INTO prefs (user_id, key, value) VALUES (?, ?, ?) ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value", (uid, key, str(value)[:200]))
+
+    def add_lesson(self, uid, text, kind="rule", slot="", source="auto"):
+        """Save a lesson. Same wording merges (weight up); a new lesson in the same slot (length, tone...) replaces the old one."""
+        text = str(text).strip()[:200]
+        if not text:
+            return 0
+        kind = kind if kind in ("rule", "style", "correction") else "rule"
+        new = self._words(text)
+        for r in self.all("SELECT id, text, weight FROM lessons WHERE user_id = ? AND active = 1", (uid,)):
+            old = self._words(r["text"])
+            if new and old and len(new & old) / len(new | old) >= 0.8:
+                self.execute("UPDATE lessons SET weight = ?, created = ? WHERE id = ?", (min(5, r["weight"] + 1), time.time(), r["id"]))
+                return r["id"]
+        if slot:
+            self.execute("UPDATE lessons SET active = 0 WHERE user_id = ? AND slot = ? AND active = 1", (uid, slot))
+        lid = self.execute("INSERT INTO lessons (user_id, text, kind, slot, source, weight, created) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                           (uid, text, kind, slot, source if source in ("auto", "user", "feedback") else "auto", 3 if source == "user" else 1, time.time())).lastrowid
+        extra = self.all("SELECT id FROM lessons WHERE user_id = ? AND active = 1 ORDER BY weight DESC, created DESC LIMIT -1 OFFSET 60", (uid,))
+        for e in extra:
+            self.execute("UPDATE lessons SET active = 0 WHERE id = ?", (e["id"],))
+        return lid
+
+    def lessons(self, uid, active_only=True):
+        q = "SELECT id, text, kind, slot, source, weight, active, created, last_used FROM lessons WHERE user_id = ?" + (" AND active = 1" if active_only else "") + " ORDER BY weight DESC, created DESC LIMIT 200"
+        return [dict(r) for r in self.all(q, (uid,))]
+
+    def delete_lesson(self, uid, lid):
+        return self.execute("DELETE FROM lessons WHERE id = ? AND user_id = ?", (lid, uid)).rowcount
+
+    def delete_lessons_containing(self, uid, text):
+        return self.execute("DELETE FROM lessons WHERE user_id = ? AND text LIKE ?", (uid, f"%{text}%")).rowcount
+
+    def log_interaction(self, uid, user_text, reply, tools=None, voice=False, source="ai"):
+        import json as _j
+
+        return self.execute("INSERT INTO interactions (user_id, ts, user_text, reply, tools, voice, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (uid, time.time(), str(user_text)[:2000], str(reply)[:4000], _j.dumps(list(tools or [])[:20]), 1 if voice else 0, source)).lastrowid
+
+    def rate_interaction(self, uid, iid, rating):
+        return self.execute("UPDATE interactions SET rating = ? WHERE id = ? AND user_id = ?", (max(-1, min(1, int(rating))), int(iid), uid)).rowcount
+
+    def interactions(self, uid, limit=3000):
+        return [dict(r) for r in self.all("SELECT id, ts, user_text, reply, tools, voice, source, rating FROM interactions WHERE user_id = ? ORDER BY id DESC LIMIT ?", (uid, limit))]
+
+    def clear_interactions(self, uid):
+        return self.execute("DELETE FROM interactions WHERE user_id = ?", (uid,)).rowcount
+
+    def tool_counts(self, uid, limit=300):
+        import json as _j
+
+        out = {}
+        for r in self.all("SELECT tools FROM interactions WHERE user_id = ? ORDER BY id DESC LIMIT ?", (uid, limit)):
+            try:
+                for t in _j.loads(r["tools"]):
+                    out[t] = out.get(t, 0) + 1
+            except ValueError:
+                pass
+        return out
 
     # ---- notes ----
     def add_note(self, uid, title, body):

@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Awaitable, Callable, List
 
-from . import chief, emotion, extras, heart, mail, settings, smarthome, tools, utilities
+from . import chief, emotion, extras, heart, learning, mail, settings, smarthome, tools, utilities
 from .db import DB
 from .hub import Hub
 
@@ -136,6 +136,12 @@ Doing things:
   being asked, but never recite the whole list and never sound like a database.
 - In the browser the app itself handles voice commands such as "open YouTube", "set a timer for 5 minutes",
   "switch to Urdu" or "change theme to red". If asked for those and they reach you, just do the best you can in words.
+- Learning: when the user states a standing preference ("always keep it short", "never call me sir", "reply in Urdu from now on") call `teach` with a short
+  rule and confirm in a few words; the app also picks many of these up by itself. `list_lessons` answers "what have you learned about me", `forget_lesson`
+  removes one. The preferences listed below under "How THIS user wants you to behave" are binding.
+- Browser by voice: the app answers simple spoken browser commands itself (next tab, scroll, search, open the Nth result, play or pause, find on page).
+  For anything bigger (summarise this page, compare these tabs, fill this form, research and open the best result) use the `chrome_*` tools; `chrome_media`
+  controls the playing video or song.
 - Some tools need the user's approval. If the user declines, do not retry that action.
 - Never delete, overwrite or send anything unless the user clearly asked for it.
 
@@ -178,6 +184,7 @@ class Session:
         self.voice = False  # the current message was spoken aloud and the reply will be read out by text-to-speech
         self.callme = ""  # how the user likes to be addressed ("sir", "boss", a name)
         self.vibe = {}  # how the last spoken message SOUNDED: {"pace": slow|normal|fast, "energy": low|normal|high, "hesitant": bool}
+        self.tools_used = []  # tool names used in the current turn (for the learning log)
         self.deep = False  # the user asked Aegis to think deeply about this message
         self.last_wrap = 0.0  # when the last conversation recap was saved
         self.emotion = emotion.Tracker()  # v17: how the feeling moves over this conversation (masking, swings, stuck moods)
@@ -210,6 +217,12 @@ class Agent:
         if chosen:
             self.db.touch_facts(uid, [r["id"] for r in chosen])  # remembering something makes it matter more
             block = "\nWhat you remember about the user (newest context first; the notes say how long ago and how they felt):\n" + heart.format_memories(chosen, now) + "\n"
+        try:
+            if learning.enabled(self.db, uid):
+                block += learning.lessons_block(self.db.lessons(uid))
+                block += learning.style_profile(self.db.interactions(uid, 80), self.db.tool_counts(uid))
+        except Exception:
+            pass  # learning must never break a chat
         mood_rows = self.db.moods(uid, since=now - 7 * 86400)
         lately = emotion.summarize(mood_rows, tz)
         if lately:
@@ -330,6 +343,20 @@ class Agent:
                              mood=feel["mood"] if feel else "", level=feel["intensity"] if feel else 0, when_md=heart.parse_month_day(fact) if args.get("kind") == "event" else "",
                              pinned=bool(args.get("pin")))
             return "Saved to memory." + (" Pinned: it will never fade." if args.get("pin") else "")
+        if name == "teach":
+            rule = str(args.get("rule", "")).strip()[:200]
+            if len(rule) < 4:
+                return "Error: say what the rule is."
+            self.db.add_lesson(uid, rule, "rule", "", "user")
+            return "Learned. I will follow that from now on."
+        if name == "list_lessons":
+            rows = self.db.lessons(uid)
+            return "\n".join(f"- {r['text']}" for r in rows[:20]) or "Nothing learned yet: they have not given me any standing preferences."
+        if name == "forget_lesson":
+            text = str(args.get("contains", "")).strip()
+            if len(text) < 3:
+                return "Error: give at least 3 characters to match."
+            return f"Removed {self.db.delete_lessons_containing(uid, text)} learned rule(s)."
         if name == "pin_memory":
             q = heart._tokens(str(args.get("contains", "")))
             if not q:
@@ -842,6 +869,7 @@ class Agent:
         uid = sess.user_id
         start_len = len(sess.history)
         sess.history.append({"role": "user", "content": text})
+        sess.tools_used = []
         reading = emotion.detect(text)
         try:
             reading = sess.emotion.update(reading, text, vibe=sess.vibe if sess.voice else None)
@@ -862,6 +890,8 @@ class Agent:
             if ctx["first_today"]:
                 heart.reflect(self.db, uid, sess.tz)  # once a day: turn the mood history into lasting insights
             if settings.AUTO_MEMORY:
+                prev_user = next((h["content"] for h in reversed(sess.history[:-1]) if h.get("role") == "user" and isinstance(h.get("content"), str)), "")
+                learning.learn(self.db, uid, text, prev_user)  # standing rules and corrections ("keep it short", "stop calling me sir")
                 for m in heart.extract_memories(text, datetime.now(zone)):
                     self.db.add_fact(uid, m["text"], m["kind"], m["important"], mood=reading.mood if reading.mood != "neutral" else "",
                                      level=reading.intensity, source="auto", when_md=m["when_md"])
@@ -916,6 +946,8 @@ class Agent:
         tool = tools.BY_NAME.get(tu.name)
         args = tu.input if isinstance(tu.input, dict) else {}
         await emit({"type": "tool", "id": tu.id, "name": tu.name, "args": args, "risky": bool(tool and tool.is_risky(args))})
+        if tu.name not in sess.tools_used:
+            sess.tools_used.append(tu.name)
 
         ok = True
         if tool is None:

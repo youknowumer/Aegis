@@ -18,7 +18,7 @@ WEB_FILES = (
     "index.html", "app.html", "app.js", "orb.js", "config.js", "landing.js", "landing.css", "style.css", "hud.js", "commands.js", "webctl.js",
     "ui-plus.js", "features.js", "theme-boot.js", "voice.js", "tabs.js", "dock.js", "auth-fx.js", "app-fx.js", "app-fx.css", "app-holo.js", "app-holo.css", "landing-fx.js", "landing-pro.css", "landing-pro.js", "landing-hero.css", "landing-hero.js",
     "groq.js", "meetings.js", "meetings.css", "meetings-plus.js", "meetings-plus.css", "account.js",
-    "landing-vela.css", "landing-vela.js", "landing-vela-page.css", "landing-vela-page.js", "landing-motion.css", "landing-motion.js", "landing-ultra.css", "landing-ultra.js", "landing-download.js",
+    "learning.js", "landing-vela.css", "landing-vela.js", "landing-vela-page.css", "landing-vela-page.js", "landing-motion.css", "landing-motion.js", "landing-ultra.css", "landing-ultra.js", "landing-download.js",
     "favicon.svg", "favicon.ico", "site.webmanifest",
 )
 DOWNLOADS_DIR = Path(os.environ.get("AEGIS_DOWNLOADS_DIR", BASE_DIR / "downloads"))
@@ -84,3 +84,7 @@ PROACTIVE = os.environ.get("AEGIS_PROACTIVE", "1").strip().lower() not in ("0", 
 
 # v13: pick up names, people, dates, plans and losses from what the user says and remember them (AEGIS_AUTO_MEMORY=0 turns it off).
 AUTO_MEMORY = os.environ.get("AEGIS_AUTO_MEMORY", "1").strip().lower() not in ("0", "false", "no", "off")
+
+# v19: learn standing rules, habits and feedback from conversations, and keep a redacted log usable as training data (AEGIS_LEARNING=0 turns it off).
+LEARNING = os.environ.get("AEGIS_LEARNING", "1").strip().lower() not in ("0", "false", "no", "off")
+KEEP_INTERACTIONS = int(os.environ.get("AEGIS_KEEP_INTERACTIONS", "3000"))

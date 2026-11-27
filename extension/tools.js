@@ -67,9 +67,61 @@
       return items.slice(0, 120).map((x, i) => { x.el.setAttribute("data-aegis-i", String(i + 1)); const { y, ...rest } = x.d; return { i: i + 1, ...rest }; });
     },
 
+    media: async (action, value) => {
+      const vs = Array.from(document.querySelectorAll("video,audio"));
+      const v = vs.find((x) => !x.paused) || vs.sort((a, b) => (b.videoWidth * b.videoHeight) - (a.videoWidth * a.videoHeight))[0];
+      const a = String(action || "").toLowerCase(), val = String(value || "").toLowerCase();
+      const click = (sel) => { const b = document.querySelector(sel); if (b) { b.click(); return true; } return false; };
+      if (a === "next") return click(".ytp-next-button") ? { msg: "Next video." } : { error: "there is no next-video button here" };
+      if (a === "captions") return click(".ytp-subtitles-button") ? { msg: "Toggled captions." } : { error: "this player has no captions button" };
+      if (!v) return { error: "there is no video or audio on this page" };
+      if (a === "play") { try { await v.play(); } catch (e) { return { error: "the browser blocked playback until you press play once" }; } return { msg: "Playing." }; }
+      if (a === "pause") { v.pause(); return { msg: "Paused." }; }
+      if (a === "mute") { v.muted = true; return { msg: "Muted." }; }
+      if (a === "unmute") { v.muted = false; return { msg: "Unmuted." }; }
+      if (a === "seek") { const s = parseFloat(val); if (!isFinite(s)) return { error: "seek needs a number of seconds" }; v.currentTime = Math.max(0, Math.min(v.duration || 1e9, v.currentTime + s)); return { msg: (s >= 0 ? "Skipped ahead " : "Went back ") + Math.abs(Math.round(s)) + " seconds." }; }
+      if (a === "speed") { const s = parseFloat(val); if (!isFinite(s)) return { error: "speed needs a number like 1.5" }; v.playbackRate = Math.max(0.25, Math.min(4, s)); return { msg: "Speed " + v.playbackRate + "x." }; }
+      if (a === "volume") {
+        if (val === "up") v.volume = Math.min(1, v.volume + 0.15);
+        else if (val === "down") v.volume = Math.max(0, v.volume - 0.15);
+        else { const n = parseFloat(val); if (!isFinite(n)) return { error: "volume needs up, down or a number 0-100" }; v.volume = Math.max(0, Math.min(1, n / 100)); }
+        v.muted = false;
+        return { msg: "Volume " + Math.round(v.volume * 100) + " percent." };
+      }
+      if (a === "fullscreen") {
+        try { if (document.fullscreenElement) await document.exitFullscreen(); else await (v.closest(".html5-video-player") || v).requestFullscreen(); return { msg: "Toggled fullscreen." }; }
+        catch (e) { return { error: "the browser only allows fullscreen from a real key press: press F in the video" }; }
+      }
+      return { error: "unknown media action " + a };
+    },
+
+    badges: (on) => {
+      document.querySelectorAll("[data-aegis-badges]").forEach((e) => e.remove());
+      if (!on) return 0;
+      const box = document.createElement("div");
+      box.setAttribute("data-aegis-badges", "1");
+      box.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147483647";
+      let n = 0;
+      document.querySelectorAll("[data-aegis-i]").forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) return;
+        const b = document.createElement("span");
+        b.textContent = el.getAttribute("data-aegis-i");
+        b.style.cssText = `position:fixed;left:${Math.max(0, r.left)}px;top:${Math.max(0, r.top)}px;background:#f59e0b;color:#111;font:700 11px/1 system-ui;padding:2px 5px;border-radius:6px;box-shadow:0 1px 4px #0008`;
+        box.appendChild(b); n++;
+      });
+      document.documentElement.appendChild(box);
+      return n;
+    },
+
     resolve(q) {
       let el = null;
       if (q.index != null) el = document.querySelector(`[data-aegis-i="${Number(q.index)}"]`);
+      else if (!q.selector && !q.text) {
+        const ae = document.activeElement;
+        el = ae && ae !== document.body && (/^(INPUT|TEXTAREA)$/.test(ae.tagName) || ae.isContentEditable) ? ae
+          : Array.from(document.querySelectorAll("input[type=search],input[type=text],input:not([type]),textarea,[contenteditable=true]")).find((e) => { const r = e.getBoundingClientRect(); return r.width > 20 && r.height > 8 && r.bottom > 0 && r.top < innerHeight && getComputedStyle(e).visibility !== "hidden"; }) || null;
+      }
       else if (q.selector) { try { el = document.querySelector(q.selector); } catch (e) { return { error: "that CSS selector is not valid" }; } }
       else if (q.text) {
         const t = String(q.text).toLowerCase();
@@ -327,9 +379,11 @@
         return `${p.title}\n${p.url}\n(page ${n} of ${total})\n\n${p.text.slice((n - 1) * size, n * size) || "(the page has no readable text)"}`;
       },
 
-      async chrome_elements({ filter, tab }) {
+      async chrome_elements({ filter, tab, badges, hide }) {
         const t = await pick(tab);
+        if (hide) { await run(t.id, PAGE.badges, false); return "Numbers hidden."; }
         const els = await run(t.id, PAGE.mark, filter || "");
+        if (badges) await run(t.id, PAGE.badges, true);
         if (!els.length) return "No clickable or editable elements found" + (filter ? ` matching "${filter}"` : "") + ". Try chrome_read or scroll.";
         const line = (e) => `${e.i} [${e.kind}${e.disabled ? ", disabled" : ""}${e.checked != null ? (e.checked ? ", checked" : ", unchecked") : ""}${e.inView ? "" : ", off-screen"}] ${e.text}` +
           (e.label ? ` (label: ${e.label})` : "") + (e.placeholder ? ` (placeholder: ${e.placeholder})` : "") + (e.value ? ` = "${e.value}"` : "") + (e.options ? ` {${e.options.join(" | ")}}` : "") + (e.href ? ` → ${e.href}` : "");
@@ -443,6 +497,13 @@
         return st.paused
           ? `Opened "${found.title}" on YouTube (${found.url}) but it is paused: the browser blocked autoplay. Press play in the tab.`
           : `Playing "${found.title}" on YouTube.${st.ad ? " An ad is playing first; the song starts right after it." : ""}`;
+      },
+
+      async chrome_media({ action, value, tab }) {
+        const t = await pick(tab);
+        const r = await run(t.id, PAGE.media, String(action || ""), String(value ?? ""));
+        if (r && r.error) throw new Error(r.error);
+        return (r && r.msg) || "Done.";
       },
 
       async chrome_eval({ js, tab }) {

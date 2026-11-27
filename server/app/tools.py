@@ -114,6 +114,10 @@ TOOLS: List[Tool] = [
     Tool("find_free_time", "Find free gaps in the user's calendar. date 'YYYY-MM-DD' (default today), minutes needed (default 30), start_hour and end_hour of the working window (default 9 to 18). Use for 'when am I free', 'find 1 hour for the dentist this week'.", "server", {"date": S, "minutes": N, "start_hour": N, "end_hour": N}),
     Tool("evening_review", "Gather the user's day for a wrap-up: tasks, habits, spending, tomorrow's calendar and reminders. Call it for 'how did my day go', 'wrap up my day', 'end of day report', 'good night'.", "server"),
     Tool("systems_check", "proactive diagnostic of Aegis itself: is the PC linked, voice, email, smart home, memory, what is waiting. Use for 'status report', 'systems check', 'are you all online'. If the PC is linked, also call system_report.", "server"),
+    # ---- v19: learning ----
+    Tool("teach", "Save a standing preference or rule the user just gave you about how to help them (tone, length, language, how to address them, things to always or never do). Use it when they say 'from now on...', 'always...', 'never...', 'I prefer...'. Write it as a short instruction to yourself.", "server", {"rule": S}, ["rule"]),
+    Tool("list_lessons", "What you have learned about how this user likes to be helped (their standing rules and preferences). Use for 'what have you learned about me', 'what are my preferences'.", "server"),
+    Tool("forget_lesson", "Remove a learned rule or preference whose text contains the given words.", "server", {"contains": S}, ["contains"]),
     # ---- desktop tools ----
     Tool("open_app", "Open a desktop application by name (chrome, notepad, calc, spotify...).", "device", {"name": S}, ["name"]),
     Tool("open_url", "Open a website in the user's default browser.", "device", {"url": S}, ["url"]),
@@ -177,6 +181,7 @@ TOOLS: List[Tool] = [
     Tool("chrome_find", "Find a word or phrase in the page text and show where it appears.", "device", {"text": S, "tab": TAB}, ["text"]),
     Tool("chrome_wait", "Wait for the page: for some milliseconds, or until some text or a CSS selector appears (up to 30 s).", "device", {"ms": N, "text": S, "selector": S, "tab": TAB}),
     Tool("chrome_screenshot", "Take a screenshot of the Chrome page (full_page=true for the whole page) and save it in the Pictures folder.", "device", {"full_page": B, "tab": TAB}),
+    Tool("chrome_media", "Control the video or audio playing in the page (YouTube, any HTML5 player): action = play, pause, mute, unmute, fullscreen, seek (value = seconds, negative goes back), speed (value = 0.5 to 2), volume (value = up, down or 0-100), next (next video on YouTube), captions.", "device", {"action": S, "value": S, "tab": TAB}, ["action"]),
     Tool("chrome_eval", "Run JavaScript in the page and return the result. Last resort for things the other chrome_* tools cannot do.", "device", {"js": S, "tab": TAB}, ["js"], risky=True),
 ]
 

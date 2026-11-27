@@ -88,9 +88,25 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   }
 
+  // ---- v19: browser mode. When the Aegis Web Hands extension (or the desktop app) is linked, "scroll down", "click sign in", "go back" and
+  // the like act on YOUR OTHER TAB (the server runs them on the real browser, no AI call). "control this page" switches back to this page.
+  let link = { browser: false, device: false };
+  let modePref = null; // null = automatic (on while a browser is linked), or true / false once the user says so
+  try { const v = localStorage.getItem("aegis_browser_mode"); modePref = v === "1" ? true : v === "0" ? false : null; } catch {}
+  const linked = () => !!(link.browser || link.device);
+  const remote = () => linked() && modePref !== false;
+  function setMode(on) { modePref = !!on; try { localStorage.setItem("aegis_browser_mode", on ? "1" : "0"); } catch {} paintMode(); }
+  const REMOTE_NAMES = new Set(["wc-scroll", "wc-edge", "wc-back", "wc-forward", "wc-reload", "wc-click-num", "wc-click", "wc-type", "wc-clear", "wc-key", "wc-numbers", "wc-numbers-off"]);
+
   const T = (re) => (t) => re.test(t);
   const C = [];
   const add = (name, test, run) => C.push({ name, test, run });
+
+  // ---- browser mode switch
+  add("wc-mode-on", T(/^(?:control|use|drive|operate) (?:my |the )?(?:browser|chrome|tabs|other tabs)$|^browser mode(?: on)?$|^(?:browser|chrome) (?:control )?(?:on|chalao)$|^(?:mera )?browser control (?:karo|on karo)$/),
+    (m, c) => { if (!linked()) return c.say("Your browser is not linked yet. Install the Aegis Web Hands extension and paste the connection code from Settings.", { silent: true }); setMode(true); return c.say("Browser mode on. Scroll, click, type and search now happen in your browser.", { silent: true }); });
+  add("wc-mode-off", T(/^(?:control|use) (?:this|the aegis|aegis) (?:page|app|screen|window)$|^browser mode off$|^(?:stop|quit) (?:controlling|using) (?:my |the )?(?:browser|chrome)$|^(?:browser|chrome) (?:control )?off$/),
+    (m, c) => { setMode(false); return c.say("Browser mode off. Scrolling and clicking now act on this page.", { silent: true }); });
 
   // ---- scrolling
   add("wc-scroll", (t) => {
@@ -212,7 +228,7 @@
   });
 
   // The matcher passes only the normalised text; keep the (t, raw) signature simple by wrapping.
-  const wrapped = C.map((e) => ({ name: e.name, test: (t) => e.test(t), run: e.run }));
+  const wrapped = C.map((e) => ({ name: e.name, test: (t) => (REMOTE_NAMES.has(e.name) && remote() ? null : e.test(t)), run: e.run }));
   if (window.AegisCommands && AegisCommands.extend) AegisCommands.extend(wrapped, { first: true });
 
   // ------------------------------------------------------------------ Settings: Browser control card
@@ -246,11 +262,19 @@
   function setBrowser(on) {
     const p = $("browser-pill");
     if (!p) return;
-    p.textContent = on ? "Connected" : "Not connected";
+    p.textContent = on ? (remote() ? "Connected: voice control on" : "Connected") : "Not connected";
     p.className = "pill " + (on ? "on" : "off");
   }
-  window.addEventListener("aegis:status", (e) => setBrowser(!!(e.detail && e.detail.browser)));
+  function paintMode() { setBrowser(link.browser); }
+  window.addEventListener("aegis:status", (e) => {
+    const d = e.detail || {};
+    const was = linked();
+    if (d.browser !== undefined) link.browser = !!d.browser;
+    if (d.device !== undefined) link.device = !!d.device;
+    if (!was && linked() && modePref === null && window.AegisApp && AegisApp.toast) AegisApp.toast('Browser linked: say "scroll down", "next tab" or "search for ..." to control it. Say "control this page" to switch back.', 7000);
+    setBrowser(link.browser);
+  });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountCard); else mountCard();
 
-  window.AegisWebCtl = { findByName, clickables, showNumbers, hideNumbers, setZoom, connectionCode, commands: wrapped };
+  window.AegisWebCtl = { remote, setMode, findByName, clickables, showNumbers, hideNumbers, setZoom, connectionCode, commands: wrapped };
 })();

@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import chief, emotion, extras, heart, meeting, mms, otter, providers, settings, smarthome, tts
+from . import chief, emotion, extras, fastpath, heart, learning, meeting, mms, otter, providers, settings, smarthome, tts
 from .agent import Agent, Session
 from .auth import EMAIL_RE, hash_password, make_token, read_token_full, verify_password
 from .db import DB
@@ -34,6 +34,14 @@ log = logging.getLogger("aegis")
 if not logging.getLogger().handlers:  # under uvicorn the app's own logger would otherwise stay silent below WARNING
     logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log.setLevel(getattr(logging, settings.LOG_LEVEL, logging.INFO))
+
+
+class LessonIn(BaseModel):
+    text: str
+
+
+class LearnSwitch(BaseModel):
+    enabled: bool
 
 
 class MemoryIn(BaseModel):
@@ -520,6 +528,53 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     @app.get("/api/memory/export")
     def export_memory(user=Depends(current_user)):
         return JSONResponse(db.export_memory(user["id"]), headers={"Content-Disposition": 'attachment; filename="aegis-memory.json"'})
+
+    # ---------- v19: learning ----------
+    @app.get("/api/learning")
+    def get_learning(user=Depends(current_user)):
+        uid = user["id"]
+        rows = db.interactions(uid)
+        ai = [r for r in rows if r["source"] == "ai"]
+        return {
+            "enabled": learning.enabled(db, uid), "server_enabled": settings.LEARNING,
+            "lessons": [{k: r[k] for k in ("id", "text", "kind", "source", "weight")} for r in db.lessons(uid)],
+            "stats": {"logged": len(rows), "trainable": len(learning.training_rows(rows)), "up": sum(1 for r in ai if r["rating"] > 0),
+                      "down": sum(1 for r in ai if r["rating"] < 0), "instant": sum(1 for r in rows if r["source"] == "fast")},
+        }
+
+    @app.post("/api/learning/settings")
+    def set_learning(b: LearnSwitch, user=Depends(current_user)):
+        db.set_pref(user["id"], "learn", "1" if b.enabled else "0")
+        return {"enabled": learning.enabled(db, user["id"])}
+
+    @app.post("/api/learning/lessons")
+    def add_lesson(b: LessonIn, user=Depends(current_user)):
+        text = " ".join(b.text.split())[:200]
+        if len(text) < 4:
+            raise HTTPException(400, "Write the rule in a few words.")
+        return {"id": db.add_lesson(user["id"], text, "rule", "", "user")}
+
+    @app.delete("/api/learning/lessons/{lid}")
+    def delete_lesson(lid: int, user=Depends(current_user)):
+        if not db.delete_lesson(user["id"], lid):
+            raise HTTPException(404, "No such lesson")
+        return {"ok": True}
+
+    @app.delete("/api/learning/data")
+    def clear_learning(user=Depends(current_user)):
+        return {"removed": db.clear_interactions(user["id"])}
+
+    @app.get("/api/learning/export")
+    def export_learning(fmt: str = "openai", unrated: int = 1, user=Depends(current_user)):
+        body = learning.training_jsonl(db.interactions(user["id"]), db.lessons(user["id"]), fmt, bool(unrated))
+        if not body:
+            raise HTTPException(404, "Nothing to export yet: chat more, and rate replies with the thumbs.")
+        return Response(body, media_type="application/x-ndjson", headers={"Content-Disposition": f'attachment; filename="aegis-training-{fmt}.jsonl"'})
+
+    @app.get("/api/learning/modelfile")
+    def learning_modelfile(base: str = "llama3.1", user=Depends(current_user)):
+        base = re.sub(r"[^\w.:/-]", "", base)[:60] or "llama3.1"
+        return Response(learning.modelfile(db.lessons(user["id"]), base), media_type="text/plain", headers={"Content-Disposition": 'attachment; filename="Modelfile"'})
 
     @app.post("/api/memory/import")
     def import_memory(payload: dict = Body(...), user=Depends(current_user)):
@@ -1092,6 +1147,18 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             try:
                 fresh = db.user_by_id(uid)
                 limit = limit_for(fresh)
+                try:
+                    fast = await fastpath.try_fast(uid, text, sess.tz, hub, db)
+                except Exception:
+                    log.exception("fast path failed")
+                    fast = None
+                if fast:  # reminders, remember-that and browser voice commands: no AI call, no quota
+                    db.add_message(uid, "user", text)
+                    db.add_message(uid, "assistant", fast["reply"])
+                    iid = db.log_interaction(uid, learning.redact(text), fast["reply"], fast["tools"], sess.voice, "fast") if learning.enabled(db, uid) else 0
+                    metrics["chat_messages_total"] += 1
+                    await send({"type": "reply", "text": fast["reply"], "used": db.used_today(uid), "limit": limit, "iid": iid, "fast": True})
+                    return
                 if not db.try_consume(uid, limit):
                     await send({"type": "error", "text": f"Daily limit reached ({limit} messages on the {fresh['plan']} plan)."})
                     return
@@ -1110,7 +1177,8 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                 db.add_message(uid, "user", text)
                 db.add_message(uid, "assistant", reply)
                 metrics["chat_messages_total"] += 1
-                await send({"type": "reply", "text": reply, "used": db.used_today(uid), "limit": limit})
+                iid = db.log_interaction(uid, learning.redact(text), learning.redact(reply), sess.tools_used, sess.voice, "ai") if learning.enabled(db, uid) else 0
+                await send({"type": "reply", "text": reply, "used": db.used_today(uid), "limit": limit, "iid": iid})
             except asyncio.CancelledError:
                 if not sess.stopped:
                     raise  # connection closed: just unwind
@@ -1191,6 +1259,12 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                 elif kind == "clear_ai" and not sess.busy:
                     sess.client = sess.cfg = None
                     await send({"type": "ai_set", "ok": True, "provider": "server", "label": "Server default", "model": settings.MODEL})
+                elif kind == "feedback":
+                    try:
+                        ok = db.rate_interaction(uid, int(msg.get("iid") or 0), int(msg.get("rating") or 0))
+                    except (TypeError, ValueError):
+                        ok = 0
+                    await send({"type": "feedback_ok", "iid": msg.get("iid"), "rating": msg.get("rating"), "saved": bool(ok)})
                 elif kind == "confirm_response":
                     hub.resolve(msg.get("id"), bool(msg.get("ok")), uid)
                 elif kind == "wrap" and not sess.busy:

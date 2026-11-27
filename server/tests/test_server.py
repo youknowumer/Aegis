@@ -770,10 +770,10 @@ def test_chrome_tools_registered_and_device_only():
     names = {t.name for t in tools.TOOLS if t.name.startswith("chrome_")}
     assert {"chrome_tabs", "chrome_open", "chrome_go", "chrome_nav", "chrome_switch", "chrome_close", "chrome_read", "chrome_elements",
             "chrome_click", "chrome_type", "chrome_key", "chrome_scroll", "chrome_find", "chrome_wait", "chrome_screenshot", "chrome_eval",
-            "chrome_youtube_play"} == names
+            "chrome_youtube_play", "chrome_media"} == names
     assert all(tools.BY_NAME[n].where == "device" for n in names)
     assert not any(t["name"].startswith("chrome_") for t in tools.schemas(False))           # no desktop app, no Chrome tools
-    assert sum(t["name"].startswith("chrome_") for t in tools.schemas(True)) == 17
+    assert sum(t["name"].startswith("chrome_") for t in tools.schemas(True)) == 18
 
 
 def test_chrome_approval_rules():

@@ -425,7 +425,17 @@
     const say = document.createElement("button");
     say.type = "button"; say.textContent = "Read aloud";
     say.addEventListener("click", () => speak(text, true));
-    bar.append(copy, say);
+    // v19: thumbs teach Aegis what you like (stored with the reply, used for style and as training data)
+    const rate = (val, label, title) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "rate"; b.textContent = label; b.title = title; b.setAttribute("aria-label", title);
+      b.addEventListener("click", () => {
+        if (!el.dataset.iid || el.dataset.iid === "0") return toast("I can learn from new replies, not from old ones or when learning is off.");
+        send({ type: "feedback", iid: Number(el.dataset.iid), rating: el.dataset.rated === String(val) ? 0 : val });
+      });
+      return b;
+    };
+    bar.append(copy, say, rate(1, "👍", "Good answer"), rate(-1, "👎", "Not good: I will learn from it"));
     el.appendChild(bar);
   }
   function addMsg(role, text) {
@@ -878,7 +888,7 @@
       case "reply":
         clearCues();
         setBusy(false, true); // speak() re-syncs the microphone once it knows whether Aegis will talk
-        if (!endStream(m.text)) addMsg("ai", m.text);
+        { const shown = endStream(m.text) || addMsg("ai", m.text); if (shown && m.iid) shown.dataset.iid = String(m.iid); }
         setUsage(m.used, m.limit);
         loadMemory(); loadTasks(); loadReminders();
         speak(m.text);
@@ -886,6 +896,16 @@
       case "error": clearCues(); confirmVoice = false; endStream(); setBusy(false); addMsg("err", m.text); break;
       case "cleared": clearChat(); break;
       case "ai_set": onAiSet(m); break;
+      case "feedback_ok": {
+        const el = document.querySelector('.msg.ai[data-iid="' + m.iid + '"]');
+        if (el) {
+          el.dataset.rated = String(m.rating || 0);
+          el.querySelectorAll(".rate").forEach((b, i) => b.classList.toggle("on", Number(m.rating) === (i === 0 ? 1 : -1)));
+        }
+        if (m.saved && Number(m.rating) < 0) toast("Noted. Tell me what to do differently and I will remember it.");
+        else if (m.saved && Number(m.rating) > 0) toast("Thanks, I will do more of that.", 2200);
+        break;
+      }
     }
   }
 
@@ -2218,7 +2238,10 @@
     getToken: () => token,
     setToken(t) { token = t; safeSet(TOKEN_KEY, t); if (desktop) desktop.setToken(t); },
     logout: () => logout(),
-  }; // used by meetings.js and account.js
+    get apiBase() { return API; },
+    get token() { return token; },
+    send: (o) => send(o),
+  }; // used by meetings.js, account.js, webctl.js and learning.js
   if (window.__AEGIS_TEST__) window.__aegis = { extractWake, rich, labelFor, noteLang, recLang, yesNo, makeVibe, cueBase, DEEP_RX, lastLangNow: () => lastLang };
   start();
 })();
