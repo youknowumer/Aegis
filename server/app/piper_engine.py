@@ -23,6 +23,7 @@ Environment (all optional):
   AEGIS_PIPER_BASE             voice host (default https://huggingface.co/rhasspy/piper-voices/resolve/main), for a mirror or your own bucket
   AEGIS_PIPER_VOICES=en=en_US-amy-medium,de=de_DE-thorsten-high   pin an exact voice per language
   AEGIS_PIPER_MIN_FREE_MB=500  do not auto-download below this much free disk
+  AEGIS_PIPER_MIN_RAM_MB=400   stay off on a server with less memory than this (AEGIS_PIPER_FORCE=1 ignores it)
 """
 import importlib.util
 import io
@@ -38,6 +39,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from . import mms
 from .observability import obs
 
 log = logging.getLogger("aegis.piper")
@@ -172,9 +174,36 @@ def auto_allows(lang: str) -> bool:
     return lang in {t.strip() for t in raw.split(",") if t.strip()}
 
 
+def min_ram_mb() -> int:
+    return _env_int("AEGIS_PIPER_MIN_RAM_MB", 400, 0, 1 << 20)
+
+
+def memory_ok() -> bool:
+    """A Piper voice needs about 60 MB plus the engine; on a tiny server (below AEGIS_PIPER_MIN_RAM_MB) it stays off so the app itself keeps its memory.
+    AEGIS_PIPER_FORCE=1 ignores the check. Unknown memory counts as enough."""
+    if os.environ.get("AEGIS_PIPER_FORCE", "").strip() == "1":
+        return True
+    try:
+        have = mms._ram_mb()
+    except Exception:  # noqa: BLE001
+        return True
+    return not have or have >= min_ram_mb()
+
+
+def reason() -> str:
+    """Why Piper is not active although it is installed (shown in Settings). Empty when there is nothing to explain."""
+    if not enabled() or not deps_ok():
+        return ""
+    if not memory_ok():
+        return f"this server has about {mms._ram_mb()} MB of memory and Piper voices need {min_ram_mb()} MB"
+    if not installed() and _auto_setting() in ("0", "off", "no", "false"):
+        return "no Piper voices are downloaded yet"
+    return ""
+
+
 def ready() -> bool:
     """Piper can speak now, or can fetch a voice by itself."""
-    return enabled() and deps_ok() and (bool(installed()) or _auto_setting() not in ("0", "off", "no", "false"))
+    return enabled() and deps_ok() and memory_ok() and (bool(installed()) or _auto_setting() not in ("0", "off", "no", "false"))
 
 
 # ---------------------------------------------------------------- the voice index and downloads

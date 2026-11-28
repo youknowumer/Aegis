@@ -313,3 +313,16 @@ def test_tts_endpoint_records_request_id_and_status_lists_engines(env, monkeypat
     monkeypatch.setattr(pe, "languages", lambda: ["en"])
     st = c.get("/api/tts/status", headers=auth(token)).json()
     assert st["provider"] == "piper" and st["engines"]["piper"] == ["en"] and "en" in st["languages"]
+
+
+def test_piper_stays_off_on_a_tiny_server_and_says_why(monkeypatch):
+    monkeypatch.setenv("AEGIS_PIPER", "1")
+    monkeypatch.setenv("AEGIS_PIPER_AUTO", "1")
+    monkeypatch.setattr(pe, "deps_ok", lambda: True)
+    monkeypatch.setattr(mms, "_ram_mb", lambda: 256)
+    assert not pe.ready() and "256 MB" in pe.reason()
+    monkeypatch.setenv("AEGIS_PIPER_FORCE", "1")
+    assert pe.ready() and pe.reason() == ""
+    monkeypatch.delenv("AEGIS_PIPER_FORCE")
+    monkeypatch.setattr(mms, "_ram_mb", lambda: 2048)
+    assert pe.ready()

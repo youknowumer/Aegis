@@ -21,5 +21,13 @@
 ## Licences
 MMS: CC-BY-NC 4.0. Piper voices: each has its own licence (see its MODEL_CARD); the `piper-tts` package is GPL-3.0. Check before a commercial launch.
 
+## Bugs fixed (7 tests that were failing before v20 now pass)
+- **Landing video was blocked:** the CSP had no `media-src`, so the CloudFront hero videos could not load. Added.
+- **Fonts and landing images were never served** by the default server mode (Docker/Render): `/fonts/...` and `/assets/...` returned 404, so the JetBrains Mono fonts silently fell back. Added safe routes (image/video/font files only, no `../`, no `.md`/code).
+- `landing-halora.*` and `landing-ios.*` were missing from the served-files list. Added.
+- `/api/tts/status` lacked `local_reason` and `downloading` (Settings could not say why local voices were off or which were downloading). Added; now covers Piper and MMS.
+- "snooze" ignored the clock the caller passed in and used the wall clock, so it could say "nothing to snooze" for a reminder that just fired. Fixed.
+- Piper had no memory check (MMS had). It now stays off below `AEGIS_PIPER_MIN_RAM_MB` (400) and says why; `AEGIS_PIPER_FORCE=1` overrides.
+
 ## Not changed / known
-Voice model files are not in the zip (they download on your machine). Seven tests already failed before v20 (a landing CSP `media-src` check, two MMS status tests that need PyTorch, one reminder test); v20 did not touch them.
+Voice model files are not in the zip (they download on your machine). Full server suite: 460 passed.

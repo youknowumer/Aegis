@@ -387,7 +387,7 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         resp.headers["Referrer-Policy"] = "no-referrer"
         resp.headers["Content-Security-Policy"] = (
             "default-src 'self'; connect-src 'self' ws: wss: https://api.open-meteo.com https://geocoding-api.open-meteo.com https://api.github.com; "
-            "img-src 'self' data: https://d2ol7oe51mr4n9.cloudfront.net; "
+            "img-src 'self' data: https://d2ol7oe51mr4n9.cloudfront.net; media-src 'self' https://d2ol7oe51mr4n9.cloudfront.net; "
             "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
         )
         return resp
@@ -698,7 +698,9 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         on = tts.available()
         local = tts.local_languages()
         return {"available": on, "provider": tts.provider(), "chars_left": tts_quota.left(user["id"]) if on else 0, "max_chars": tts.MAX_CHARS,
-                "languages": local, "roman_urdu": bool(local) and mms.roman_ready(), "engines": {"piper": piper_engine.languages(), "mms": mms.languages()}}
+                "languages": local, "roman_urdu": bool(local) and mms.roman_ready(), "engines": {"piper": piper_engine.languages(), "mms": mms.languages()},
+                "downloading": sorted(set(mms.downloading()) | set(piper_engine.downloading())),
+                "local_reason": "" if tts.provider() == "piper" else (mms.reason() or piper_engine.reason())}
 
     @app.post("/api/tts")
     async def tts_speak(body: TTSIn, request: Request, user=Depends(current_user)):
@@ -1342,6 +1344,22 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
                     raise HTTPException(404)
                 return FileResponse(p)
             app.add_api_route("/icons/{name}", icon_file, include_in_schema=False)
+        # Fonts and landing media: only image / video / font files, never anything outside the folder (no .md, no code, no ../).
+        media_types = {".woff2", ".woff", ".ttf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".avif", ".mp4", ".webm", ".ico"}
+
+        def media_route(folder: str):
+            root = (settings.WEB_DIR / folder).resolve()
+
+            def media_file(path: str):
+                p = (root / path).resolve()
+                if p.suffix.lower() not in media_types or not p.is_file() or root not in p.parents:
+                    raise HTTPException(404)
+                return FileResponse(p, headers={"Cache-Control": "public, max-age=86400"})
+            if root.is_dir():
+                app.add_api_route("/" + folder + "/{path:path}", media_file, include_in_schema=False)
+
+        media_route("fonts")
+        media_route("assets")
         if (settings.WEB_DIR / "index.html").is_file():
             app.add_api_route("/", serve("index.html"), include_in_schema=False)
     return app

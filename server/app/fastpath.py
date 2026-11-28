@@ -238,7 +238,7 @@ async def _reminders_and_memory(uid: int, raw: str, t: str, tz: str, db, now) ->
         mins = 10.0
         if m.group(1):
             mins = _rel_minutes(m.group(1), m.group(2)) or 10.0
-        last = db.last_fired_reminder(uid)
+        last = db.last_fired_reminder(uid, now=(now.timestamp() if now else None))
         if not last:
             return {"reply": "I don't see a reminder that just went off, so there is nothing to snooze.", "tools": ["snooze"]}
         due = (now or datetime.now(timezone.utc)).timestamp() + mins * 60
