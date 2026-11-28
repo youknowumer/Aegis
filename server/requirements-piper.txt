@@ -1,0 +1,4 @@
+# Optional: Piper local voices (new in v20). Light: ONNX Runtime, no PyTorch. Works with requirements-mms.txt (Piper first, MMS behind it).
+# Tested with piper-tts 1.8 (Python 3.13). Piper's engine package is GPL-3.0 licensed (separate from each voice's own licence): check that suits how you ship Aegis.
+piper-tts>=1.3
+onnxruntime>=1.18

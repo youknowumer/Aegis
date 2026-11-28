@@ -39,3 +39,14 @@ Status dekhne ke liye (server folder mein):  python scripts/mms_download.py --st
 3) Emotions: ab Aegis samajhta hai aap ko kya chahiye (sunna, hal, tasalli, khushi mein shirkat) aur "theek hoon" ke peechay chhupa dukh bhi.
 4) Memory: "yeh kabhi na bhoolna" bolein to pin ho jati hai. Memory export/import, logon ki yaadein, aur mood ke rhythms (jaise Sunday ko udaasi).
 Details: CHANGES-v17.md
+
+
+==================== v20: NAYA (Roman Urdu) ====================
+1) Naye voices (Piper): halke, tez, zyada natural. install-voices.bat (ya ./install-voices.sh) ab pehle Piper (lagbhag 1 GB) phir MMS install karta hai.
+   Sirf Piper:  install-voices.bat --piper-only      Behtar quality:  install-voices.bat --high
+   Har sentence: pehle us language ki Piper awaaz, phir MMS, phir Edge. Urdu/Punjabi/Tamil jaisi languages MMS par chalti hain, koi language kam nahi hui.
+   Status:  python scripts/piper_download.py --status   (server folder mein)
+2) Observability: AEGIS_ADMIN_TOKEN set karein, phir http://localhost:8000/admin/voice kholen: kaunsa engine bola, har language ke requests/errors,
+   latency p50/p95/p99, fallbacks, queue, downloads, memory. Prometheus ke liye /metrics. JSON logs ke liye AEGIS_LOG_JSON=1.
+Details: CHANGES-v20.md, SETUP.md ("Piper voices", "Observability"), SCALING.md
+

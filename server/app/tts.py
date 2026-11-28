@@ -7,8 +7,9 @@ studio voice at all. For the most human, emotional voice set ONE paid key (it th
                        "joyful", "gentle and slow", "urgent"... in the language of the text.
   ELEVENLABS_API_KEY   uses ElevenLabs eleven_multilingual_v2 (pick the voice with AEGIS_ELEVENLABS_VOICE).
 Optional: AEGIS_TTS_PROVIDER (openai | elevenlabs | mms | edge | off), AEGIS_TTS_MODEL, AEGIS_TTS_VOICE, AEGIS_TTS_CHARS_PER_DAY (per user).
-Local language voices: when PyTorch and downloaded MMS models are present (see mms.py) and no paid key is set, each sentence is spoken
-by the voice of its own language on this machine ("mms"). A language without a local model falls back to the Edge voice.
+Local language voices: when Piper voices (piper_engine.py, ONNX, no PyTorch) or downloaded MMS models (mms.py) are present and no paid key is set,
+each sentence is spoken on this machine by the best local voice of its own language: Piper first, then MMS, then the Edge voice, so speech never
+stops. Every sentence is measured (observability.py): which voice spoke, how long it took, and why a fallback happened.
 """
 import asyncio
 import json
@@ -20,7 +21,8 @@ import urllib.error
 import urllib.request
 from typing import Dict, Tuple
 
-from . import mms
+from . import mms, piper_engine
+from .observability import obs
 
 log = logging.getLogger("aegis.tts")
 
@@ -73,6 +75,8 @@ def provider() -> str:
         return ""
     if want == "edge":
         return "edge" if edge_enabled() else ""
+    if want == "piper":
+        return "piper" if piper_engine.ready() else ""
     if want == "mms":
         return "mms" if mms.ready() else ""
     if want == "openai" and have_o:
@@ -85,7 +89,9 @@ def provider() -> str:
         return "openai"
     if have_e:
         return "elevenlabs"
-    if mms.ready():  # downloaded local voices beat the free cloud voice; a paid key above still wins
+    if piper_engine.ready():  # downloaded local voices beat the free cloud voice; a paid key above still wins. Piper first, MMS behind it
+        return "piper"
+    if mms.ready():
         return "mms"
     return "edge" if edge_enabled() else ""
 
@@ -95,7 +101,7 @@ def available() -> bool:
 
 
 def daily_chars() -> int:
-    default = "200000" if provider() in ("edge", "mms") else "6000"  # the limit exists to protect paid keys; free voices get a generous one
+    default = "200000" if provider() in ("edge", "mms", "piper") else "6000"  # the limit exists to protect paid keys; free voices get a generous one
     try:
         return max(0, int(os.environ.get("AEGIS_TTS_CHARS_PER_DAY", default)))
     except ValueError:
@@ -206,28 +212,57 @@ def _edge_audio(text: str, voice: str, emotion: str, intensity: int = 3) -> byte
         raise TTSError("The voice service is not reachable right now.")
 
 
-# ---------------------------------------------------------------- MMS: local voice of the language being spoken
-def _mms_audio(text: str, lang: str, emotion: str, intensity: int = 3) -> bytes:
-    """Speak with the downloaded MMS voice of this language. Anything it cannot do (no model for the language, model busy or broken,
-    text it cannot read) goes to the Edge voice, so the user always hears an answer in their language."""
+# ---------------------------------------------------------------- LOCAL: Piper, then MMS, of the language being spoken
+class _Spoken:
+    """What _local_audio did: the audio, the voice that really spoke, and which local voice (if any) it replaced."""
+    __slots__ = ("audio", "engine", "fell_back_from", "why")
+
+    def __init__(self, audio: bytes, engine: str, fell_back_from: str = "", why: str = ""):
+        self.audio, self.engine, self.fell_back_from, self.why = audio, engine, fell_back_from, why
+
+
+def _local_audio(text: str, lang: str, emotion: str, intensity: int = 3, order: Tuple[str, ...] = ("piper", "mms")) -> _Spoken:
+    """Speak with the best downloaded local voice of this language: Piper (ONNX, natural) first, then MMS (widest language list).
+    Anything neither can do (no model for the language, model busy or broken, text it cannot read) goes to the Edge voice, so the
+    user always hears an answer in their language."""
     base = str(lang or "").split("-")[0].lower() or "en"
-    code = mms.code_for(base, _is_romanized(text, base))
-    why = "no local voice for this language"
-    if code:
-        rate, _pitch, volume = scale_prosody(*_EDGE_PROSODY.get(emotion, _EDGE_PROSODY["calm"]), intensity)  # MMS has speed and loudness, not pitch
-        try:
-            return mms.synthesize(text, code, base, int(rate.rstrip("%")), int(volume.rstrip("%")))
-        except mms.MMSError as e:
-            why = str(e)
+    rate, _pitch, volume = scale_prosody(*_EDGE_PROSODY.get(emotion, _EDGE_PROSODY["calm"]), intensity)  # local voices have speed and loudness, not pitch
+    rate_pct, volume_pct = int(rate.rstrip("%")), int(volume.rstrip("%"))
+    first_tried, why = "", "no local voice for this language"
+    for engine in order:
+        if engine == "piper" and piper_engine.ready():
+            key = piper_engine.code_for(base)
+            if key:
+                try:
+                    return _Spoken(piper_engine.synthesize(text, key, rate_pct, volume_pct), "piper", first_tried, why if first_tried else "")
+                except piper_engine.PiperError as e:
+                    first_tried, why = first_tried or "piper", str(e)
+        elif engine == "mms" and mms.ready():
+            code = mms.code_for(base, _is_romanized(text, base))
+            if code:
+                try:
+                    return _Spoken(mms.synthesize(text, code, base, rate_pct, volume_pct), "mms", first_tried, why if first_tried else "")
+                except mms.MMSError as e:
+                    first_tried, why = first_tried or "mms", str(e)
     if edge_enabled():
-        log.info("MMS fallback to the Edge voice (%s): %s", base, why)
-        return _edge_audio(text, edge_voice(text, lang), emotion, intensity)
-    raise TTSError("There is no local voice for this language yet." if code is None else "The local voice could not speak this sentence.")
+        log.info("Local voices fell back to the Edge voice (%s): %s", base, why)
+        return _Spoken(_edge_audio(text, edge_voice(text, lang), emotion, intensity), "edge", first_tried or "local", why)
+    raise TTSError("There is no local voice for this language yet." if not first_tried else "The local voice could not speak this sentence.")
+
+
+def _mms_audio(text: str, lang: str, emotion: str, intensity: int = 3) -> bytes:
+    """Kept for callers and tests that ask for the MMS path only (MMS, then Edge)."""
+    return _local_audio(text, lang, emotion, intensity, order=("mms",)).audio
 
 
 def local_languages() -> list:
     """Languages spoken by their own local voice right now (for the settings panel). Empty unless the local voices are the active provider."""
-    return mms.languages() if provider() == "mms" else []
+    if provider() not in ("piper", "mms"):
+        return []
+    langs = set(mms.languages()) if mms.ready() else set()
+    if piper_engine.ready():
+        langs |= set(piper_engine.languages())
+    return sorted(langs)
 
 
 def content_type(audio: bytes) -> str:
@@ -272,7 +307,7 @@ def _post(url: str, headers: dict, body: dict) -> bytes:
         raise TTSError("The voice service is not reachable right now.")
 
 
-def synthesize(text: str, emotion: str = "calm", lang: str = "", intensity: int = 3) -> bytes:
+def synthesize(text: str, emotion: str = "calm", lang: str = "", intensity: int = 3, rid: str = "") -> bytes:
     """Speak `text` (mp3 bytes). Raises TTSError with a message that is safe to show the user."""
     text = " ".join(str(text or "").split())
     if not text:
@@ -288,6 +323,21 @@ def synthesize(text: str, emotion: str = "calm", lang: str = "", intensity: int 
     style_amt = max(0.0, min(1.0, style_amt * (0.5 + intensity / 6)))  # stronger feeling -> more expressive
     base = str(lang or "").split("-")[0].lower()
     which = provider()
+    t0 = time.perf_counter()
+    spoken_by, fell_from, why = which, "", ""
+    try:
+        data, spoken_by, fell_from, why = _synthesize_with(which, text, emo, intensity, lang, base, style, stability, style_amt)
+    except TTSError as e:
+        obs.record_voice(which or "none", base or "und", "error", time.perf_counter() - t0, chars=len(text), why=str(e), rid=rid)
+        raise
+    obs.record_voice(spoken_by, base or "und", "ok", time.perf_counter() - t0, chars=len(text), size=len(data or b""), fell_back_from=fell_from, why=why, rid=rid)
+    if not data or len(data) > MAX_AUDIO_BYTES:
+        raise TTSError("The voice service sent back nothing usable.")
+    return data
+
+
+def _synthesize_with(which, text, emo, intensity, lang, base, style, stability, style_amt):
+    fell_from, why = "", ""
     if which == "openai":
         language = LANG_NAMES.get(base)
         instructions = "You are Aegis, a warm, expressive female voice assistant. " + (f"Speak {language} like a native speaker. " if language else "Speak in the language of the text, like a native speaker. ") + f"Tone: {style} Feeling strength {intensity} out of 5. Sound human: natural pauses and real feeling, never robotic or flat."
@@ -305,12 +355,11 @@ def synthesize(text: str, emotion: str = "calm", lang: str = "", intensity: int 
             {"xi-api-key": os.environ["ELEVENLABS_API_KEY"].strip()},
             {"text": text, "model_id": os.environ.get("AEGIS_TTS_MODEL", "eleven_multilingual_v2"), "voice_settings": {"stability": stability, "similarity_boost": 0.8, "style": style_amt, "use_speaker_boost": True}},
         )
-    elif which == "mms":
-        data = _mms_audio(text, lang, emo, intensity)
+    elif which in ("piper", "mms"):
+        r = _local_audio(text, lang, emo, intensity, order=("piper", "mms") if which == "piper" else ("mms", "piper"))
+        data, which, fell_from, why = r.audio, r.engine, r.fell_back_from, r.why
     elif which == "edge":
         data = _edge_audio(text, edge_voice(text, lang), emo, intensity)
     else:
         raise TTSError("Studio voice is not set up on this server.")
-    if not data or len(data) > MAX_AUDIO_BYTES:
-        raise TTSError("The voice service sent back nothing usable.")
-    return data
+    return data, which, fell_from, why

@@ -38,6 +38,11 @@ services:
         sync: false
       - key: AEGIS_HA_TOKEN
         sync: false
+      # v20: Piper voices (light, no PyTorch) are installed by default and download themselves on first use (about 20-110 MB per language).
+      # - key: AEGIS_PIPER_QUALITY
+      #   value: "medium"        # high | medium | low | x_low
+      # - key: AEGIS_LOG_JSON
+      #   value: "1"             # one JSON object per log line (Loki / Datadog / CloudWatch)
       # Optional (v16): local language voices (Meta MMS, non-commercial licence). Needs a plan with 2 GB+ RAM and a disk of 6 GB or more
       # (raise `sizeGB` above). On a smaller plan the server turns them off by itself and keeps the free Edge voice, so this is safe to try.
       # Models download themselves the first time each language is spoken. See SETUP.md > "Local language voices".

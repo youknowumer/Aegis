@@ -95,6 +95,33 @@ Restart the server, open the app, then Settings > Voice shows "Studio voice is o
 (`AEGIS_TTS_CHARS_PER_DAY`, default 6000 characters) so cost stays under control; when it is used up, or the service fails, the
 browser voice takes over without interruption. Untick "Studio voice" in the same place to switch it off.
 
+### Piper voices (v20): newer, lighter, more natural local voices (optional, free, install themselves)
+
+Piper is a second local voice engine that sits **in front of** MMS. Its voices are ONNX files (20 to 110 MB each), need no PyTorch, use about 60 MB of RAM
+and speak a sentence in a fraction of a second on a normal CPU. For each sentence Aegis tries: **Piper voice of that language, then MMS, then the Edge/cloud
+voice**, so a language Piper does not have (Urdu, Punjabi, Tamil...) is still spoken by MMS, and nothing ever goes silent.
+
+- **Install:** `install-voices.bat` / `./install-voices.sh` now installs Piper first (about 1 GB for every language it has) and then MMS. Piper only: add `--piper-only`.
+  Nicer but bigger voices: `--high`. Only some languages: `--langs en,es,de,hi`.
+- **No pre-download needed:** with `pip install -r requirements-piper.txt` Aegis downloads a language's Piper voice by itself the first time it is spoken.
+- **It picks the best voice for you** from Piper's live voice list (`voices.json`), so a renamed voice never breaks the install. Pin an exact voice with
+  `AEGIS_PIPER_VOICES=en=en_US-amy-medium,de=de_DE-thorsten-high`. Quality tier: `AEGIS_PIPER_QUALITY` (`high` | `medium` | `low` | `x_low`).
+- **Check:** `python scripts/piper_download.py --status` (inside `server`) lists installed voices and which languages still use MMS or Edge.
+- **Settings:** `AEGIS_PIPER=0` turns it off, `AEGIS_PIPER_AUTO=0` stops automatic downloads (or give a list `en,es`), `AEGIS_PIPER_CACHE` (voices kept in memory, default 6),
+  `AEGIS_PIPER_CONCURRENCY` (sentences at once, default 2), `AEGIS_PIPER_DIR`, `AEGIS_PIPER_BASE` (your own mirror/bucket).
+- **Licences:** each Piper voice has its own licence (see the MODEL_CARD on its Hugging Face page) and the `piper-tts` engine package is GPL-3.0. Check both before a commercial launch.
+
+### Observability: see how the voices (and the whole server) behave at scale
+
+Set `AEGIS_ADMIN_TOKEN`, then:
+- **`/admin/voice`** is a live dashboard (open it in a browser, paste the token): which engine spoke, requests and errors per language, latency p50/p95/p99,
+  fallbacks (for example `piper > edge`), queue waits and timeouts, downloads, installed and loaded voices, memory, threads, and the latest voice events with why a fallback happened.
+- **`/metrics`** (Prometheus, header `X-Admin-Token`) now also has labelled series: `aegis_voice_requests_total{engine,lang,outcome}`, `aegis_voice_synthesis_seconds` (histogram),
+  `aegis_voice_fallbacks_total{from_engine,to_engine,lang}`, `aegis_voice_queue_wait_seconds`, `aegis_voice_queue_timeouts_total`, `aegis_voice_model_load_seconds`,
+  `aegis_voice_model_downloads_total`, `aegis_http_request_seconds{method,route,status}`, `aegis_process_resident_memory_mb`. See SCALING.md for alert rules.
+- **`/api/admin/voice`** gives the same data as JSON; `/api/admin/stats` now includes a voice health verdict (`ok` or `degraded`).
+- **`AEGIS_LOG_JSON=1`** writes every log line as one JSON object (ready for Loki / Datadog / CloudWatch). Labels are fixed short words only: no user ids and no spoken text are ever recorded.
+
 ### Local language voices (MMS): the voice follows the language you speak (optional, free, installs itself)
 
 Aegis already answers in the language and script you write or speak. This adds a **voice per language** that runs on your own
@@ -115,7 +142,7 @@ You can skip the pre-download: install PyTorch only (`pip install -r requirement
 That installs PyTorch in the image; the models then download themselves onto the `/data` disk. On a smaller plan the same setting is harmless: the memory check keeps the local voices off.
 GitHub Pages only serves the page; the voice always comes from the server.
 
-Check what is installed any time (inside `server`): `python scripts/mms_download.py --status`.
+Check what is installed any time (inside `server`): `python scripts/mms_download.py --status` (MMS) or `python scripts/piper_download.py --status` (Piper).
 
 How it chooses: each sentence is spoken by the voice of its own language. A paid key (`OPENAI_API_KEY` / `ELEVENLABS_API_KEY`) still wins if you set
 one. A language with no local voice yet falls back to the free Edge voice, so Aegis never goes silent: **Italian, Chinese, Japanese and Czech have no

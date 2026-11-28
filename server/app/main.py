@@ -24,7 +24,9 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import chief, emotion, extras, fastpath, heart, learning, meeting, mms, otter, providers, settings, smarthome, tts
+from . import chief, emotion, extras, fastpath, heart, learning, meeting, mms, otter, piper_engine, providers, settings, smarthome, tts
+from .admin_page import VOICE_DASHBOARD_HTML, VOICE_DASHBOARD_JS
+from .observability import obs, refresh_process_gauges, setup_logging, voice_dashboard
 from .agent import Agent, Session
 from .auth import EMAIL_RE, hash_password, make_token, read_token_full, verify_password
 from .db import DB
@@ -34,6 +36,7 @@ log = logging.getLogger("aegis")
 if not logging.getLogger().handlers:  # under uvicorn the app's own logger would otherwise stay silent below WARNING
     logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log.setLevel(getattr(logging, settings.LOG_LEVEL, logging.INFO))
+setup_logging()  # AEGIS_LOG_JSON=1 turns every log line into one JSON object
 
 
 class LessonIn(BaseModel):
@@ -372,6 +375,8 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         ms = (time.perf_counter() - t0) * 1000
         metrics["http_requests_total"] += 1
         metrics[f"http_responses_{resp.status_code // 100}xx_total"] += 1
+        route = getattr(request.scope.get("route"), "path", None) or ("static" if resp.status_code < 400 else "unmatched")   # template, never the raw URL: bounded labels
+        obs.observe("http_request_seconds", ms / 1000, method=request.method, route=route, status=f"{resp.status_code // 100}xx")
         if resp.status_code >= 500 or ms > 2000:
             log.warning("rid=%s %s %s -> %s in %.0f ms", rid, request.method, request.url.path, resp.status_code, ms)
         resp.headers["X-Request-ID"] = rid
@@ -693,10 +698,10 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         on = tts.available()
         local = tts.local_languages()
         return {"available": on, "provider": tts.provider(), "chars_left": tts_quota.left(user["id"]) if on else 0, "max_chars": tts.MAX_CHARS,
-                "languages": local, "roman_urdu": bool(local) and mms.roman_ready()}
+                "languages": local, "roman_urdu": bool(local) and mms.roman_ready(), "engines": {"piper": piper_engine.languages(), "mms": mms.languages()}}
 
     @app.post("/api/tts")
-    async def tts_speak(body: TTSIn, user=Depends(current_user)):
+    async def tts_speak(body: TTSIn, request: Request, user=Depends(current_user)):
         if not tts.available():
             raise HTTPException(503, "Studio voice is not set up on this server.")
         tts_limiter.check((user["id"], "tts"))
@@ -706,9 +711,10 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         if len(text) > tts.MAX_CHARS:
             raise HTTPException(413, f"Send at most {tts.MAX_CHARS} characters at a time.")
         if not tts_quota.take(user["id"], len(text)):
+            obs.inc("voice_rejected_total", reason="quota")
             raise HTTPException(429, "Today's studio-voice allowance is used up. The built-in voice takes over.")
         try:
-            audio = await asyncio.to_thread(tts.synthesize, text, body.emotion, body.lang, body.intensity)
+            audio = await asyncio.to_thread(tts.synthesize, text, body.emotion, body.lang, body.intensity, request.headers.get("x-request-id", "")[:40])
         except tts.TTSError as e:
             tts_quota.refund(user["id"], len(text))
             raise HTTPException(502, str(e))
@@ -1015,7 +1021,27 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
     # ---------- admin + monitoring (needs AEGIS_ADMIN_TOKEN) ----------
     @app.get("/api/admin/stats")
     def admin_stats(_=Depends(admin_only)):
-        return {**db.stats(), "online_chats": sum(len(v) for v in hub.chats.values()), "online_devices": len(hub.devices), "counters": dict(metrics)}
+        return {**db.stats(), "online_chats": sum(len(v) for v in hub.chats.values()), "online_devices": len(hub.devices), "counters": dict(metrics),
+                "voice": voice_dashboard()["health"]}
+
+    @app.get("/api/admin/voice")
+    def admin_voice(_=Depends(admin_only)):
+        """Everything about the voice pipeline in one JSON: engines, languages, latency percentiles, fallbacks, queue, downloads, latest events."""
+        return voice_dashboard({"provider": tts.provider(), "piper": {**piper_engine.status(), "loaded": piper_engine.loaded()},
+                                "mms": {**mms.status(), "loaded": mms.loaded()}})
+
+    @app.get("/admin/voice")
+    def admin_voice_page():
+        """The dashboard page (no data in it). Like the admin API it does not exist until AEGIS_ADMIN_TOKEN is set."""
+        if not settings.ADMIN_TOKEN:
+            raise HTTPException(404, "Not found")
+        return HTMLResponse(VOICE_DASHBOARD_HTML, headers={"Cache-Control": "no-store"})
+
+    @app.get("/admin/voice.js")
+    def admin_voice_script():
+        if not settings.ADMIN_TOKEN:
+            raise HTTPException(404, "Not found")
+        return Response(VOICE_DASHBOARD_JS, media_type="text/javascript", headers={"Cache-Control": "no-store"})
 
     @app.get("/api/admin/users")
     def admin_users(limit: int = 50, offset: int = 0, q: str = "", _=Depends(admin_only)):
@@ -1056,7 +1082,8 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         ]
         for k, v in sorted(metrics.items()):
             lines += [f"# TYPE aegis_{k} counter", f"aegis_{k} {v}"]
-        return PlainTextResponse("\n".join(lines) + "\n")
+        refresh_process_gauges()
+        return PlainTextResponse("\n".join(lines) + "\n" + obs.render_prometheus())
 
     # ---------- websocket ----------
     agent_holder = {}

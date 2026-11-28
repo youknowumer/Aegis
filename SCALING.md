@@ -65,6 +65,24 @@ Setup is in SETUP.md. For capacity planning:
 - Two copies of the server each load their own models and download their own copies. That is another reason to stay at one process until you have moved shared state out (see below).
 - **Licence: CC-BY-NC 4.0 = non-commercial.** This is the one scale limit that no hardware fixes. Before you charge money, switch to a voice you may use commercially (`AEGIS_MMS=0` plus `OPENAI_API_KEY` or `ELEVENLABS_API_KEY`).
 
+## Observability at scale (v20)
+
+Everything below needs only `AEGIS_ADMIN_TOKEN`. The data lives in the process (no extra service); Prometheus keeps the history.
+
+- **Live page:** `/admin/voice`. **JSON:** `/api/admin/voice`. **Prometheus:** `/metrics`. **Structured logs:** `AEGIS_LOG_JSON=1`.
+- **Voice metrics** (labels are only engine, 2-letter language, outcome, route template: the number of series stays small):
+  `aegis_voice_requests_total`, `aegis_voice_synthesis_seconds_bucket`, `aegis_voice_fallbacks_total`, `aegis_voice_queue_wait_seconds_bucket`,
+  `aegis_voice_queue_timeouts_total`, `aegis_voice_model_load_seconds_bucket`, `aegis_voice_model_downloads_total`, `aegis_voice_models_loaded`,
+  `aegis_voice_models_installed`, `aegis_http_request_seconds_bucket`, `aegis_process_resident_memory_mb`, `aegis_process_threads`.
+- **Alerts worth setting** (Prometheus):
+  - Voice fallbacks climbing: `sum(rate(aegis_voice_fallbacks_total[5m])) / sum(rate(aegis_voice_requests_total[5m])) > 0.3` for 10 min. Models missing, broken or too slow.
+  - Slow speech: `histogram_quantile(0.95, sum by (le,engine) (rate(aegis_voice_synthesis_seconds_bucket[5m]))) > 3`. Raise `AEGIS_PIPER_CONCURRENCY` / CPU, or lower quality tier.
+  - Queue pressure: `rate(aegis_voice_queue_timeouts_total[5m]) > 0`. Sentences are waiting longer than the queue limit.
+  - Memory: `aegis_process_resident_memory_mb > 0.85 * <your limit>`. Lower `AEGIS_PIPER_CACHE` / `AEGIS_MMS_CACHE`.
+  - Errors: `rate(aegis_http_responses_5xx_total[5m]) > 0`.
+- **Capacity rule of thumb for voices:** Piper ~0.2 to 0.6 s per sentence per CPU core and ~60 MB per loaded language; MMS ~1 to 3 s and ~150 MB. Sentences per second you can serve
+  is about `AEGIS_PIPER_CONCURRENCY / seconds_per_sentence`; read the real seconds from `aegis_voice_synthesis_seconds` on your hardware before promising anything.
+
 ## Money
 
 - `AEGIS_PLAN_LIMITS='{"free":15,"basic":150,"power":1000}'` is your pricing lever. Your cost per message is roughly one to a few model calls; check your AI provider's dashboard after the first week and set limits from real numbers.

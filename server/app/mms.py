@@ -43,6 +43,8 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from .observability import obs
+
 log = logging.getLogger("aegis.mms")
 
 # Aegis language (the 2-letter code voice.js sends) -> MMS checkpoint (ISO 639-3). Every code is in the official list of 1,107 MMS-TTS
@@ -100,6 +102,7 @@ def installed(force: bool = False) -> Dict[str, Path]:
     except OSError:
         found = {}
     _scan.update(at=now, dir=str(folder), found=found)
+    obs.set_gauge("voice_models_installed", len(found), engine="mms")
     return found
 
 
@@ -291,6 +294,8 @@ def _worker() -> None:
             result = download(code, root)
         except Exception as e:  # noqa: BLE001
             result = str(e) or type(e).__name__
+        obs.inc("voice_model_downloads_total", engine="mms", result="ok" if result in ("done", "skipped") else "error")
+        obs.event("download", engine="mms", code=code, result=result)
         if result not in ("done", "skipped"):
             log.warning("MMS voice %s could not be downloaded: %s", code, result)
             with _dl["lock"]:
@@ -344,6 +349,7 @@ def _load(code: str) -> _Voice:
         path = installed().get(code)
         if path is None:
             raise MMSError(f"The {code} voice is not downloaded.")
+        t_load = time.perf_counter()
         try:
             import torch
             from transformers import AutoTokenizer, VitsModel
@@ -362,8 +368,10 @@ def _load(code: str) -> _Voice:
             log.warning("MMS voice %s could not be loaded: %s", code, e)
             raise MMSError(f"The {code} voice could not be loaded.")
         voice = _cache[code] = _Voice(tokenizer, model)
+        obs.observe("voice_model_load_seconds", time.perf_counter() - t_load, engine="mms")
         while len(_cache) > _env_int("AEGIS_MMS_CACHE", 3, 1, 64):
             _cache.popitem(last=False)
+        obs.set_gauge("voice_models_loaded", len(_cache), engine="mms")
         return voice
 
 
@@ -375,6 +383,7 @@ def loaded() -> List[str]:
 def unload_all() -> None:
     with _cache_lock:
         _cache.clear()
+    obs.set_gauge("voice_models_loaded", 0, engine="mms")
 
 
 # ---------------------------------------------------------------- text preparation
@@ -438,8 +447,11 @@ def synthesize(text: str, code: str, lang: str = "en", rate_pct: int = 0, volume
     pitch or style control, so the feeling is carried by speed and loudness here."""
     base = str(lang or "").split("-")[0].lower() or "en"
     sem = _slot()
+    t_wait = time.perf_counter()
     if not sem.acquire(timeout=_env_int("AEGIS_MMS_QUEUE_SECONDS", 20, 1, 120)):
+        obs.inc("voice_queue_timeouts_total", engine="mms")
         raise MMSError("The local voice is busy right now.")
+    obs.observe("voice_queue_wait_seconds", time.perf_counter() - t_wait, engine="mms")
     try:
         voice = _load(code)
         text = " ".join(_spell_numbers(str(text or ""), base).split())

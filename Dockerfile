@@ -1,11 +1,14 @@
 FROM python:3.12-slim
 WORKDIR /srv/server
-COPY server/requirements.txt server/requirements-mms.txt ./
+COPY server/requirements.txt server/requirements-mms.txt server/requirements-piper.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 # Optional local language voices (Meta MMS, non-commercial licence): docker compose build --build-arg WITH_MMS=1
 # The models are NOT in the image: they download themselves onto the /data volume the first time each language is spoken
 # (or in advance: docker compose exec aegis python scripts/mms_download.py). Too little memory? The local voices switch themselves off.
 ARG WITH_MMS=0
+# Piper voices (v20): light ONNX voices, no PyTorch, tried before MMS. On by default; switch off with --build-arg WITH_PIPER=0
+ARG WITH_PIPER=1
+RUN if [ "$WITH_PIPER" = "1" ]; then pip install --no-cache-dir -r requirements-piper.txt; fi
 RUN if [ "$WITH_MMS" = "1" ]; then pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && pip install --no-cache-dir -r requirements-mms.txt; fi
 COPY server/ /srv/server/
 # Website files: the server also serves them, so http://<server>/ works without GitHub Pages too.
@@ -16,7 +19,7 @@ COPY assets/ /srv/assets/
 # Run as a normal user, not root. /data holds the database (mount a volume there).
 RUN useradd --system --uid 10001 --home /srv aegis && mkdir -p /srv/downloads /data && chown -R aegis /srv /data
 USER aegis
-ENV AEGIS_DB=/data/aegis.db AEGIS_MMS_DIR=/data/mms_models PYTHONUNBUFFERED=1
+ENV AEGIS_DB=/data/aegis.db AEGIS_MMS_DIR=/data/mms_models AEGIS_PIPER_DIR=/data/piper_models PYTHONUNBUFFERED=1
 VOLUME /data
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
