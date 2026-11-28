@@ -535,6 +535,9 @@
     <label class="field">Wake word <input id="wake-word" maxlength="24" placeholder="Aegis (default), or your own word" autocomplete="off"></label>
     <label class="field">Call me <input id="call-me" maxlength="30" placeholder="e.g. sir, boss, your name" autocomplete="off"></label>
     <label class="field">Speaking speed <span class="range-wrap"><input id="rate" type="range" min="0.8" max="1.4" step="0.05" value="1.02" aria-label="Speaking speed"><output id="rate-out" class="range-out" for="rate">1.02&times;</output></span></label>
+    <label class="toggle"><input id="live-speak" type="checkbox" checked><span>Start speaking while I am still writing the answer</span></label>
+    <label class="toggle"><input id="barge-in" type="checkbox"><span>Let me interrupt by talking (Voice mode)</span></label>
+    <p id="barge-note" class="muted small"></p>
     <p id="voice-note" class="muted small" aria-live="polite"></p>
     <div class="row gap">
       <button id="mic-test" class="btn ghost small-btn" type="button">Test microphone</button>
@@ -789,6 +792,7 @@
 <script src="auth-ui.js?v=1"></script>
 <script src="orb.js"></script>
 <script src="voice.js"></script>
+<script src="talk.js"></script>
 <script src="commands.js"></script>
 <script src="webctl.js"></script>
 <script src="learning.js"></script>

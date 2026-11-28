@@ -168,3 +168,17 @@ Good to know:
 - **Smart home** needs Home Assistant. In Home Assistant open your profile > Security > Long-lived access tokens, create one, then set
   `AEGIS_HA_URL` (for example `http://homeassistant.local:8123`, reachable from the server) and `AEGIS_HA_TOKEN`. Say "turn off the bedroom light",
   "set the AC to 24", "movie scene". Locks, doors, garage and alarms always ask you to approve first.
+
+
+## Voice region and real-time talk (v21)
+
+| Setting | What it does |
+|---|---|
+| `AEGIS_TTS_EDGE_FIRST=ur` (default) | Languages whose neural online voice is tried before the local model; the local model answers when offline. `ur,pa` adds Punjabi, `0` = local voices first (v20 behaviour). |
+| Browser: Settings > Voice > *Voice region* | Auto (country from the CDN header `CF-IPCountry` / `CloudFront-Viewer-Country` / `X-Vercel-IP-Country`, then time zone) or a country you pick. Sent with every studio-voice request as `region`. |
+| `GET /api/voice/profile` | What the server can tell about the listener (country, `Accept-Language`). Signed-in users only. |
+| Piper regional voice | `python scripts/piper_download.py --voices en_GB-alba-medium`: a British listener then gets it. Owner pins (`AEGIS_PIPER_VOICES`) still win. |
+| Browser: *Start speaking while I am still writing the answer* | On by default. Off = the whole reply is spoken at the end, as before. |
+| Browser: *Let me interrupt by talking* | Off with open speakers, on automatically with headphones. |
+
+Behind a CDN or proxy the country header must reach Aegis for automatic region to work from the server; without it the time zone and the browser language are used.

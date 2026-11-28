@@ -877,9 +877,9 @@
         break;
       case "mood": window.AegisFeel = { intensity: Math.max(1, Math.min(5, m.intensity || 3)), at: Date.now() }; showMood(m.mood, m.feeling); break;
       case "status": setDevice(m.device); window.dispatchEvent(new CustomEvent("aegis:status", { detail: m })); break;
-      case "delta": clearCues(); onDelta(m.text || ""); break;
-      case "delta_end": endStream(); break;
-      case "stopped": clearCues(); endStream(); setBusy(false); toast("Stopped."); break;
+      case "delta": clearCues(); onDelta(m.text || ""); liveFeed(m.text || ""); break;
+      case "delta_end": endStream(); if (live) live.flush(); break;
+      case "stopped": clearCues(); endStream(); if (live) live.reset(); setBusy(false); toast("Stopped."); break;
       case "reminder": onReminder(m); break;
       case "alert": alertUser(m.text); break;   // proactive heads-up from the server (meeting soon, habits open, spending)
       case "tool": addTool(m); break;
@@ -891,7 +891,7 @@
         { const shown = endStream(m.text) || addMsg("ai", m.text); if (shown && m.iid) shown.dataset.iid = String(m.iid); }
         setUsage(m.used, m.limit);
         loadMemory(); loadTasks(); loadReminders();
-        speak(m.text);
+        if (!(live && live.finish())) speak(m.text);       // already spoken sentence by sentence while it streamed in? then only the tail is left
         break;
       case "error": clearCues(); confirmVoice = false; endStream(); setBusy(false); addMsg("err", m.text); break;
       case "cleared": clearChat(); break;
@@ -1355,6 +1355,7 @@
     let code = whisper ? WHISPER_LANG[String(whisper).toLowerCase()] : "";
     const a = window.AegisVoice && AegisVoice.analyze ? AegisVoice.analyze(text, "") : null;
     if (a) spokenHint = a.roman ? "roman-urdu" : a.base;
+    if (a && window.AegisVoice && AegisVoice.profile) AegisVoice.profile.setSpeaker(spokenHint);
     if (a && (a.base !== "en" || a.roman)) code = a.roman ? "ur-PK" : a.lang;       // the words themselves beat Whisper's label
     else if (!code && a) code = baseLocale();
     if (!code) return;
@@ -1705,7 +1706,11 @@
     return out;
   }
   // Speak in the language the TEXT is written in, so an English answer isn't read with an Urdu voice and vice versa.
-  function pageLang() { const s = $("lang").value; return s === "auto" ? "en-US" : s; }
+  function pageLang() {
+    const s = $("lang").value;
+    if (s !== "auto") return s;
+    return window.AegisVoice && AegisVoice.localeFor ? AegisVoice.localeFor("en") : "en-US";     // follow the person: Indian English in Pakistan, British in the UK...
+  }
   function langFor(text) {
     if (window.AegisVoice && AegisVoice.detectLang) return AegisVoice.detectLang(text, pageLang());   // any script, any language
     if (/[\u0600-\u06ff]/.test(text)) return "ur-PK";
@@ -1736,12 +1741,14 @@
     sel.value = list.some((v) => v.name === saved) ? saved : list[0].name;
   }
   let curAudio = null, cloudCtl = null;     // studio-voice playback in progress
+  let live = null, barge = null;            // v21 real-time talk (talk.js): speech while the answer streams, interrupt by talking
   const noVoiceWarned = new Set();
   function killAudio() {
     if (cloudCtl) { try { cloudCtl.abort(); } catch {} cloudCtl = null; }
     if (curAudio) { try { curAudio.pause(); } catch {} curAudio = null; }
   }
   function stopSpeaking() {
+    if (live) live.reset();
     speakGen++;
     killAudio();
     if (hasTTS) speechSynthesis.cancel();
@@ -1806,7 +1813,7 @@
         u.rate = Math.max(0.5, Math.min(2, baseRate * (p.rate || 1)));
         u.pitch = Math.max(0.2, Math.min(2, basePitch * (p.pitch || 1)));
         u.volume = Math.max(0.05, Math.min(1, (vp ? vp.volume : tune.volume) * (p.volume || 1)));
-        u.onstart = () => pulse(0.8);
+        u.onstart = () => { pulse(0.8); if (barge) barge.audioStarted(); };
         u.onboundary = (e) => { if (!e.name || e.name === "word") { lastBoundary = Date.now(); pulse(0.45 + Math.min(0.5, (e.charLength || 4) / 12)); } };
         const next = () => { if (gen === speakGen) setTimeout(() => step(i + 1), p.pause || 0); };
         u.onend = next; u.onerror = next;
@@ -1837,11 +1844,14 @@
         const over = (ok) => { URL.revokeObjectURL(url); if (curAudio === au) curAudio = null; if (ok) again(); else if (gen === speakGen) fallback(); };
         au.onended = () => over(true);
         au.onerror = () => over(false);
+        au.onplaying = () => { if (barge) barge.audioStarted(); };
         au.play().catch(() => over(false));
       };
-      return void nextGroup(0);
+      nextGroup(0);
+      return true;
     }
     speakPieces(pieces, finish);
+    return true;
   }
   // Speak a list of [{ text, emotion }] in order (meeting read-outs): each part keeps its own feeling.
   function speakScript(parts, opts) {
@@ -1854,6 +1864,71 @@
       speak(it.text, true, { meeting: true, emotion: it.emotion, onend: go });
     };
     go();
+  }
+
+  // ================================================================ v21 real-time talk (talk.js)
+  // (1) Speak while the answer is still streaming in: each finished sentence is spoken at once, the rest follows as it arrives.
+  const liveEnabled = () => safeGet("aegis_live") !== "0";
+  function liveWanted() {
+    if (!live || !liveEnabled() || !hasTTS) return false;
+    if (window.AegisMeetings && AegisMeetings.isPresent && AegisMeetings.isPresent()) return false;
+    return !!($("speak").checked || convo || spokenTurn);              // exactly when speak() would talk
+  }
+  function liveFeed(text) {
+    if (!live || !text) return;
+    const s = live.state();
+    if ((!s.on || s.done) && !s.muted && !liveWanted()) return;
+    live.feed(text);
+  }
+  if (window.AegisTalk && AegisTalk.createLive) {
+    live = AegisTalk.createLive({
+      speak: (text, done) => speak(text, false, { onend: done }) === true,
+      canSpeakNow: () => !speaking,                                    // a spoken "let me think" finishes first
+      onIdle: () => setTimeout(syncVoice, live.spoke() ? 360 : 0),     // everything said: give the microphone back once the room is quiet
+    });
+  }
+  // (2) Interrupt by talking: while Aegis speaks in Voice mode the microphone is watched (echo cancelled, my own voice's leak measured first);
+  // when the person clearly talks over her she stops, stays quiet for the rest of that answer, and listens.
+  let bargeAuto = false, bargeWarned = false;
+  const bargePref = () => safeGet("aegis_barge");                      // "1" on, "0" off, none = on only with headphones
+  const bargeEnabled = () => (bargePref() === "1" ? true : bargePref() === "0" ? false : bargeAuto);
+  function onInterrupt() {
+    const wasDone = live ? live.state().done : true;
+    const wasLive = live ? live.active() : false;
+    const wasBusy = busy;
+    stopSpeaking();
+    if (live && !wasDone && (wasBusy || wasLive)) live.mute();         // the answer is still coming in: keep quiet for the rest of it
+    if (wasBusy) { send({ type: "stop" }); if (directCtl) directCtl.abort(); }   // still writing: stop it, the person is about to say something else
+    setTimeout(syncVoice, 60);                                         // microphone on, listening
+  }
+  async function syncBarge() {
+    if (!barge) return;
+    const on = convo && bargeEnabled();
+    if (on && !barge.active()) {
+      if (!(await barge.start()) && !bargeWarned) { bargeWarned = true; toast("Interrupting by voice needs the microphone. It stays off until you allow it."); }
+    } else if (!on && barge.active()) barge.stop();
+  }
+  function paintBarge() {
+    const box = $("barge-in"), note = $("barge-note");
+    if (box) box.checked = bargeEnabled();
+    if (note) note.textContent = !(window.AegisTalk && AegisTalk.supported) ? "This browser cannot watch the microphone while I talk."
+      : bargePref() == null ? (bargeAuto ? "On because your speaker looks like headphones. With open speakers, Aegis could hear herself and cut herself off, so it stays off there until you turn it on."
+        : "Off by default: with open speakers Aegis could hear herself and cut herself off. Turn it on if you use headphones.") : "";
+  }
+  if (window.AegisTalk && AegisTalk.createBarge && AegisTalk.supported) {
+    barge = AegisTalk.createBarge({ isSpeaking: () => speaking, onInterrupt });
+    const refreshAuto = () => AegisTalk.headsetLikely().then((v) => { bargeAuto = v; paintBarge(); syncBarge(); });
+    refreshAuto();
+    document.addEventListener("aegis:voice-mode", refreshAuto);
+    setInterval(syncBarge, 3000);
+  }
+  if ($("live-speak")) {
+    $("live-speak").checked = liveEnabled();
+    $("live-speak").addEventListener("change", () => { safeSet("aegis_live", $("live-speak").checked ? "1" : "0"); if (!$("live-speak").checked && live) live.reset(); });
+  }
+  if ($("barge-in")) {
+    paintBarge();
+    $("barge-in").addEventListener("change", () => { safeSet("aegis_barge", $("barge-in").checked ? "1" : "0"); paintBarge(); syncBarge(); });
   }
 
   // ---- toggles
@@ -1903,6 +1978,8 @@
     if (!convo) { sleepNow(true); sendWrap(); }
     if (convo && gated()) toast('Voice mode on. Say \u201c' + wakeName() + '\u201d and ask me anything. Say \u201cthanks\u201d when you are done. Keep this tab open.', 7000);
     syncVoice();
+    document.dispatchEvent(new Event("aegis:voice-mode"));
+    syncBarge();
   });
   // voice settings
   $("vm-style").value = vmStyle();
@@ -2334,6 +2411,7 @@
     get token() { return token; },
     send: (o) => send(o),
   }; // used by meetings.js, account.js, webctl.js and learning.js
-  if (window.__AEGIS_TEST__) window.__aegis = { extractWake, rich, labelFor, noteLang, recLang, yesNo, makeVibe, cueBase, DEEP_RX, lastLangNow: () => lastLang };
+  if (window.__AEGIS_TEST__) window.__aegis = { extractWake, rich, labelFor, noteLang, recLang, yesNo, makeVibe, cueBase, DEEP_RX, lastLangNow: () => lastLang,
+    liveFeed, liveFlush: () => live && live.flush(), liveFinish: () => !!(live && live.finish()), liveState: () => live && live.state(), onInterrupt, pageLang };
   start();
 })();

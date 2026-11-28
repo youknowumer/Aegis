@@ -12,6 +12,7 @@
 //   AegisVoice.analyze(text, pageLang)  -> { lang: "es-ES", base: "es", roman }   language of one sentence (any script; Roman Urdu too)
 //   AegisVoice.stripTags(text)          removes the AI's [joy] / [empathy]... tags (they shape the voice, they are never shown or spoken)
 //   AegisVoice.cloud                    optional studio voice from the server (ready / refresh / audio)
+//   AegisVoice.profile                  v21: the LISTENER. region() / setRegion("PK") / setSpeaker("ur") / localeFor("en") -> "en-IN" for a listener in Pakistan
 //   AegisVoice.tune({rate, pitch, volume, expression}) / reset() / describe() / preview() / find(text)
 (() => {
   "use strict";
@@ -52,7 +53,7 @@
     const g = genderOf(v);
     if (g === "f") s += 400; else if (g === "m") s -= 400;
     const want = (normLang(lang).split("-")[1] || "").toUpperCase();
-    if (want && regionOf(v) === want) s += 25;
+    if (want && regionOf(v) === want) s += 45;                     // the listener's own accent
     return s;
   }
 
@@ -228,6 +229,76 @@
   const ARABIC_ONLY = /[\u064a\u0643\u0629\u0649\u0623\u0625\u0624\u0626]/;
   const PERSIAN_WORDS = new Set("این است نیست خیلی چطور هستم هستیم برای بود ممنون متاسفم متأسفم داریم میکنم می‌کنم شما".split(" "));
 
+  // ---------------------------------------------------------------- the listener: where they are and what they speak (v21)
+  // The voice follows the PERSON. Their region picks the accent (Indian English in Pakistan and India, British English in the UK, Egyptian or
+  // Gulf Arabic, Mexican Spanish...) and the language they speak travels with every sentence, so names and borrowed words are pronounced the way
+  // they would say them. Where the region comes from: the person's own choice (Settings) > the server (country header of the CDN) > the time zone
+  // > the browser language tag (en-US is ignored: it is just the default of most browsers).
+  const REGION_LOCALES = {      // regions that have a native voice, per language (browser voices and the studio voice)
+    en: "US GB AU CA IN IE NZ ZA SG HK KE NG PH TZ", ar: "SA EG AE IQ JO KW LB LY MA OM QA SY TN YE BH DZ", es: "ES MX AR CO US CL PE VE",
+    pt: "BR PT", fr: "FR CA BE CH", de: "DE AT CH", zh: "CN TW HK", ur: "PK IN", bn: "BD IN", ta: "IN LK SG MY",
+  };
+  const ENGLISH_NEAR = { PK: "IN", BD: "IN", LK: "IN", NP: "IN", BT: "IN", MV: "IN", AF: "IN" };   // no English voice of their own: the accent they know best
+  const TZ_REGION = {
+    "Asia/Karachi": "PK", "Asia/Kolkata": "IN", "Asia/Calcutta": "IN", "Asia/Dhaka": "BD", "Asia/Colombo": "LK", "Asia/Kathmandu": "NP", "Asia/Katmandu": "NP", "Asia/Kabul": "AF",
+    "Asia/Tehran": "IR", "Asia/Dubai": "AE", "Asia/Riyadh": "SA", "Asia/Qatar": "QA", "Asia/Kuwait": "KW", "Asia/Baghdad": "IQ", "Asia/Amman": "JO", "Asia/Beirut": "LB",
+    "Asia/Damascus": "SY", "Asia/Muscat": "OM", "Asia/Bahrain": "BH", "Asia/Aden": "YE", "Africa/Cairo": "EG", "Africa/Tripoli": "LY", "Africa/Tunis": "TN", "Africa/Algiers": "DZ",
+    "Africa/Casablanca": "MA", "Europe/London": "GB", "Europe/Dublin": "IE", "Europe/Madrid": "ES", "Europe/Lisbon": "PT", "Europe/Paris": "FR", "Europe/Brussels": "BE",
+    "Europe/Zurich": "CH", "Europe/Berlin": "DE", "Europe/Vienna": "AT", "Europe/Rome": "IT", "Europe/Amsterdam": "NL", "Europe/Istanbul": "TR", "Asia/Istanbul": "TR",
+    "Europe/Moscow": "RU", "Europe/Kiev": "UA", "Europe/Kyiv": "UA", "Asia/Shanghai": "CN", "Asia/Hong_Kong": "HK", "Asia/Taipei": "TW", "Asia/Tokyo": "JP", "Asia/Seoul": "KR",
+    "Asia/Singapore": "SG", "Asia/Kuala_Lumpur": "MY", "Asia/Jakarta": "ID", "Asia/Manila": "PH", "Asia/Bangkok": "TH", "Asia/Ho_Chi_Minh": "VN", "Asia/Saigon": "VN",
+    "Australia/Sydney": "AU", "Australia/Melbourne": "AU", "Australia/Brisbane": "AU", "Australia/Perth": "AU", "Australia/Adelaide": "AU", "Pacific/Auckland": "NZ",
+    "Africa/Johannesburg": "ZA", "Africa/Nairobi": "KE", "Africa/Lagos": "NG", "Africa/Dar_es_Salaam": "TZ", "America/New_York": "US", "America/Chicago": "US", "America/Denver": "US",
+    "America/Los_Angeles": "US", "America/Phoenix": "US", "America/Toronto": "CA", "America/Vancouver": "CA", "America/Mexico_City": "MX", "America/Argentina/Buenos_Aires": "AR",
+    "America/Buenos_Aires": "AR", "America/Bogota": "CO", "America/Santiago": "CL", "America/Lima": "PE", "America/Caracas": "VE", "America/Sao_Paulo": "BR",
+  };
+  const isCountry = (r) => /^[A-Z]{2}$/.test(r || "");
+  const listener = { net: store.get("aegis_net_region") || "", speaker: "" };
+  // Pure: the inputs say everything, so it can be tested without a browser.
+  function detectRegion(src) {
+    src = src || {};
+    const own = String(src.override || "").toUpperCase();
+    if (isCountry(own)) return own;
+    const net = String(src.net || "").toUpperCase();
+    if (isCountry(net)) return net;
+    if (TZ_REGION[src.tz || ""]) return TZ_REGION[src.tz];
+    for (const t of src.langs || []) { const r = (String(t).split(/[-_]/)[1] || "").toUpperCase(); if (isCountry(r) && r !== "US") return r; }
+    return "";
+  }
+  function region() {
+    let tz = "";
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch {}
+    const langs = typeof navigator !== "undefined" ? (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ""]) : [];
+    return detectRegion({ override: store.get("aegis_region"), net: listener.net, tz, langs });
+  }
+  // "en" + "PK" -> "en-IN"; "ar" + "EG" -> "ar-EG"; a region the language has no voice for -> the language's own default.
+  function localeFor(base, reg) {
+    base = baseOf(base);
+    const def = DEFAULT_REGION[base] || base;
+    reg = String(reg == null ? region() : reg).toUpperCase();
+    const have = (REGION_LOCALES[base] || "").split(" ");
+    if (!reg || !isCountry(reg)) return def;
+    if (have.includes(reg)) return base + "-" + reg;
+    if (base === "en" && ENGLISH_NEAR[reg]) return "en-" + ENGLISH_NEAR[reg];
+    return def;
+  }
+  // The page language only fixes the LANGUAGE ("English", "Español"): its region is the language's default. The region comes from the listener,
+  // unless the page asked for a non-default region on purpose (es-MX).
+  function localeOf(base, pageLang) {
+    const pl = normLang(pageLang);
+    if (baseOf(pl) === base && /-/.test(pl) && pl !== DEFAULT_REGION[base]) return pl;
+    return localeFor(base);
+  }
+  const profile = {
+    region, detectRegion, localeFor, REGION_LOCALES,
+    setRegion(r) { const v = String(r || "").toUpperCase(); store.set("aegis_region", isCountry(v) ? v : null); emit(); return region(); },
+    isChosen() { return isCountry(String(store.get("aegis_region") || "").toUpperCase()); },
+    setNetwork(r) { const v = String(r || "").toUpperCase(); if (isCountry(v) && v !== listener.net) { listener.net = v; store.set("aegis_net_region", v); emit(); } },
+    // the language the person speaks ("ur", "en", "roman-urdu" counts as Urdu): sent to the studio voice with each sentence
+    setSpeaker(l) { const v = String(l || "").toLowerCase(); listener.speaker = v === "roman-urdu" ? "ur" : v.split("-")[0].slice(0, 8); },
+    speaker: () => listener.speaker,
+  };
+
   // -> { lang: "es-ES", base: "es", roman: false }. pageLang is the language chosen in the app (used when the text gives no clue).
   function analyze(text, pageLang) {
     const t = stripTags(text);
@@ -247,10 +318,10 @@
         else best = ["ur", "ar", "fa"].includes(pageBase) ? pageBase : "ur";
       } else if (best === "zh" && /[\u3040-\u30ff]/.test(t)) best = "ja";
       else if (best === "ru" && /[\u0456\u0457\u0454\u0491]/.test(t)) best = "uk";
-      if (best) return { lang: pageBase === best && /-/.test(pageLang) ? normLang(pageLang) : DEFAULT_REGION[best], base: best, roman: false };
+      if (best) return { lang: localeOf(best, pageLang), base: best, roman: false };
     }
     const lower = t.toLowerCase();
-    if (/[ñ¿¡]/.test(lower)) return { lang: pageBase === "es" ? normLang(pageLang) : "es-ES", base: "es", roman: false };
+    if (/[ñ¿¡]/.test(lower)) return { lang: localeOf("es", pageLang), base: "es", roman: false };
     const toks = lower.replace(/[’‘]/g, "'").match(/[\p{L}']+/gu) || [];
     if (toks.length) {
       const score = {};
@@ -263,12 +334,11 @@
       if (n >= 2 || (n >= 1 && toks.length <= 3 && score.en === 0)) {
         if (n > score.en) {
           if (top === "roman") return { lang: "en-IN", base: "ur", roman: true };        // Roman Urdu / Hindi: an Indian-English voice says it most naturally
-          return { lang: pageBase === top && /-/.test(pageLang) ? normLang(pageLang) : DEFAULT_REGION[top], base: top, roman: false };
+          return { lang: localeOf(top, pageLang), base: top, roman: false };
         }
       }
     }
-    const en = /^en/i.test(pageLang || "") ? normLang(pageLang) : "en-US";
-    return { lang: en, base: "en", roman: false };
+    return { lang: localeOf("en", pageLang), base: "en", roman: false };
   }
   const detectLang = (text, pageLang) => analyze(text, pageLang).lang;
 
@@ -445,7 +515,7 @@
   let worldIdx = 0;
   function previewWorld() {
     const s = WORLD[worldIdx++ % WORLD.length];
-    speakShaped(s[2], { emotion: s[0], lang: DEFAULT_REGION[s[1]] });
+    speakShaped(s[2], { emotion: s[0], lang: localeFor(s[1]) });
     return { language: s[1], text: s[2] };
   }
 
@@ -469,7 +539,16 @@
         if (info && info.available) fails = 0;
       } catch { info = null; }
       emit();
+      loadProfile();
       return info;
+    }
+    // Where does the server think this person is (country header of the CDN, Accept-Language)? Asked once per page load.
+    let profileAsked = false;
+    function loadProfile() {
+      if (profileAsked || typeof fetch === "undefined" || isLocal() || !token()) return;
+      profileAsked = true;
+      fetch(api() + "/api/voice/profile", { headers: { Authorization: "Bearer " + token() } })
+        .then((r) => (r && r.ok ? r.json() : null)).then((p) => { if (p && p.region) profile.setNetwork(p.region); }).catch(() => {});
     }
     // One group of sentences -> an object URL for the audio, or null (then the caller uses the browser voice).
     async function audio(group, signal) {
@@ -477,7 +556,7 @@
         const r = await fetch(api() + "/api/tts", {
           method: "POST", signal,
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + token() },
-          body: JSON.stringify({ text: group.text, emotion: group.emotion, lang: group.tts, intensity: (window.AegisFeel && Date.now() - window.AegisFeel.at < 600000) ? window.AegisFeel.intensity : 3 }),
+          body: JSON.stringify({ text: group.text, emotion: group.emotion, lang: group.tts, region: region(), speaker: listener.speaker, intensity: (window.AegisFeel && Date.now() - window.AegisFeel.at < 600000) ? window.AegisFeel.intensity : 3 }),
         });
         if (!r.ok) { fails = [429, 503, 413].includes(r.status) ? 2 : fails + 1; if (info && r.status === 429) info.chars_left = 0; emit(); return null; }
         const blob = await r.blob();
@@ -543,6 +622,28 @@
           + (i.local_reason ? " Local language voices are off: " + i.local_reason + "." : "");
     };
     refreshStudio(); listeners.add(refreshStudio); cloud.refresh();
+    // Where you are decides the accent: Indian English in Pakistan and India, British in the UK, Egyptian or Gulf Arabic, Mexican Spanish...
+    const REGIONS = [["PK", "Pakistan"], ["IN", "India"], ["BD", "Bangladesh"], ["LK", "Sri Lanka"], ["NP", "Nepal"], ["AF", "Afghanistan"], ["IR", "Iran"], ["SA", "Saudi Arabia"], ["AE", "United Arab Emirates"],
+      ["QA", "Qatar"], ["KW", "Kuwait"], ["OM", "Oman"], ["BH", "Bahrain"], ["IQ", "Iraq"], ["JO", "Jordan"], ["LB", "Lebanon"], ["SY", "Syria"], ["YE", "Yemen"], ["EG", "Egypt"], ["LY", "Libya"], ["TN", "Tunisia"],
+      ["DZ", "Algeria"], ["MA", "Morocco"], ["TR", "T\u00fcrkiye"], ["GB", "United Kingdom"], ["IE", "Ireland"], ["US", "United States"], ["CA", "Canada"], ["AU", "Australia"], ["NZ", "New Zealand"],
+      ["ZA", "South Africa"], ["NG", "Nigeria"], ["KE", "Kenya"], ["SG", "Singapore"], ["MY", "Malaysia"], ["PH", "Philippines"], ["ES", "Spain"], ["MX", "Mexico"], ["AR", "Argentina"], ["CO", "Colombia"],
+      ["CL", "Chile"], ["PE", "Peru"], ["BR", "Brazil"], ["PT", "Portugal"], ["FR", "France"], ["DE", "Germany"], ["AT", "Austria"], ["CH", "Switzerland"], ["IT", "Italy"], ["NL", "Netherlands"],
+      ["RU", "Russia"], ["CN", "China"], ["TW", "Taiwan"], ["HK", "Hong Kong"], ["JP", "Japan"], ["KR", "South Korea"], ["ID", "Indonesia"], ["TH", "Thailand"], ["VN", "Vietnam"]];
+    const regionName = (c) => (REGIONS.find((r) => r[0] === c) || [c, c])[1];
+    const regionLab = document.createElement("label"); regionLab.className = "field"; regionLab.title = "Decides the accent: Indian English in Pakistan and India, British English in the UK, Egyptian or Gulf Arabic, Mexican Spanish...";
+    const regionSp = document.createElement("span"); regionSp.textContent = "Voice region";
+    const regionSel = document.createElement("select"); regionSel.setAttribute("aria-label", "Voice region");
+    const regionAuto = new Option("Auto", ""); regionSel.append(regionAuto);
+    REGIONS.forEach((r) => regionSel.append(new Option(r[1], r[0])));
+    const paintRegion = () => {
+      const mine = profile.isChosen() ? String(store.get("aegis_region")).toUpperCase() : "";
+      const seen = region();
+      regionAuto.textContent = seen && !mine ? "Auto (" + regionName(seen) + ")" : "Auto";
+      regionSel.value = mine;
+    };
+    regionSel.addEventListener("change", () => { profile.setRegion(regionSel.value); paintRegion(); preview(); });
+    regionLab.append(regionSp, regionSel);
+    paintRegion(); listeners.add(paintRegion);
     const world = document.createElement("button"); world.type = "button"; world.className = "btn ghost small-btn"; world.textContent = "Hear another language";
     world.addEventListener("click", () => previewWorld());
     const rst = document.createElement("button"); rst.type = "button"; rst.className = "btn ghost small-btn"; rst.textContent = "Reset voice";
@@ -552,7 +653,7 @@
       mk("Emotion", "0", "1.6", "0.1", () => state.expression, (v) => { state.expression = v; store.set("aegis_expression", String(v)); }, "0 = flat, 1 = natural, 1.6 = dramatic"),
       mk("Pitch", "0.6", "1.6", "0.05", () => state.pitch, (v) => { state.pitch = v; store.set("aegis_pitch", String(v)); }),
       mk("Volume", "0.1", "1", "0.05", () => state.volume, (v) => { state.volume = v; store.set("aegis_volume", String(v)); }),
-      studio, studioNote, test, world, rst);
+      regionLab, studio, studioNote, test, world, rst);
     group.querySelector("h4").after(host);
   }
 
@@ -601,7 +702,7 @@
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mountUI); else mountUI();
   }
 
-  const api = { mountQuick, resolve, shape, emotionOf, analyze, detectLang, stripTags, cloudGroups, cloud, hasVoice, previewWorld, tuning, find, set, cycle, tune, reset, list, describe, preview, speakShaped, EMOTIONS, get persona() { return PERSONA.id; }, onChange(f) { listeners.add(f); } };
+  const api = { profile, localeFor, mountQuick, resolve, shape, emotionOf, analyze, detectLang, stripTags, cloudGroups, cloud, hasVoice, previewWorld, tuning, find, set, cycle, tune, reset, list, describe, preview, speakShaped, EMOTIONS, get persona() { return PERSONA.id; }, onChange(f) { listeners.add(f); } };
   if (typeof window !== "undefined") window.AegisVoice = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

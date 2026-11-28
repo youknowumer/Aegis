@@ -89,6 +89,8 @@ class TTSIn(BaseModel):
     emotion: str = "calm"
     lang: str = ""
     intensity: int = 3
+    region: str = ""      # v21: the listener's country (PK, IN, GB...): picks the accent / regional voice
+    speaker: str = ""     # v21: the language the listener speaks ("ur", "en"...): helps the paid voices pronounce names and borrowed words
 
 
 class MeetingIn(BaseModel):
@@ -700,7 +702,13 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
         return {"available": on, "provider": tts.provider(), "chars_left": tts_quota.left(user["id"]) if on else 0, "max_chars": tts.MAX_CHARS,
                 "languages": local, "roman_urdu": bool(local) and mms.roman_ready(), "engines": {"piper": piper_engine.languages(), "mms": mms.languages()},
                 "downloading": sorted(set(mms.downloading()) | set(piper_engine.downloading())),
-                "local_reason": "" if tts.provider() == "piper" else (mms.reason() or piper_engine.reason())}
+                "local_reason": "" if tts.provider() == "piper" else (mms.reason() or piper_engine.reason()),
+                "region_aware": True, "edge_first": sorted(tts._edge_first())}
+
+    @app.get("/api/voice/profile")
+    def voice_profile(request: Request, user=Depends(current_user)):
+        """What the server can tell about this listener (country from the CDN header, languages from Accept-Language). The browser adds its own guess and the person's choice wins."""
+        return tts.request_profile(request.headers)
 
     @app.post("/api/tts")
     async def tts_speak(body: TTSIn, request: Request, user=Depends(current_user)):
@@ -716,7 +724,8 @@ def create_app(client=None, db_path=None, allowed_origins=None) -> FastAPI:
             obs.inc("voice_rejected_total", reason="quota")
             raise HTTPException(429, "Today's studio-voice allowance is used up. The built-in voice takes over.")
         try:
-            audio = await asyncio.to_thread(tts.synthesize, text, body.emotion, body.lang, body.intensity, request.headers.get("x-request-id", "")[:40])
+            audio = await asyncio.to_thread(tts.synthesize, text, body.emotion, body.lang, body.intensity, request.headers.get("x-request-id", "")[:40],
+                                            "".join(c for c in body.region if c.isalpha() or c in "-_")[:8], "".join(c for c in body.speaker if c.isalpha() or c == "-")[:8])
         except tts.TTSError as e:
             tts_quota.refund(user["id"], len(text))
             raise HTTPException(502, str(e))

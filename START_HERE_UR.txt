@@ -50,3 +50,16 @@ Details: CHANGES-v17.md
    latency p50/p95/p99, fallbacks, queue, downloads, memory. Prometheus ke liye /metrics. JSON logs ke liye AEGIS_LOG_JSON=1.
 Details: CHANGES-v20.md, SETUP.md ("Piper voices", "Observability"), SCALING.md
 
+
+
+==================== v21: NAYA (Roman Urdu) ====================
+1) Awaaz ab sunne wale ke ilaqe ke hisab se: Settings > Voice > "Voice region" (Auto ya apna mulk chunein).
+   Pakistan / India ke liye English Indian accent mein, UK ke liye British, Misr ke liye Misri Arabic, Mexico ke liye Mexican Spanish, waghera.
+   Aap jo zuban bolte hain wo bhi awaaz ke saath jaati hai, taake naam aur angrezi lafz aap ki tarah bolay jayen.
+2) Urdu ab pehle neural awaaz (Uzma) mein bolti hai; internet na ho to local MMS awaaz. Purana tareeqa (pehle local):  AEGIS_TTS_EDGE_FIRST=0
+   Urdu jawab ka lehja bhi behtar: rozmarra Pakistani Urdu, ۔ ؟ ، se saans ki jagah, aur Roman Urdu ki ek hi spelling.
+3) Real-time baat-cheet (naya talk.js):
+   - Jawab likha ja raha hota hai to Aegis pehla jumla pura hote hi bolna shuru kar deti hai (Settings > Voice > "Start speaking while I am still writing the answer").
+   - Voice mode mein beech mein bol kar Aegis ko rok sakte hain. Headphones lagay hon to khud on; open speakers par default band (warna wo apni awaaz sun kar ruk jati hai). Settings > Voice > "Let me interrupt by talking".
+4) Server ke 404 bug theek: auth-ui.js aur auth-ui.css ab serve hotay hain.
+Details: CHANGES-v21.md

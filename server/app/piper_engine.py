@@ -142,13 +142,26 @@ def _score(key: str) -> tuple:
     return (abs(rank - want), rank, key)          # nearest to the wanted tier, then the higher one
 
 
-def voice_for(lang: str) -> Optional[str]:
-    """The installed voice key to speak this language with, or None."""
+def _region_of(lang_or_region: str) -> str:
+    """'GB', 'en-GB', 'en_GB' -> 'GB'; a bare language or nothing -> ''."""
+    s = str(lang_or_region or "").strip().replace("_", "-")
+    tail = s.split("-")[-1]
+    return tail.upper() if len(tail) == 2 and tail.isalpha() and ("-" in s or tail.upper() == tail) else ""
+
+
+def voice_for(lang: str, region: str = "") -> Optional[str]:
+    """The installed voice key to speak this language with, or None. An owner's pin always wins; after that a voice made for the listener's
+    own region (en_GB for a British listener, pt_PT, es_MX...) beats the general best voice of the language."""
     base = str(lang or "").split("-")[0].lower() or "en"
     have = installed()
     pin = _pinned().get(base)
     if pin and pin in have:
         return pin
+    where = _region_of(region)
+    if where:
+        local = sorted((k for k in have if family_of(k) == base and k.split("-", 1)[0].upper().endswith("_" + where)), key=_score)
+        if local:
+            return local[0]
     for key in PREFERRED.get(base, []):
         if key in have and key.rsplit("-", 1)[-1] == wanted_quality():
             return key
@@ -387,10 +400,10 @@ def unload_all() -> None:
     obs.set_gauge("voice_models_loaded", 0, engine="piper")
 
 
-def code_for(lang: str) -> Optional[str]:
-    """The installed voice for this language, or None (and a background download starts when allowed)."""
+def code_for(lang: str, region: str = "") -> Optional[str]:
+    """The installed voice for this language (and listener region), or None (and a background download starts when allowed)."""
     base = str(lang or "").split("-")[0].lower() or "en"
-    key = voice_for(base)
+    key = voice_for(base, region)
     if key:
         return key
     if base in LANGS and enabled() and deps_ok() and auto_allows(base):

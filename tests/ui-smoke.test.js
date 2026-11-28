@@ -21,7 +21,7 @@ async function boot(opts) {
   // scripts are inlined, so the test needs no server and works with any jsdom version
   const html = fs.readFileSync(path.join(root, "app.html"), "utf8")
     .replace(/<link[^>]+rel="stylesheet"[^>]*>/g, "")
-    .replace(/<script src="([^"]+)"><\/script>/g, (m, f) => "<script>" + fs.readFileSync(path.join(root, f), "utf8") + "</script>");
+    .replace(/<script src="([^"]+)"><\/script>/g, (m, f) => "<script>" + fs.readFileSync(path.join(root, f.split("?")[0]), "utf8") + "</script>");
   const dom = new JSDOM(html, {
     url: "http://localhost/app.html", runScripts: "dangerously", pretendToBeVisual: true, virtualConsole: vc,
     beforeParse(w) {

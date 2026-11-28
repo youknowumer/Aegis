@@ -304,6 +304,14 @@ class Agent:
             if lang in names:
                 extra += (f"\nThe user just SPOKE in {names[lang]}. Answer in that same language and script, matching their tone and energy, "
                           "so the reply sounds natural when read aloud. If their next message is in another language, switch with them.")
+            if lang == "ur":
+                extra += ("\nURDU, spoken: write the way an educated Pakistani speaks at home, not the newsreader's or the textbook's Urdu: everyday words (ٹھیک ہے، "
+                          "جی بالکل، کیا بات ہے), no heavy Persian or Arabic words where a plain one exists, and no Hindi words. Use ۔ at the end of a sentence, ؟ for questions "
+                          "and ، for pauses so the voice breathes in the right places. Write common borrowed words in Urdu script too (میٹنگ، ای میل، پاس ورڈ), "
+                          "because Latin letters inside Urdu text make the voice switch accent. Keep sentences short, and say numbers and times in words the way people say them aloud.")
+            elif lang == "roman-urdu":
+                extra += ("\nROMAN URDU, spoken: keep one steady, common spelling so the voice reads it right (kya, hai, aap, theek, bohat, shukriya, nahi, acha), "
+                          "write it the way a Pakistani friend texts, with short sentences and a comma wherever a person would pause. Do not mix in Urdu script, and do not use Hindi spellings (kaise, dhanyavaad) unless they did.")
         if voice and vibe:
             bits = []
             if vibe.get("pace") == "slow" and vibe.get("energy") == "low":

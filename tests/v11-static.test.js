@@ -21,7 +21,7 @@ test("account.js is loaded by app.html and served by the server", () => {
 
 test("every script app.html loads is in the server's served-files list", () => {
   const served = new Set([...read("server/app/settings.py").match(/WEB_FILES = \(([\s\S]*?)\n\)/)[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]));
-  for (const m of read("app.html").matchAll(/<(?:script src|link rel="stylesheet" href)="([^"]+)"/g)) assert.ok(served.has(m[1]), m[1] + " is not served");
+  for (const m of read("app.html").matchAll(/<(?:script src|link rel="stylesheet" href)="([^"]+)"/g)) assert.ok(served.has(m[1].split("?")[0]), m[1] + " is not served");
 });
 
 test("app.js hands account.js what it needs", () => {
