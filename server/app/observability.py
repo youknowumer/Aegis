@@ -21,7 +21,7 @@ import threading
 import time
 from collections import deque
 from contextlib import contextmanager
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 START = time.time()
 LATENCY_BUCKETS = (0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 30.0)   # seconds

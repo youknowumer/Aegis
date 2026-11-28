@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from app import mms, piper_engine as pe  # noqa: E402
+from app import piper_engine as pe  # noqa: E402
 
 
 def plan(args, index: dict) -> tuple:
